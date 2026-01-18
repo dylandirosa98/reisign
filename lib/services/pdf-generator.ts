@@ -532,8 +532,10 @@ class PDFGeneratorService {
 
     // Launch Puppeteer with appropriate chromium for environment
     const browser = await puppeteer.launch({
-      args: isProduction ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
-      defaultViewport: chromium.defaultViewport,
+      args: isProduction
+        ? chromium.args
+        : ['--no-sandbox', '--disable-setuid-sandbox'],
+      defaultViewport: { width: 1920, height: 1080 },
       executablePath: isProduction
         ? await chromium.executablePath()
         : process.platform === 'win32'
@@ -541,7 +543,7 @@ class PDFGeneratorService {
           : process.platform === 'darwin'
             ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
             : '/usr/bin/google-chrome',
-      headless: isProduction ? chromium.headless : true,
+      headless: true,
     })
 
     let pdfBytes: Uint8Array
