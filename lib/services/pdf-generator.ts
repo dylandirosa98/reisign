@@ -1,8 +1,12 @@
-import puppeteer from 'puppeteer'
+import puppeteer from 'puppeteer-core'
+import chromium from '@sparticuz/chromium'
 import fs from 'fs/promises'
 import path from 'path'
 import { PDFDocument, rgb } from 'pdf-lib'
 import { createAdminClient } from '@/lib/supabase/admin'
+
+// Check if running in production (Vercel) or local development
+const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
 
 export interface ContractData {
   // Property fields
@@ -526,10 +530,18 @@ class PDFGeneratorService {
     // Generate footer template with initials
     const footerTemplate = this.generateFooterTemplate(buyerInitialsImg)
 
-    // Launch Puppeteer
+    // Launch Puppeteer with appropriate chromium for environment
     const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: isProduction ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
+      defaultViewport: chromium.defaultViewport,
+      executablePath: isProduction
+        ? await chromium.executablePath()
+        : process.platform === 'win32'
+          ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+          : process.platform === 'darwin'
+            ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+            : '/usr/bin/google-chrome',
+      headless: isProduction ? chromium.headless : true,
     })
 
     let pdfBytes: Uint8Array
