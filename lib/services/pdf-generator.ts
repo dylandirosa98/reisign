@@ -1,5 +1,5 @@
 import puppeteer from 'puppeteer-core'
-import chromium from '@sparticuz/chromium'
+import chromium from '@sparticuz/chromium-min'
 import fs from 'fs/promises'
 import path from 'path'
 import { PDFDocument, rgb } from 'pdf-lib'
@@ -7,6 +7,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 // Check if running in production (Vercel) or local development
 const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
+
+// Remote chromium URL for serverless environments
+const CHROMIUM_REMOTE_URL = 'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
 
 export interface ContractData {
   // Property fields
@@ -537,7 +540,7 @@ class PDFGeneratorService {
         : ['--no-sandbox', '--disable-setuid-sandbox'],
       defaultViewport: { width: 1920, height: 1080 },
       executablePath: isProduction
-        ? await chromium.executablePath()
+        ? await chromium.executablePath(CHROMIUM_REMOTE_URL)
         : process.platform === 'win32'
           ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
           : process.platform === 'darwin'
