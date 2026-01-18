@@ -171,15 +171,15 @@ export async function POST(request: NextRequest) {
     let assignmentTemplateId: string | null = null
 
     if (companyTemplateId) {
-      // Validate the company template exists and belongs to this company
+      // Validate the company template exists and belongs to this company OR is an example template
       const { data: companyTemplateData, error: templateError } = await adminSupabase
         .from('company_templates' as any)
-        .select('id, name, html_content')
+        .select('id, name, html_content, is_example')
         .eq('id', companyTemplateId)
-        .eq('company_id', userData.company_id)
+        .or(`company_id.eq.${userData.company_id},is_example.eq.true`)
         .single()
 
-      const companyTemplate = companyTemplateData as { id: string; name: string; html_content: string } | null
+      const companyTemplate = companyTemplateData as { id: string; name: string; html_content: string; is_example: boolean } | null
 
       if (templateError || !companyTemplate) {
         console.error('[Create Contract] Company template not found:', templateError)
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
 
-      console.log('[Create Contract] Using company template:', companyTemplate.name)
+      console.log('[Create Contract] Using company template:', companyTemplate.name, companyTemplate.is_example ? '(example)' : '')
     } else {
       // Fall back to state-based templates
       const { data: stateTemplate } = await adminSupabase
