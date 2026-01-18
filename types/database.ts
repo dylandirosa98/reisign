@@ -279,39 +279,105 @@ export type Database = {
           },
         ]
       }
+      state_templates: {
+        Row: {
+          assignment_contract_file_name: string | null
+          assignment_contract_html: string | null
+          assignment_contract_template_id: string | null
+          created_at: string | null
+          id: string
+          is_assignment_customized: boolean | null
+          is_general: boolean | null
+          is_purchase_customized: boolean | null
+          purchase_agreement_file_name: string | null
+          purchase_agreement_html: string | null
+          purchase_agreement_template_id: string | null
+          state_code: string
+          state_name: string
+          updated_at: string | null
+          use_general_template: boolean | null
+        }
+        Insert: {
+          assignment_contract_file_name?: string | null
+          assignment_contract_html?: string | null
+          assignment_contract_template_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_assignment_customized?: boolean | null
+          is_general?: boolean | null
+          is_purchase_customized?: boolean | null
+          purchase_agreement_file_name?: string | null
+          purchase_agreement_html?: string | null
+          purchase_agreement_template_id?: string | null
+          state_code: string
+          state_name: string
+          updated_at?: string | null
+          use_general_template?: boolean | null
+        }
+        Update: {
+          assignment_contract_file_name?: string | null
+          assignment_contract_html?: string | null
+          assignment_contract_template_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_assignment_customized?: boolean | null
+          is_general?: boolean | null
+          is_purchase_customized?: boolean | null
+          purchase_agreement_file_name?: string | null
+          purchase_agreement_html?: string | null
+          purchase_agreement_template_id?: string | null
+          state_code?: string
+          state_name?: string
+          updated_at?: string | null
+          use_general_template?: boolean | null
+        }
+        Relationships: []
+      }
       templates: {
         Row: {
           ai_clause_config: Json | null
+          assignment_contract_file_name: string | null
           created_at: string | null
           description: string | null
+          documenso_assignment_template_id: string | null
           documenso_template_id: string | null
           id: string
           is_active: boolean | null
           name: string
+          purchase_agreement_file_name: string | null
           state: string
           updated_at: string | null
+          use_general_template: boolean | null
         }
         Insert: {
           ai_clause_config?: Json | null
+          assignment_contract_file_name?: string | null
           created_at?: string | null
           description?: string | null
+          documenso_assignment_template_id?: string | null
           documenso_template_id?: string | null
           id?: string
           is_active?: boolean | null
           name: string
+          purchase_agreement_file_name?: string | null
           state: string
           updated_at?: string | null
+          use_general_template?: boolean | null
         }
         Update: {
           ai_clause_config?: Json | null
+          assignment_contract_file_name?: string | null
           created_at?: string | null
           description?: string | null
+          documenso_assignment_template_id?: string | null
           documenso_template_id?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
+          purchase_agreement_file_name?: string | null
           state?: string
           updated_at?: string | null
+          use_general_template?: boolean | null
         }
         Relationships: []
       }
@@ -503,3 +569,29 @@ export type Template = Database['public']['Tables']['templates']['Row']
 export type Property = Database['public']['Tables']['properties']['Row']
 export type Contract = Database['public']['Tables']['contracts']['Row']
 export type ContractStatusHistory = Database['public']['Tables']['contract_status_history']['Row']
+export type StateTemplate = Database['public']['Tables']['state_templates']['Row']
+
+// Company Templates (user-created)
+export interface CustomField {
+  key: string
+  label: string
+  fieldType: 'text' | 'number' | 'date' | 'email' | 'phone' | 'textarea'
+  required: boolean
+}
+
+export interface CompanyTemplate {
+  id: string
+  company_id: string
+  created_by: string | null
+  name: string
+  description: string | null
+  tags: string[]
+  html_content: string
+  signature_layout: 'two-column' | 'seller-only' | 'three-party'
+  custom_fields: CustomField[]
+  used_placeholders: string[]
+  is_example: boolean
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}

@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { FileText } from 'lucide-react'
 
 export default function OnboardingPage() {
   const [companyName, setCompanyName] = useState('')
@@ -101,31 +101,50 @@ export default function OnboardingPage() {
 
   if (checkingUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+      <div className="min-h-screen flex flex-col bg-[var(--gray-50)]">
+        <header className="h-16 flex items-center px-6 border-b border-[var(--gray-200)] bg-white">
+          <Link href="/" className="flex items-center space-x-2">
+            <FileText className="h-7 w-7 text-[var(--primary-900)]" />
+            <span className="text-lg font-bold text-[var(--gray-900)]">REI Sign</span>
+          </Link>
+        </header>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="spinner"></div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md p-8">
-        <Card>
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold">Set up your company</CardTitle>
-            <CardDescription>
-              Create your company to start managing contracts
-            </CardDescription>
-          </CardHeader>
-          <form onSubmit={handleCreateCompany}>
-            <CardContent className="space-y-4">
+    <div className="min-h-screen flex flex-col bg-[var(--gray-50)]">
+      <header className="h-16 flex items-center px-6 border-b border-[var(--gray-200)] bg-white">
+        <Link href="/" className="flex items-center space-x-2">
+          <FileText className="h-7 w-7 text-[var(--primary-900)]" />
+          <span className="text-lg font-bold text-[var(--gray-900)]">REI Sign</span>
+        </Link>
+      </header>
+
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="w-full max-w-md">
+          <div className="bg-white border border-[var(--gray-200)] rounded p-8">
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-[var(--gray-900)]">Set up your company</h1>
+              <p className="text-sm text-[var(--gray-600)] mt-1">
+                Create your company to start managing contracts
+              </p>
+            </div>
+
+            <form onSubmit={handleCreateCompany} className="space-y-4">
               {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
+                <div className="p-3 bg-[var(--error-100)] border border-[var(--error-700)] rounded text-sm text-[var(--error-700)]">
+                  {error}
+                </div>
               )}
+
               <div className="space-y-2">
-                <Label htmlFor="companyName">Company Name</Label>
+                <Label htmlFor="companyName" className="text-sm font-medium text-[var(--gray-700)]">
+                  Company Name
+                </Label>
                 <Input
                   id="companyName"
                   type="text"
@@ -133,16 +152,20 @@ export default function OnboardingPage() {
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                   required
+                  className="border-[var(--gray-300)] rounded"
                 />
               </div>
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" className="w-full" disabled={loading}>
+
+              <Button
+                type="submit"
+                className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white font-semibold rounded"
+                disabled={loading}
+              >
                 {loading ? 'Creating...' : 'Create Company'}
               </Button>
-            </CardFooter>
-          </form>
-        </Card>
+            </form>
+          </div>
+        </div>
       </div>
     </div>
   )

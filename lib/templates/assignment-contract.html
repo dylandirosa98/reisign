@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @page {
+      size: letter;
+      margin: 0.75in;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      line-height: 1.5;
+      color: #000;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 14pt;
+      font-weight: bold;
+      margin-bottom: 8pt;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 11pt;
+      margin-bottom: 20pt;
+    }
+
+    .section {
+      margin-bottom: 16pt;
+    }
+
+    .section-title {
+      font-weight: bold;
+      margin-bottom: 10pt;
+      text-transform: uppercase;
+      font-size: 11pt;
+    }
+
+    .parties-grid {
+      display: flex;
+      gap: 30px;
+      margin-bottom: 16pt;
+    }
+
+    .party-box {
+      flex: 1;
+      padding: 12pt;
+      border: 1px solid #ccc;
+    }
+
+    .party-title {
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-bottom: 10pt;
+      text-align: center;
+      font-size: 10pt;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 6pt;
+    }
+
+    .party-field {
+      margin-bottom: 6pt;
+    }
+
+    .party-label {
+      font-size: 9pt;
+      color: #555;
+    }
+
+    .party-value {
+      font-size: 10pt;
+      border-bottom: 1px solid #000;
+      min-height: 14pt;
+      padding: 2px 0;
+    }
+
+    .field-row {
+      display: flex;
+      align-items: baseline;
+      margin-bottom: 8pt;
+    }
+
+    .field-label {
+      font-weight: bold;
+      min-width: 160px;
+      flex-shrink: 0;
+    }
+
+    .field-value {
+      border-bottom: 1px solid #000;
+      min-width: 200px;
+      padding: 0 4px;
+      flex-grow: 1;
+      min-height: 16pt;
+    }
+
+    .field-value.short {
+      min-width: 100px;
+      max-width: 140px;
+      flex-grow: 0;
+    }
+
+    .highlight {
+      background-color: #ffffcc;
+      padding: 1px 4px;
+    }
+
+    .paragraph {
+      text-align: justify;
+      margin-bottom: 12pt;
+    }
+
+    .terms-list {
+      margin-left: 24pt;
+      margin-bottom: 12pt;
+    }
+
+    .terms-list li {
+      margin-bottom: 6pt;
+      text-align: justify;
+    }
+
+    .signature-section {
+      margin-top: 24pt;
+    }
+
+    .signatures-grid {
+      display: flex;
+      gap: 40px;
+      margin-top: 16pt;
+    }
+
+    .signature-box {
+      flex: 1;
+      padding: 12pt;
+      border: 1px solid #333;
+    }
+
+    .signature-header {
+      font-weight: bold;
+      font-size: 10pt;
+      margin-bottom: 12pt;
+      text-transform: uppercase;
+    }
+
+    .signature-row {
+      margin-bottom: 10pt;
+    }
+
+    .signature-label {
+      font-size: 9pt;
+      color: #333;
+      margin-bottom: 2pt;
+    }
+
+    .signature-line {
+      border-bottom: 1px solid #000;
+      min-height: 16pt;
+      padding: 2px 4px;
+    }
+
+    .signature-area {
+      border: 2px solid #000;
+      min-height: 40pt;
+      margin-bottom: 4pt;
+      position: relative;
+    }
+
+    .signature-marker {
+      position: absolute;
+      bottom: 4px;
+      left: 8px;
+      font-size: 8pt;
+      color: #666;
+    }
+
+    .ai-clauses-section {
+      margin: 16pt 0;
+      padding: 12pt;
+      background-color: #f8f9fa;
+      border-left: 3px solid #0066cc;
+    }
+
+    .ai-clause {
+      margin-bottom: 10pt;
+    }
+
+    .ai-clause h4 {
+      font-size: 10pt;
+      font-weight: bold;
+      margin-bottom: 4pt;
+    }
+
+    .ai-clause p {
+      font-size: 10pt;
+      text-align: justify;
+    }
+
+    .page-break {
+      page-break-after: always;
+    }
+  </style>
+</head>
+<body>
+  <h1>Assignment of Real Estate Purchase Agreement</h1>
+  <p class="subtitle">Effective Date: {{contract_date}}</p>
+
+  <!-- Parties Section -->
+  <div class="section">
+    <div class="section-title">Parties to This Assignment</div>
+    <div class="parties-grid">
+      <div class="party-box">
+        <div class="party-title">Assignor (Original Buyer)</div>
+        <div class="party-field">
+          <div class="party-label">Company Name:</div>
+          <div class="party-value">{{company_name}}</div>
+        </div>
+        <div class="party-field">
+          <div class="party-label">Authorized Signer:</div>
+          <div class="party-value">{{company_signer_name}}</div>
+        </div>
+        <div class="party-field">
+          <div class="party-label">Address:</div>
+          <div class="party-value">{{company_full_address}}</div>
+        </div>
+        <div class="party-field">
+          <div class="party-label">Phone:</div>
+          <div class="party-value">{{company_phone}}</div>
+        </div>
+        <div class="party-field">
+          <div class="party-label">Email:</div>
+          <div class="party-value">{{company_email}}</div>
+        </div>
+      </div>
+      <div class="party-box">
+        <div class="party-title">Assignee (End Buyer)</div>
+        <div class="party-field">
+          <div class="party-label">Name:</div>
+          <div class="party-value">{{buyer_name}}</div>
+        </div>
+        <div class="party-field">
+          <div class="party-label">Phone:</div>
+          <div class="party-value">{{buyer_phone}}</div>
+        </div>
+        <div class="party-field">
+          <div class="party-label">Email:</div>
+          <div class="party-value">{{buyer_email}}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Property Section -->
+  <div class="section">
+    <div class="section-title">Subject Property</div>
+    <div class="field-row">
+      <span class="field-label">Property Address:</span>
+      <span class="field-value">{{property_address}}, {{property_city}}, {{property_state}} {{property_zip}}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">APN/Parcel Number:</span>
+      <span class="field-value">{{apn}}</span>
+    </div>
+  </div>
+
+  <!-- Original Seller Section -->
+  <div class="section">
+    <div class="section-title">Original Seller (Property Owner)</div>
+    <div class="field-row">
+      <span class="field-label">Seller Name:</span>
+      <span class="field-value">{{seller_name}}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Seller Email:</span>
+      <span class="field-value">{{seller_email}}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Seller Phone:</span>
+      <span class="field-value">{{seller_phone}}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Seller Address:</span>
+      <span class="field-value">{{seller_address}}</span>
+    </div>
+  </div>
+
+  <!-- Financial Terms -->
+  <div class="section">
+    <div class="section-title">Financial Terms</div>
+    <div class="field-row">
+      <span class="field-label">Original Purchase Price:</span>
+      <span class="field-value short highlight">$ {{purchase_price}}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Assignment Fee:</span>
+      <span class="field-value short highlight">$ {{assignment_fee}}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Earnest Money Deposit:</span>
+      <span class="field-value short">$ {{earnest_money}}</span>
+    </div>
+  </div>
+
+  <!-- Escrow Information -->
+  <div class="section">
+    <div class="section-title">Escrow/Title Company</div>
+    <div class="field-row">
+      <span class="field-label">Company Name:</span>
+      <span class="field-value">{{escrow_agent_name}}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Address:</span>
+      <span class="field-value">{{escrow_agent_address}}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Escrow Officer:</span>
+      <span class="field-value">{{escrow_officer}}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Email:</span>
+      <span class="field-value">{{escrow_agent_email}}</span>
+    </div>
+  </div>
+
+  <!-- Important Dates -->
+  <div class="section">
+    <div class="section-title">Important Dates</div>
+    <div class="field-row">
+      <span class="field-label">Close of Escrow:</span>
+      <span class="field-value">{{close_of_escrow}}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Inspection Period Ends:</span>
+      <span class="field-value">{{inspection_period}}</span>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- Terms and Conditions -->
+  <div class="section">
+    <div class="section-title">Terms and Conditions of Assignment</div>
+
+    <p class="paragraph">
+      <strong>1. ASSIGNMENT.</strong> For good and valuable consideration, the receipt and sufficiency of which is hereby acknowledged, Assignor hereby assigns, transfers, and conveys to Assignee all of Assignor's right, title, and interest in and to that certain Real Estate Purchase Agreement (the "Original Agreement") between Assignor, as Buyer, and {{seller_name}}, as Seller, for the purchase of the above-described Property.
+    </p>
+
+    <p class="paragraph">
+      <strong>2. ASSIGNMENT FEE.</strong> Assignee agrees to pay Assignor an assignment fee of <span class="highlight">$ {{assignment_fee}}</span> (the "Assignment Fee"). The Assignment Fee shall be due and payable at closing through escrow. The Assignment Fee is non-refundable except in the event Seller defaults under the Original Agreement or the transaction fails to close through no fault of Assignee.
+    </p>
+
+    <p class="paragraph">
+      <strong>3. ASSUMPTION OF OBLIGATIONS.</strong> Assignee hereby assumes and agrees to perform all of the obligations of Assignor under the Original Agreement, including but not limited to:
+    </p>
+    <ul class="terms-list">
+      <li>Payment of the purchase price of <span class="highlight">$ {{purchase_price}}</span> to Seller at closing;</li>
+      <li>Compliance with all terms, conditions, and contingencies set forth in the Original Agreement;</li>
+      <li>Timely performance of all duties and obligations required of Buyer under the Original Agreement;</li>
+      <li>Payment of all closing costs assigned to Buyer under the Original Agreement.</li>
+    </ul>
+
+    <p class="paragraph">
+      <strong>4. SELLER CONSENT.</strong> This Assignment is subject to the Seller's consent to the assignment, if required under the Original Agreement. Assignor agrees to use reasonable efforts to obtain such consent if necessary.
+    </p>
+
+    <p class="paragraph">
+      <strong>5. REPRESENTATIONS AND WARRANTIES.</strong> Assignor represents and warrants to Assignee that: (a) Assignor has full right and authority to assign the Original Agreement; (b) The Original Agreement is in full force and effect and has not been modified; (c) Assignor is not in default under the Original Agreement; (d) Assignor has provided Assignee with a true and complete copy of the Original Agreement.
+    </p>
+
+    <p class="paragraph">
+      <strong>6. INDEMNIFICATION.</strong> Assignor agrees to indemnify and hold harmless Assignee from any claims, damages, or expenses arising from any breach of Assignor's representations and warranties herein.
+    </p>
+
+    <p class="paragraph">
+      <strong>7. CLOSING.</strong> The closing of the transaction shall take place on or before <span class="highlight">{{close_of_escrow}}</span> at the offices of {{escrow_agent_name}} or such other place as the parties may mutually agree.
+    </p>
+
+    <p class="paragraph">
+      <strong>8. AS-IS CONDITION.</strong> Assignee acknowledges that Assignor makes no representations or warranties regarding the condition of the Property. Assignee accepts the assignment with full knowledge that the Property is being purchased "AS-IS".
+    </p>
+
+    <p class="paragraph">
+      <strong>9. ENTIRE AGREEMENT.</strong> This Assignment, together with the Original Agreement, constitutes the entire agreement between the parties and supersedes all prior negotiations or agreements.
+    </p>
+
+    <p class="paragraph">
+      <strong>10. GOVERNING LAW.</strong> This Assignment shall be governed by the laws of the State of {{property_state}}.
+    </p>
+
+    {{#if ai_clauses}}
+    <div class="ai-clauses-section">
+      <div class="section-title">Additional Clauses:</div>
+      {{ai_clauses}}
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- Signature Section -->
+  <div class="signature-section">
+    <div class="section-title">Signatures</div>
+    <p class="paragraph">IN WITNESS WHEREOF, the parties have executed this Assignment of Real Estate Purchase Agreement as of the date first written above.</p>
+
+    <div class="signatures-grid">
+      <div class="signature-box" id="assignor-signature">
+        <div class="signature-header">Assignor (Original Buyer)</div>
+        <div class="signature-row">
+          <div class="signature-label">Signature:</div>
+          <div class="signature-area">
+            <span class="signature-marker">Sign here</span>
+          </div>
+        </div>
+        <div class="signature-row">
+          <div class="signature-label">Printed Name:</div>
+          <div class="signature-line">{{company_signer_name}}</div>
+        </div>
+        <div class="signature-row">
+          <div class="signature-label">Company:</div>
+          <div class="signature-line">{{company_name}}</div>
+        </div>
+        <div class="signature-row">
+          <div class="signature-label">Date:</div>
+          <div class="signature-line">{{contract_date}}</div>
+        </div>
+      </div>
+
+      <div class="signature-box" id="assignee-signature">
+        <div class="signature-header">Assignee (End Buyer)</div>
+        <div class="signature-row">
+          <div class="signature-label">Signature:</div>
+          <div class="signature-area">
+            <span class="signature-marker">Sign here</span>
+          </div>
+        </div>
+        <div class="signature-row">
+          <div class="signature-label">Printed Name:</div>
+          <div class="signature-line">{{buyer_name}}</div>
+        </div>
+        <div class="signature-row">
+          <div class="signature-label">Date:</div>
+          <div class="signature-line"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

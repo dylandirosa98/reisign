@@ -1,0 +1,315 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { documenso } from '@/lib/documenso'
+import { pdfGenerator, ContractData, TemplateType } from '@/lib/services/pdf-generator'
+import { aiClauseService, ClauseType } from '@/lib/services/ai-clauses'
+
+// POST /api/contracts/[id]/send - Send contract for signing via Documenso
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const adminSupabase = createAdminClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Get user's company
+  const { data: userData } = await adminSupabase
+    .from('users')
+    .select('company_id')
+    .eq('id', user.id)
+    .single()
+
+  if (!userData?.company_id) {
+    return NextResponse.json({ error: 'No company found' }, { status: 400 })
+  }
+
+  // Get company details for "buyer" fields on purchase agreement
+  const { data: companyData } = await adminSupabase
+    .from('companies')
+    .select('name, email, phone, address, city, state, zip, signer_name')
+    .eq('id', userData.company_id)
+    .single()
+
+  // Type the company data (columns added in migration 20250116000000)
+  const company = companyData as {
+    name: string
+    email?: string
+    phone?: string
+    address?: string
+    city?: string
+    state?: string
+    zip?: string
+    signer_name?: string
+  } | null
+
+  // Get contract with property
+  const { data: contract, error: contractError } = await adminSupabase
+    .from('contracts')
+    .select(`
+      *,
+      property:properties(id, address, city, state, zip)
+    `)
+    .eq('id', id)
+    .eq('company_id', userData.company_id)
+    .single()
+
+  if (contractError || !contract) {
+    return NextResponse.json({ error: 'Contract not found' }, { status: 404 })
+  }
+
+  if (contract.status !== 'draft') {
+    return NextResponse.json({
+      error: 'Contract has already been sent',
+    }, { status: 400 })
+  }
+
+  // Get the body to determine which contract type to send and AI clauses
+  const body = await request.json().catch(() => ({}))
+  const sendType = body.type || 'purchase' // 'purchase' or 'assignment'
+  const requestedClauses = body.clauses as ClauseType[] | undefined
+
+  const customFields = contract.custom_fields as {
+    property_address?: string
+    property_city?: string
+    property_state?: string
+    property_zip?: string
+    assignment_fee?: number
+    seller_phone?: string
+    seller_address?: string
+    buyer_phone?: string
+    contract_type?: string
+    earnest_money?: number
+    escrow_agent_name?: string
+    escrow_agent_address?: string
+    escrow_officer?: string
+    escrow_agent_email?: string
+    close_of_escrow?: string
+    inspection_period?: string
+    apn?: string
+    personal_property?: string
+    additional_terms?: string
+    escrow_fees_split?: 'split' | 'buyer'
+    title_policy_paid_by?: 'seller' | 'buyer'
+    hoa_fees_split?: 'split' | 'buyer'
+    company_name?: string
+    company_signer_name?: string
+    company_email?: string
+    company_phone?: string
+    buyer_signature?: string
+    buyer_initials?: string
+  } | null
+
+  // Validate required buyer (company) signing fields - only use explicitly saved values
+  const missingFields: string[] = []
+  if (!customFields?.company_name) missingFields.push('Company Name')
+  if (!customFields?.company_signer_name) missingFields.push('Signer Name')
+  if (!customFields?.company_email) missingFields.push('Company Email')
+  if (!customFields?.company_phone) missingFields.push('Company Phone')
+  if (!customFields?.buyer_signature) missingFields.push('Buyer Signature')
+  if (!customFields?.buyer_initials) missingFields.push('Buyer Initials')
+
+  if (missingFields.length > 0) {
+    return NextResponse.json({
+      error: `Missing required buyer signing fields: ${missingFields.join(', ')}. Please complete all buyer information before sending.`,
+    }, { status: 400 })
+  }
+
+  try {
+    // Determine template type
+    const templateType: TemplateType = sendType === 'purchase'
+      ? 'purchase-agreement'
+      : 'assignment-contract'
+
+    // Get property address
+    const propertyAddress = customFields?.property_address || contract.property?.address || ''
+    const propertyCity = customFields?.property_city || contract.property?.city || ''
+    const propertyState = customFields?.property_state || contract.property?.state || ''
+    const propertyZip = customFields?.property_zip || contract.property?.zip || ''
+
+    // Generate AI clauses if requested
+    let aiClausesHtml = ''
+    if (requestedClauses && requestedClauses.length > 0) {
+      aiClausesHtml = await aiClauseService.generateClauses(
+        requestedClauses.map(type => ({ type }))
+      )
+    }
+
+    // Build contract data for PDF generation
+    const contractData: ContractData = {
+      // Property
+      property_address: propertyAddress,
+      property_city: propertyCity,
+      property_state: propertyState,
+      property_zip: propertyZip,
+      apn: customFields?.apn,
+
+      // Seller
+      seller_name: contract.seller_name || '',
+      seller_email: contract.seller_email || '',
+      seller_phone: customFields?.seller_phone,
+      seller_address: customFields?.seller_address,
+
+      // Company (Buyer on Purchase Agreement) - only use explicitly saved values
+      company_name: customFields?.company_name || '',
+      company_email: customFields?.company_email || '',
+      company_phone: customFields?.company_phone || '',
+      company_signer_name: customFields?.company_signer_name || '',
+
+      // End Buyer (Assignment Contract)
+      buyer_name: contract.buyer_name,
+      buyer_email: contract.buyer_email,
+      buyer_phone: customFields?.buyer_phone,
+
+      // Prices
+      purchase_price: contract.price || 0,
+      earnest_money: customFields?.earnest_money,
+      assignment_fee: customFields?.assignment_fee,
+
+      // Escrow
+      escrow_agent_name: customFields?.escrow_agent_name,
+      escrow_agent_address: customFields?.escrow_agent_address,
+      escrow_officer: customFields?.escrow_officer,
+      escrow_agent_email: customFields?.escrow_agent_email,
+
+      // Terms
+      close_of_escrow: customFields?.close_of_escrow,
+      inspection_period: customFields?.inspection_period,
+      personal_property: customFields?.personal_property,
+      additional_terms: customFields?.additional_terms,
+
+      // Section 1.10 closing amounts (all optional)
+      escrow_fees_split: customFields?.escrow_fees_split,
+      title_policy_paid_by: customFields?.title_policy_paid_by,
+      hoa_fees_split: customFields?.hoa_fees_split,
+
+      // Buyer signature and initials
+      buyer_signature: customFields?.buyer_signature,
+      buyer_initials: customFields?.buyer_initials,
+
+      // AI Clauses
+      ai_clauses: aiClausesHtml,
+    }
+
+    // Generate PDF from HTML template
+    console.log(`[Send Contract] Generating PDF for ${templateType}`)
+    const pdfBuffer = await pdfGenerator.generatePDF(templateType, contractData)
+    console.log(`[Send Contract] PDF generated: ${pdfBuffer.length} bytes`)
+
+    // Get page count for signature positioning
+    const pageCount = await pdfGenerator.getPageCount(pdfBuffer)
+    console.log(`[Send Contract] PDF has ${pageCount} pages`)
+
+    // Get signature field positions (including seller initials on each page)
+    const signaturePositions = await pdfGenerator.getSignaturePositions(templateType, contractData, pageCount)
+
+    // Prepare recipients based on contract type
+    const recipients = sendType === 'purchase'
+      ? [
+          {
+            name: contract.seller_name,
+            email: contract.seller_email,
+            role: 'SIGNER' as const,
+            signingOrder: 1,
+          },
+        ]
+      : [
+          {
+            name: contract.seller_name,
+            email: contract.seller_email,
+            role: 'SIGNER' as const,
+            signingOrder: 1,
+          },
+          ...(contract.buyer_email ? [{
+            name: contract.buyer_name || 'Buyer',
+            email: contract.buyer_email,
+            role: 'SIGNER' as const,
+            signingOrder: 2,
+          }] : []),
+        ]
+
+    // Map signature positions to recipient emails
+    const signatureFields = signaturePositions.map(pos => ({
+      page: pos.page,
+      x: pos.x,
+      y: pos.y,
+      width: pos.width,
+      height: pos.height,
+      recipientEmail: pos.recipientRole === 'seller'
+        ? contract.seller_email
+        : contract.buyer_email || '',
+      fieldType: pos.fieldType as 'signature' | 'initials' | undefined,
+    })).filter(f => f.recipientEmail)
+
+    console.log(`[Send Contract] Signature fields to add:`, JSON.stringify(signatureFields, null, 2))
+
+    // Create document in Documenso with signatures
+    console.log(`[Send Contract] Creating document in Documenso`)
+    const result = await documenso.createDocumentWithSignatures(pdfBuffer, {
+      title: `${sendType === 'purchase' ? 'Purchase Agreement' : 'Assignment Contract'} - ${propertyAddress}`,
+      externalId: `contract-${id}-${sendType}`,
+      recipients,
+      signatureFields,
+      sendImmediately: true,
+    })
+
+    console.log(`[Send Contract] Document created and sent: ${result.documentId}`)
+
+    // Update contract status
+    const { data: updated, error: updateError } = await adminSupabase
+      .from('contracts')
+      .update({
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        documenso_document_id: String(result.documentId),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (updateError) {
+      console.error('Failed to update contract status:', updateError)
+    }
+
+    // Record status change
+    await adminSupabase
+      .from('contract_status_history')
+      .insert({
+        contract_id: id,
+        status: 'sent',
+        changed_by: user.id,
+        metadata: {
+          action: 'sent_for_signing',
+          documenso_document_id: result.documentId,
+          send_type: sendType,
+          recipients: recipients.map(r => r.email),
+          ai_clauses_used: requestedClauses || [],
+          signing_urls: result.recipients.map(r => ({
+            email: r.email,
+            url: r.signingUrl,
+          })),
+        },
+      })
+
+    return NextResponse.json({
+      success: true,
+      contract: updated,
+      document: {
+        id: result.documentId,
+        recipients: result.recipients,
+      },
+    })
+  } catch (error) {
+    console.error('Send contract error:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to send contract' },
+      { status: 500 }
+    )
+  }
+}

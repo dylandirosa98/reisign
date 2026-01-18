@@ -1,12 +1,12 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { FileText, Plus, Clock, CheckCircle, Eye } from 'lucide-react'
+import { FileText, Plus, Clock, CheckCircle, Eye, Send } from 'lucide-react'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
+  const adminSupabase = createAdminClient()
 
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -14,8 +14,8 @@ export default async function DashboardPage() {
     return <div>Not authenticated</div>
   }
 
-  // Get user's company_id
-  const { data: userData } = await supabase
+  // Get user's company_id (using admin client to bypass RLS)
+  const { data: userData } = await adminSupabase
     .from('users')
     .select('company_id')
     .eq('id', user.id)
@@ -27,8 +27,8 @@ export default async function DashboardPage() {
     return <div>No company found</div>
   }
 
-  // Get contract stats
-  const { data: contractsData } = await supabase
+  // Get contract stats (using admin client)
+  const { data: contractsData } = await adminSupabase
     .from('contracts')
     .select('status')
     .eq('company_id', companyId)
@@ -43,8 +43,8 @@ export default async function DashboardPage() {
     completed: contracts?.filter(c => c.status === 'completed').length || 0,
   }
 
-  // Get recent contracts
-  const { data: recentContractsData } = await supabase
+  // Get recent contracts (using admin client)
+  const { data: recentContractsData } = await adminSupabase
     .from('contracts')
     .select(`
       *,
@@ -59,6 +59,7 @@ export default async function DashboardPage() {
     status: string
     buyer_name: string
     price: number
+    created_at: string | null
     property: { address: string; city: string | null; state: string | null } | null
   }
 
@@ -66,10 +67,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Page Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--gray-900)]">Dashboard</h1>
+          <p className="text-sm text-[var(--gray-600)]">Overview of your contract activity</p>
+        </div>
         <Link href="/dashboard/contracts/new">
-          <Button>
+          <Button className="bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white font-semibold rounded">
             <Plus className="mr-2 h-4 w-4" />
             New Contract
           </Button>
@@ -78,98 +83,136 @@ export default async function DashboardPage() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Contracts</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Drafts</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.draft}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Awaiting Signature</CardTitle>
-            <Eye className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.sent + stats.viewed}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.completed}</div>
-          </CardContent>
-        </Card>
+        <StatCard
+          title="Total Contracts"
+          value={stats.total}
+          icon={<FileText className="h-5 w-5 text-[var(--gray-500)]" />}
+        />
+        <StatCard
+          title="Drafts"
+          value={stats.draft}
+          icon={<Clock className="h-5 w-5 text-[var(--gray-500)]" />}
+        />
+        <StatCard
+          title="Awaiting Signature"
+          value={stats.sent + stats.viewed}
+          icon={<Send className="h-5 w-5 text-[var(--gray-500)]" />}
+        />
+        <StatCard
+          title="Completed"
+          value={stats.completed}
+          icon={<CheckCircle className="h-5 w-5 text-[var(--success-700)]" />}
+        />
       </div>
 
       {/* Recent Contracts */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Contracts</CardTitle>
-          <CardDescription>Your most recent contract activity</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="bg-white border border-[var(--gray-200)] rounded">
+        <div className="px-4 py-4 border-b border-[var(--gray-200)]">
+          <h2 className="text-lg font-semibold text-[var(--gray-900)]">Recent Contracts</h2>
+          <p className="text-sm text-[var(--gray-600)]">Your most recent contract activity</p>
+        </div>
+        <div className="divide-y divide-[var(--gray-200)]">
           {recentContracts && recentContracts.length > 0 ? (
-            <div className="space-y-4">
-              {recentContracts.map((contract) => (
-                <Link
-                  key={contract.id}
-                  href={`/dashboard/contracts/${contract.id}`}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="space-y-1">
-                    <p className="font-medium">
-                      {contract.property?.address || 'No address'}
-                      {contract.property?.city && `, ${contract.property.city}`}
-                      {contract.property?.state && `, ${contract.property.state}`}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {contract.buyer_name} • ${contract.price.toLocaleString()}
-                    </p>
-                  </div>
-                  <StatusBadge status={contract.status} />
-                </Link>
-              ))}
-            </div>
+            recentContracts.map((contract) => (
+              <Link
+                key={contract.id}
+                href={`/dashboard/contracts/${contract.id}`}
+                className="flex items-center justify-between px-4 py-3 hover:bg-[var(--gray-100)] transition-colors"
+              >
+                <div className="space-y-1">
+                  <p className="font-medium text-[var(--gray-900)]">
+                    {contract.property?.address || 'No address'}
+                    {contract.property?.city && `, ${contract.property.city}`}
+                    {contract.property?.state && `, ${contract.property.state}`}
+                  </p>
+                  <p className="text-sm text-[var(--gray-600)]">
+                    {contract.buyer_name} &bull; ${contract.price.toLocaleString()}
+                  </p>
+                </div>
+                <StatusBadge status={contract.status} />
+              </Link>
+            ))
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No contracts yet</p>
+            <div className="text-center py-12">
+              <FileText className="h-12 w-12 text-[var(--gray-400)] mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-[var(--gray-900)] mb-2">No contracts yet</h3>
+              <p className="text-sm text-[var(--gray-600)] mb-4">Get started by creating your first contract</p>
               <Link href="/dashboard/contracts/new">
-                <Button variant="link">Create your first contract</Button>
+                <Button className="bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white font-semibold rounded">
+                  Create Contract
+                </Button>
               </Link>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+        {recentContracts && recentContracts.length > 0 && (
+          <div className="px-4 py-3 border-t border-[var(--gray-200)]">
+            <Link
+              href="/dashboard/contracts"
+              className="text-sm font-medium text-[var(--primary-700)] hover:underline"
+            >
+              View all contracts
+            </Link>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function StatCard({ title, value, icon }: { title: string; value: number; icon: React.ReactNode }) {
+  return (
+    <div className="bg-white border border-[var(--gray-200)] rounded p-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-[var(--gray-600)]">{title}</span>
+        {icon}
+      </div>
+      <p className="text-2xl font-bold text-[var(--gray-900)]">{value}</p>
     </div>
   )
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const config: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-    draft: { label: 'Draft', variant: 'outline' },
-    sent: { label: 'Sent', variant: 'secondary' },
-    viewed: { label: 'Viewed', variant: 'default' },
-    completed: { label: 'Completed', variant: 'default' },
-    cancelled: { label: 'Cancelled', variant: 'destructive' },
+  const config: Record<string, { label: string; bgColor: string; textColor: string }> = {
+    draft: {
+      label: 'Draft',
+      bgColor: 'var(--gray-100)',
+      textColor: 'var(--gray-700)',
+    },
+    sent: {
+      label: 'Sent',
+      bgColor: 'var(--info-100)',
+      textColor: 'var(--info-700)',
+    },
+    viewed: {
+      label: 'Viewed',
+      bgColor: 'var(--warning-100)',
+      textColor: 'var(--warning-700)',
+    },
+    completed: {
+      label: 'Completed',
+      bgColor: 'var(--success-100)',
+      textColor: 'var(--success-700)',
+    },
+    cancelled: {
+      label: 'Cancelled',
+      bgColor: 'var(--error-100)',
+      textColor: 'var(--error-700)',
+    },
   }
 
-  const { label, variant } = config[status] || { label: status, variant: 'outline' as const }
+  const { label, bgColor, textColor } = config[status] || {
+    label: status,
+    bgColor: 'var(--gray-100)',
+    textColor: 'var(--gray-700)',
+  }
 
-  return <Badge variant={variant}>{label}</Badge>
+  return (
+    <span
+      className="px-2 py-0.5 text-xs font-medium rounded"
+      style={{ backgroundColor: bgColor, color: textColor }}
+    >
+      {label}
+    </span>
+  )
 }

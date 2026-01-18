@@ -7,8 +7,6 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
@@ -52,67 +50,82 @@ export default function SignupPage() {
   }
 
   return (
-    <Card>
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
-        <CardDescription>
-          Enter your details to get started with WholesaleSign
-        </CardDescription>
-      </CardHeader>
-      <form onSubmit={handleSignup}>
-        <CardContent className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="fullName">Full Name</Label>
-            <Input
-              id="fullName"
-              type="text"
-              placeholder="John Doe"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-            />
+    <div className="bg-white border border-[var(--gray-200)] rounded p-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-[var(--gray-900)]">Create an account</h1>
+        <p className="text-sm text-[var(--gray-600)] mt-1">
+          Get started with REI Sign
+        </p>
+      </div>
+
+      <form onSubmit={handleSignup} className="space-y-4">
+        {error && (
+          <div className="p-3 bg-[var(--error-100)] border border-[var(--error-700)] rounded text-sm text-[var(--error-700)]">
+            {error}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="Min. 8 characters"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
-          </div>
-        </CardContent>
-        <CardFooter className="flex flex-col space-y-4">
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Creating account...' : 'Create account'}
-          </Button>
-          <p className="text-sm text-muted-foreground text-center">
-            Already have an account?{' '}
-            <Link href="/login" className="text-primary hover:underline">
-              Sign in
-            </Link>
-          </p>
-        </CardFooter>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor="fullName" className="text-sm font-medium text-[var(--gray-700)]">
+            Full Name
+          </Label>
+          <Input
+            id="fullName"
+            type="text"
+            placeholder="John Doe"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+            className="border-[var(--gray-300)] rounded"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-sm font-medium text-[var(--gray-700)]">
+            Email
+          </Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="you@company.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="border-[var(--gray-300)] rounded"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="password" className="text-sm font-medium text-[var(--gray-700)]">
+            Password
+          </Label>
+          <Input
+            id="password"
+            type="password"
+            placeholder="Min. 8 characters"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={8}
+            className="border-[var(--gray-300)] rounded"
+          />
+        </div>
+
+        <Button
+          type="submit"
+          className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white font-semibold rounded"
+          disabled={loading}
+        >
+          {loading ? 'Creating account...' : 'Create account'}
+        </Button>
+
+        <p className="text-sm text-[var(--gray-600)] text-center">
+          Already have an account?{' '}
+          <Link href="/login" className="text-[var(--primary-700)] hover:underline font-medium">
+            Sign in
+          </Link>
+        </p>
       </form>
-    </Card>
+    </div>
   )
 }

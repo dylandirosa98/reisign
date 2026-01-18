@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @page {
+      size: letter;
+      margin: 0.75in 1in 1in 1in;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      line-height: 1.4;
+      color: #000;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 12pt;
+      font-weight: bold;
+      margin-bottom: 12pt;
+    }
+
+    .intro {
+      text-indent: 0.5in;
+      text-align: justify;
+      margin-bottom: 10pt;
+    }
+
+    .section-header {
+      margin-top: 10pt;
+      margin-bottom: 6pt;
+    }
+
+    .section-number {
+      font-weight: bold;
+    }
+
+    .subsection {
+      margin-left: 0.5in;
+      margin-bottom: 6pt;
+    }
+
+    .field-line {
+      display: inline-block;
+      border-bottom: 1px solid #000;
+      min-width: 200px;
+      padding: 0 2px;
+    }
+
+    .field-line.short {
+      min-width: 100px;
+    }
+
+    .field-line.medium {
+      min-width: 150px;
+    }
+
+    .indented {
+      margin-left: 1in;
+      margin-bottom: 4pt;
+    }
+
+    .indented-more {
+      margin-left: 1.5in;
+      margin-bottom: 4pt;
+    }
+
+    .checkbox {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border: 1px solid #000;
+      margin-right: 2px;
+      vertical-align: middle;
+    }
+
+    .checkbox.checked {
+      background-color: #000;
+      position: relative;
+    }
+
+    .checkbox.checked::after {
+      content: '✓';
+      color: #fff;
+      font-size: 8px;
+      position: absolute;
+      top: -1px;
+      left: 1px;
+    }
+
+    .paragraph {
+      text-align: justify;
+      margin-bottom: 10pt;
+      text-indent: 0.5in;
+    }
+
+    .paragraph-no-indent {
+      text-align: justify;
+      margin-bottom: 10pt;
+    }
+
+    .section-title {
+      font-weight: bold;
+    }
+
+    .signature-page {
+      page-break-before: always;
+    }
+
+    .signature-header {
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 30pt;
+      margin-top: 20pt;
+    }
+
+    .signature-columns {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .signature-column {
+      width: 45%;
+    }
+
+    .signature-row {
+      margin-bottom: 16pt;
+    }
+
+    .signature-label {
+      font-size: 10pt;
+      margin-bottom: 2pt;
+    }
+
+    .signature-line {
+      border-bottom: 1px solid #000;
+      min-height: 20pt;
+    }
+
+    .signature-box {
+      border: 1px solid #000;
+      min-height: 35pt;
+    }
+
+    .center-text {
+      text-align: center;
+      font-weight: bold;
+      margin-top: 40pt;
+    }
+
+    a {
+      color: #000;
+      text-decoration: underline;
+    }
+
+    .ai-clauses-section {
+      margin: 12pt 0;
+    }
+
+    .ai-clauses-section p {
+      text-align: justify;
+      margin-bottom: 6pt;
+    }
+
+    .ai-clause {
+      margin-bottom: 10pt;
+    }
+
+    .ai-clause p {
+      text-align: justify;
+    }
+  </style>
+</head>
+<body>
+  <h1>PURCHASE CONTRACT AND ESCROW INSTRUCTIONS</h1>
+
+  <p class="intro">
+    <strong>THIS PURCHASE CONTRACT AND ESCROW INSTRUCTIONS</strong> ("Contract"), is effective as of the latest date it is executed by the Parties (the "Effective Date"), and comprises the entire contract and agreement between Seller (defined in <u>Section 1.8</u> below) and Buyer (defined in <u>Section 1.8</u> below) (collectively "Parties").
+  </p>
+
+  <p class="section-header">
+    <span class="section-number">1.</span> <strong>BASIC TERMS</strong>. This <u>Section 1</u> defines the Basic Terms of this Contract.
+  </p>
+
+  <div class="subsection">
+    <p style="margin-bottom: 6pt;">
+      1.1 Property Address: <span class="field-line">{{property_address}}, {{property_city}}, {{property_state}} {{property_zip}}</span>
+    </p>
+    <p class="indented-more" style="margin-bottom: 6pt;">
+      APN: <span class="field-line medium">{{apn}}</span>
+    </p>
+
+    <p style="margin-bottom: 6pt;">
+      1.2 Legal Description: As stated in the Commitment to be provided by Escrow Agent.
+    </p>
+
+    <p style="margin-bottom: 6pt;">
+      1.3 The Property: The real property described in <u>Sections 1.1 and 1.2</u> together with all improvements, fixtures, and appurtenances thereon incidental thereto, plus the personal property described in <u>Section 1.12</u>.
+    </p>
+
+    <p style="margin-bottom: 6pt;">
+      1.4 Earnest Money: $<span class="field-line short">{{earnest_money}}</span> (the "Deposit")
+    </p>
+
+    <p style="margin-bottom: 6pt;">
+      1.5 Purchase Price: $<span class="field-line short">{{purchase_price}}</span>
+    </p>
+
+    <p style="margin-bottom: 6pt;">
+      1.6 Close of Escrow: <span class="field-line medium">{{close_of_escrow}}</span> ("COE")
+    </p>
+
+    <p style="margin-bottom: 4pt;">1.7 Escrow Agent:</p>
+    <p class="indented-more">Name: <span class="field-line">{{escrow_agent_name}}</span></p>
+    <p class="indented-more">Address: <span class="field-line">{{escrow_agent_address}}</span></p>
+    <p class="indented-more">Escrow Officer: <span class="field-line">{{escrow_officer}}</span></p>
+    <p class="indented-more" style="margin-bottom: 6pt;">Email: <span class="field-line">{{escrow_agent_email}}</span></p>
+
+    <p style="margin-bottom: 4pt;">1.8 Parties:</p>
+    <p class="indented-more">Seller: <span class="field-line">{{seller_name}}</span></p>
+    <p class="indented-more" style="margin-bottom: 6pt;">Buyer: <span class="field-line">{{company_name}}</span></p>
+
+    <p style="margin-bottom: 6pt;">
+      1.9 Inspection Period: <span class="field-line short">{{inspection_period}}</span> Days
+    </p>
+
+    <p style="margin-bottom: 4pt;">1.10 Closing Amounts to be paid as follows:</p>
+    <p style="margin-left: 0.25in; margin-bottom: 4pt;">
+      <strong>Escrow fees and costs:</strong> <span class="checkbox {{escrow_fees_split_check}}"></span> 50% by Buyer and 50% by Seller or <span class="checkbox {{escrow_fees_buyer_check}}"></span> 100% by Buyer;
+    </p>
+    <p style="margin-left: 0.25in; margin-bottom: 4pt;">
+      <strong>Standard title policy:</strong> <span class="checkbox {{title_policy_seller_check}}"></span> Seller or <span class="checkbox {{title_policy_buyer_check}}"></span> Buyer;
+    </p>
+    <p style="margin-left: 0.25in; margin-bottom: 6pt;">
+      <strong>HOA fees (disclosure, transfer, capital improvement/reserve) (if applicable):</strong> <span class="checkbox {{hoa_fees_split_check}}"></span> 50% by Buyer and 50% by Seller or <span class="checkbox {{hoa_fees_buyer_check}}"></span> 100% by Buyer.
+    </p>
+
+    <p style="margin-bottom: 4pt;">
+      1.11 Personal property to be included in the sale includes all items attached and affixed to the Property as of the Effective Date and the following:
+    </p>
+    <p style="border-bottom: 1px solid #000; min-height: 20pt; margin-bottom: 6pt;">{{personal_property}}</p>
+
+    <p style="margin-bottom: 4pt;">1.12 Additional Terms and Conditions:</p>
+    <p style="border-bottom: 1px solid #000; min-height: 20pt; margin-bottom: 6pt;">{{additional_terms}}</p>
+  </div>
+
+  <p class="paragraph">
+    <span class="section-title">2. PURCHASE AND SALE OF PROPERTY.</span> For the Purchase Price and in accordance with the terms and conditions set forth in this Contract, Seller agrees to sell, and Buyer agrees to buy the Property identified in <u>Section 1.3</u>. The Deposit shall be credited toward the Purchase Price at COE.
+  </p>
+
+  <p class="paragraph">
+    <span class="section-title">3. STATUS OF TITLE.</span> As soon as practical following the Effective Date, Escrow Agent shall cause a current commitment for an ALTA Owner's Policy of Title Insurance (the "Commitment") to be issued and delivered to Seller and Buyer. Buyer and Seller shall satisfy their respective requirements to closing set forth in the Commitment prior to COE. Seller shall remove all liens, clouds, and encumbrances at or prior to COE.
+  </p>
+
+  <p class="paragraph">
+    <span class="section-title">4. INSPECTION OF AND ACCESS TO THE PROPERTY.</span> Buyer, in Buyer's sole and absolute discretion, may through written notice to Seller, cancel this Contract during the Inspection Period set forth in <u>Section 1.9</u> and obtain a return of the Deposit and any other items or things of value given by Buyer to Seller. From the Effective Date through COE, Seller shall provide access to the Property to Buyer, and will make the Property reasonably available to Buyer and to Buyer's assignees, prospective assignees, agents, representatives, inspectors and authorized individuals to conduct inspections and walkthrough(s) of the Property.
+  </p>
+
+  <p class="paragraph">
+    <span class="section-title">5. INSTRUCTION TO RELEASE THE DEPOSIT UPON CANCELLATION DURING THE INSPECTION PERIOD.</span> Seller hereby irrevocably instructs Escrow Agent to return the Deposit to Buyer, or to any person or entity designated by Buyer to receive the Deposit, if Buyer elects to cancel this Contract during the Inspection Period and no further written instructions are required for Escrow Agent to release the Deposit to Buyer or to any person or entity designated by Buyer to receive the Deposit. Seller hereby waives any rights under state or other law to object to the release of the Deposit if this Contract is cancelled by Buyer during the Inspection Period and waives any right to provide any additional written consent to the release of the Deposit if this Contract is cancelled by the Buyer during the Inspection Period.
+  </p>
+
+  <p class="paragraph">
+    <span class="section-title">6. LEAD-BASED PAINT DISCLOSURE.</span> If the home on the Property was built before 1978, Seller shall notify Buyer of any known lead-based paint ("LBP") or LBP hazards on the Property and provide Buyer with any LBP risk assessments or inspections in Seller's possession. Buyer agrees to review the "Lead Warning Statement" found in the Disclosure of Information on Lead-Based Paint and/or Lead-Based Paint Hazards found at <a href="https://www.epa.gov/sites/production/files/documents/selr_eng.pdf">https://www.epa.gov/sites/production/files/documents/selr_eng.pdf</a> and the pamphlet "Protect Your Family from Lead in Your Home" found at <a href="https://www.epa.gov/lead/protect-your-family-lead-your-home-real-estate-disclosure">https://www.epa.gov/lead/protect-your-family-lead-your-home-real-estate-disclosure</a>, which are incorporated herein by this reference. Buyer waives the ten (10) day opportunity to conduct a lead-based paint inspection and risk assessment.
+  </p>
+
+  <p class="paragraph">
+    <span class="section-title">7. AS IS PURCHASE; EXISTING CONDITION AS OF COE.</span> Buyer is purchasing the Property "AS IS" and in the condition existing as of the Effective Date. The Property shall be delivered to Buyer at COE in substantially the same condition existing as of the Effective Date. In the event of loss of or damage to the Property, or a portion thereof, prior to the Closing, Buyer may terminate this Contract and the Deposit, and any other items or things of value given by Buyer to Seller will be refunded to Buyer.
+  </p>
+
+  <p class="paragraph">
+    <span class="section-title">8. ESCROW; COE; CLOSING COSTS AND PRORATIONS.</span> Seller and Buyer engage Escrow Agent to act as the escrow agent for the closing of the transactions contemplated by this Contract. Title will be transferred by general warranty deed. Buyer and Seller shall execute all documents and perform all other acts Escrow Agent reasonably requires to close escrow on or before the COE date set forth in <u>Section 1.6</u>. All real estate taxes, rents, and assessments shall be prorated as of COE. The Parties shall pay the specific closing costs applicable to them as set forth in <u>Section 1.10</u>
+  </p>
+
+  <p class="paragraph">
+    <span class="section-title">9. CURE NOTICE; REMEDIES; ATTORNEYS' FEES.</span> If a party fails to comply or perform under this Contract, the other party shall deliver a notice to the breaching party specifying the non-compliance (the "Cure Notice"). If the non-compliance is not cured within ten (10) calendar days after receipt of the Cure Notice (the "Cure Period"), the failure to comply shall become a breach of this Contract. A Cure Notice is not required upon Seller indicating an intention to or refusing to close escrow by the COE date. If Seller shall breach any of the terms or provisions of this Contract, Buyer may proceed against Seller for any claim or remedy the Buyer may have in law or equity, which includes, but is not limited to, specific performance and damages. If Buyer breaches this Contract, Seller accepts the Deposit as Seller's sole right to damages. The prevailing party in any lawsuit arising out of or to enforce this Contract shall be awarded its reasonable attorneys' fees, expert fees and costs incurred prior to and/or after the filing of such lawsuit. Any attorneys' fees awarded in favor of Buyer may be paid to Buyer from the proceeds of the closing of the transaction contemplated by this Contract.
+  </p>
+
+  <p class="paragraph">
+    <span class="section-title">10. NO ORAL CHANGES OR REPRESENTATIONS.</span> EACH PARTY ACKNOWLEDGES THAT SUCH PARTY HAS NOT RELIED ON ANY ORAL CONTRACT, STATEMENT, REPRESENTATION OR OTHER PROMISE THAT IS NOT EXPRESSED IN WRITING IN THIS CONTRACT. This Contract may be amended or modified only by an agreement in writing signed by Buyer and Seller.
+  </p>
+
+  <p class="paragraph">
+    <span class="section-title">11. NOTICES.</span> Any and all notices, demands or requests required or permitted hereunder shall be in writing and shall be effective upon personal delivery, electronic mail, or upon receipt, if deposited in the U.S. Mail, registered or certified, return receipt requested, postage prepaid, or if deposited with any commercial air courier or express service.
+  </p>
+
+  <p class="section-header"><span class="section-number">12.</span> <strong>MISCELLANEOUS.</strong></p>
+
+  <p class="paragraph">
+    <strong>12.1</strong> <em>Addendum, Acknowledgements, and Additional Terms and Conditions.</em> The Parties agree to be bound by the additional terms and conditions specified in <u>Section 1.12</u> and if such additional terms and conditions conflict with any other provision of this Contract, the terms and conditions set forth in <u>Section 1.12</u> shall control.
+  </p>
+
+  <p class="paragraph">
+    <strong>12.2</strong> <em>Assignment.</em> Buyer may assign this Contract or any of its rights hereunder to any person, partnership, corporation or other entity without notice to Seller. Seller's consent to such assignment is not necessary or required.
+  </p>
+
+  <p class="paragraph">
+    <strong>12.3</strong> <em>Time is of the Essence.</em> Time is of the essence with respect to the performance of all terms, conditions and provisions of this Contract.
+  </p>
+
+  <p class="paragraph">
+    <strong>12.4</strong> <em>Choice of Law.</em> This Contract shall be governed and enforced under the laws of the state where the Property is located without regard to any conflict of law provisions.
+  </p>
+
+  <p class="paragraph">
+    <strong>12.5</strong> <em>Electronic Execution and Counterparts.</em> This Contract may be executed by electronic means and in any number of counterparts, each of which shall be deemed an original and all of which when taken together shall constitute one instrument.
+  </p>
+
+  {{#if ai_clauses}}
+  {{ai_clauses}}
+  {{/if}}
+
+  <p class="center-text">[SIGNATURES ON THE FOLLOWING PAGE]</p>
+
+  <!-- SIGNATURE PAGE -->
+  <div class="signature-page">
+    <p class="signature-header">
+      Seller acknowledges and agrees that Seller has read and fully understands the terms and conditions of this Contract and is entering into this Contract voluntarily and has not been threatened, coerced, or intimidated into signing this Contract.
+    </p>
+
+    <div class="signature-columns">
+      <div class="signature-column">
+        <div class="signature-row">
+          <div class="signature-label">APPROVED AND ACCEPTED BY SELLER ON:</div>
+          <div class="signature-line"></div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">SELLER SIGNATURE:</div>
+          <div class="signature-box" id="seller-signature"></div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">MAILING ADDRESS:</div>
+          <div class="signature-line">{{seller_address}}</div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">EMAIL:</div>
+          <div class="signature-line">{{seller_email}}</div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">PHONE:</div>
+          <div class="signature-line">{{seller_phone}}</div>
+        </div>
+      </div>
+
+      <div class="signature-column">
+        <div class="signature-row">
+          <div class="signature-label">APPROVED AND ACCEPTED BY BUYER ON:</div>
+          <div class="signature-line">{{contract_date}}</div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">BUYER SIGNATURE:</div>
+          <div class="signature-box" style="display: flex; align-items: center; justify-content: center; padding: 2px; min-height: 35pt;">
+            {{buyer_signature_img}}
+          </div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">COMPANY NAME:</div>
+          <div class="signature-line">{{company_name}}</div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">BUYER SIGNER NAME:</div>
+          <div class="signature-line">{{company_signer_name}}</div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">EMAIL:</div>
+          <div class="signature-line">{{company_email}}</div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">PHONE:</div>
+          <div class="signature-line">{{company_phone}}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

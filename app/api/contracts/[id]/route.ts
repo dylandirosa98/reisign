@@ -1,0 +1,191 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+// GET /api/contracts/[id] - Get a single contract
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const adminSupabase = createAdminClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Get user's company
+  const { data: userData } = await adminSupabase
+    .from('users')
+    .select('company_id')
+    .eq('id', user.id)
+    .single()
+
+  if (!userData?.company_id) {
+    return NextResponse.json({ error: 'No company found' }, { status: 400 })
+  }
+
+  // Get contract with property
+  const { data: contract, error } = await adminSupabase
+    .from('contracts')
+    .select(`
+      *,
+      property:properties(id, address, city, state, zip)
+    `)
+    .eq('id', id)
+    .eq('company_id', userData.company_id)
+    .single()
+
+  if (error || !contract) {
+    return NextResponse.json({ error: 'Contract not found' }, { status: 404 })
+  }
+
+  // Get status history
+  const { data: history } = await adminSupabase
+    .from('contract_status_history')
+    .select('*')
+    .eq('contract_id', id)
+    .order('created_at', { ascending: false })
+
+  return NextResponse.json({
+    contract,
+    history: history || [],
+  })
+}
+
+// PATCH /api/contracts/[id] - Update a contract
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const adminSupabase = createAdminClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Get user's company
+  const { data: userData } = await adminSupabase
+    .from('users')
+    .select('company_id')
+    .eq('id', user.id)
+    .single()
+
+  if (!userData?.company_id) {
+    return NextResponse.json({ error: 'No company found' }, { status: 400 })
+  }
+
+  // Check contract exists and belongs to company
+  const { data: existingContract } = await adminSupabase
+    .from('contracts')
+    .select('id, status')
+    .eq('id', id)
+    .eq('company_id', userData.company_id)
+    .single()
+
+  if (!existingContract) {
+    return NextResponse.json({ error: 'Contract not found' }, { status: 404 })
+  }
+
+  const body = await request.json()
+  const allowedFields = [
+    'buyer_name',
+    'buyer_email',
+    'seller_name',
+    'seller_email',
+    'price',
+    'custom_fields',
+  ]
+
+  // Only allow updates if contract is in draft status
+  if (existingContract.status !== 'draft') {
+    return NextResponse.json({
+      error: 'Cannot modify a contract that has been sent',
+    }, { status: 400 })
+  }
+
+  // Filter to allowed fields
+  const updateData: Record<string, unknown> = {}
+  for (const field of allowedFields) {
+    if (body[field] !== undefined) {
+      updateData[field] = body[field]
+    }
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
+  }
+
+  const { data: updated, error } = await adminSupabase
+    .from('contracts')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ contract: updated })
+}
+
+// DELETE /api/contracts/[id] - Delete a draft contract
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const adminSupabase = createAdminClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Get user's company
+  const { data: userData } = await adminSupabase
+    .from('users')
+    .select('company_id')
+    .eq('id', user.id)
+    .single()
+
+  if (!userData?.company_id) {
+    return NextResponse.json({ error: 'No company found' }, { status: 400 })
+  }
+
+  // Check contract exists and is in draft status
+  const { data: contract } = await adminSupabase
+    .from('contracts')
+    .select('id, status')
+    .eq('id', id)
+    .eq('company_id', userData.company_id)
+    .single()
+
+  if (!contract) {
+    return NextResponse.json({ error: 'Contract not found' }, { status: 404 })
+  }
+
+  if (contract.status !== 'draft') {
+    return NextResponse.json({
+      error: 'Only draft contracts can be deleted',
+    }, { status: 400 })
+  }
+
+  const { error } = await adminSupabase
+    .from('contracts')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
+}

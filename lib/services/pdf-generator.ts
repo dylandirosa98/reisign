@@ -1,0 +1,686 @@
+import puppeteer from 'puppeteer'
+import fs from 'fs/promises'
+import path from 'path'
+import { PDFDocument, rgb } from 'pdf-lib'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+export interface ContractData {
+  // Property fields
+  property_address: string
+  property_city: string
+  property_state: string
+  property_zip: string
+  apn?: string
+
+  // Seller fields (property owner)
+  seller_name: string
+  seller_email: string
+  seller_phone?: string
+  seller_address?: string
+
+  // Company/Wholesaler fields (the "Buyer" on Purchase Agreement)
+  company_name: string
+  company_email?: string
+  company_phone?: string
+  company_address?: string
+  company_city?: string
+  company_state?: string
+  company_zip?: string
+  company_signer_name?: string
+
+  // End Buyer fields (for Assignment Contract)
+  buyer_name?: string
+  buyer_email?: string
+  buyer_phone?: string
+
+  // Assignee fields (for Three Party Assignment)
+  assignee_name?: string
+  assignee_email?: string
+  assignee_phone?: string
+  assignee_address?: string
+
+  // Price fields
+  purchase_price: number
+  earnest_money?: number
+  assignment_fee?: number
+
+  // Escrow fields
+  escrow_agent_name?: string
+  escrow_agent_address?: string
+  escrow_officer?: string
+  escrow_agent_email?: string
+
+  // Contract terms
+  close_of_escrow?: string
+  inspection_period?: string
+  personal_property?: string
+  additional_terms?: string
+
+  // Section 1.10 closing amounts
+  escrow_fees_split?: 'split' | 'buyer'
+  title_policy_paid_by?: 'seller' | 'buyer'
+  hoa_fees_split?: 'split' | 'buyer'
+
+  // AI-generated clauses (formatted HTML string or array of clause objects)
+  ai_clauses?: string | Array<{ id: string; title: string; content: string; editedContent?: string }>
+
+  // Contract date (auto-generated if not provided)
+  contract_date?: string
+
+  // Buyer signature (base64 image)
+  buyer_signature?: string
+
+  // Buyer initials (base64 image) - auto-applied to all pages
+  buyer_initials?: string
+}
+
+export type TemplateType = 'purchase-agreement' | 'assignment-contract'
+
+/**
+ * PDF Generator Service
+ * Converts HTML templates to PDFs with dynamic data interpolation
+ */
+class PDFGeneratorService {
+  private templatesDir: string
+
+  constructor() {
+    this.templatesDir = path.join(process.cwd(), 'lib', 'templates')
+  }
+
+  /**
+   * Format AI clauses array into HTML for PDF
+   */
+  private formatAiClauses(clauses: ContractData['ai_clauses']): string {
+    if (!clauses) return ''
+
+    // If it's already a string, return as-is
+    if (typeof clauses === 'string') return clauses
+
+    // If it's an array, convert to HTML
+    if (Array.isArray(clauses) && clauses.length > 0) {
+      // Start numbering from 12.6 (continuing after 12.5 in the Miscellaneous section)
+      const startingNumber = 6
+      const clauseHtml = clauses.map((clause, index) => {
+        const content = clause.editedContent || clause.content
+        const clauseNumber = `12.${startingNumber + index}`
+        return `<p class="paragraph">
+          <strong>${clauseNumber}</strong> <em>${clause.title}:</em> ${content}
+        </p>`
+      }).join('')
+
+      return clauseHtml
+    }
+
+    return ''
+  }
+
+  /**
+   * Load an HTML template - priority order:
+   * 1. Company template (if companyTemplateId provided)
+   * 2. State-specific template from database
+   * 3. General template from database
+   * 4. File-based template
+   *
+   * Returns the HTML content and optional signature layout for company templates
+   */
+  private async loadTemplate(
+    templateType: TemplateType,
+    stateCode?: string,
+    companyTemplateId?: string
+  ): Promise<{ html: string; signatureLayout?: string }> {
+    // If company template ID is provided, load from company_templates
+    if (companyTemplateId) {
+      try {
+        const supabase = createAdminClient()
+        const { data: companyTemplateData } = await supabase
+          .from('company_templates' as any)
+          .select('html_content, name, signature_layout')
+          .eq('id', companyTemplateId)
+          .single()
+
+        const companyTemplate = companyTemplateData as {
+          html_content: string;
+          name: string;
+          signature_layout?: string
+        } | null
+
+        if (companyTemplate?.html_content) {
+          console.log('[PDF Generator] Using company template:', companyTemplate.name, 'with signature layout:', companyTemplate.signature_layout)
+          return {
+            html: companyTemplate.html_content,
+            signatureLayout: companyTemplate.signature_layout
+          }
+        }
+      } catch (error) {
+        console.error('Error loading company template:', error)
+        // Fall through to other template sources
+      }
+    }
+    // Convert state name to state code if needed (e.g., "Florida" -> "FL")
+    const stateCodeMap: Record<string, string> = {
+      'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+      'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+      'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
+      'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+      'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+      'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+      'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+      'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+      'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+      'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+      'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+      'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+      'Wisconsin': 'WI', 'Wyoming': 'WY'
+    }
+
+    // Normalize state code
+    const normalizedStateCode = stateCode
+      ? (stateCodeMap[stateCode] || stateCode.toUpperCase())
+      : null
+
+    // Only check database for purchase agreements (we have HTML editing for those)
+    if (templateType === 'purchase-agreement' && normalizedStateCode) {
+      try {
+        const supabase = createAdminClient()
+
+        // First check if this state has a customized template
+        if (normalizedStateCode !== 'GENERAL') {
+          const { data: stateTemplate } = await supabase
+            .from('state_templates')
+            .select('purchase_agreement_html, is_purchase_customized')
+            .eq('state_code', normalizedStateCode)
+            .single()
+
+          if (stateTemplate?.is_purchase_customized && stateTemplate?.purchase_agreement_html) {
+            return { html: stateTemplate.purchase_agreement_html }
+          }
+        }
+
+        // Fall back to general template from database
+        const { data: generalTemplate } = await supabase
+          .from('state_templates')
+          .select('purchase_agreement_html')
+          .eq('state_code', 'GENERAL')
+          .single()
+
+        if (generalTemplate?.purchase_agreement_html) {
+          return { html: generalTemplate.purchase_agreement_html }
+        }
+      } catch (error) {
+        console.error('Error loading template from database:', error)
+        // Fall through to file-based template
+      }
+    }
+
+    // Fall back to file-based template
+    const templatePath = path.join(this.templatesDir, `${templateType}.html`)
+    try {
+      const html = await fs.readFile(templatePath, 'utf-8')
+      return { html }
+    } catch (error) {
+      throw new Error(`Template not found: ${templateType}`)
+    }
+  }
+
+  /**
+   * Interpolate template variables with actual data
+   */
+  private interpolateTemplate(template: string, data: ContractData): string {
+    // Format number with commas (NO dollar sign - it's in the template)
+    const formatNumber = (value: number | undefined) =>
+      value ? value.toLocaleString() : ''
+
+    // Format date for display
+    const formatDate = (dateStr: string | undefined) => {
+      if (!dateStr) return ''
+      try {
+        return new Date(dateStr).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        })
+      } catch {
+        return dateStr
+      }
+    }
+
+    // Format date
+    const contractDate = data.contract_date ||
+      new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+
+    // Build full addresses
+    const fullPropertyAddress = `${data.property_address}, ${data.property_city}, ${data.property_state} ${data.property_zip}`
+    const companyFullAddress = data.company_address
+      ? `${data.company_address}, ${data.company_city || ''}, ${data.company_state || ''} ${data.company_zip || ''}`
+      : ''
+
+    // Create replacement map
+    const replacements: Record<string, string> = {
+      // Property
+      property_address: data.property_address || '',
+      property_city: data.property_city || '',
+      property_state: data.property_state || '',
+      property_zip: data.property_zip || '',
+      full_property_address: fullPropertyAddress,
+      apn: data.apn || '',
+
+      // Seller
+      seller_name: data.seller_name || '',
+      seller_email: data.seller_email || '',
+      seller_phone: data.seller_phone || '',
+      seller_address: data.seller_address || '',
+
+      // Company (Buyer on Purchase Agreement)
+      company_name: data.company_name || '',
+      company_email: data.company_email || '',
+      company_phone: data.company_phone || '',
+      company_address: data.company_address || '',
+      company_city: data.company_city || '',
+      company_state: data.company_state || '',
+      company_zip: data.company_zip || '',
+      company_full_address: companyFullAddress,
+      company_signer_name: data.company_signer_name || data.company_name || '',
+
+      // End Buyer (Assignment Contract)
+      buyer_name: data.buyer_name || '',
+      buyer_email: data.buyer_email || '',
+      buyer_phone: data.buyer_phone || '',
+
+      // Assignee (Three Party Assignment)
+      assignee_name: data.assignee_name || '',
+      assignee_email: data.assignee_email || '',
+      assignee_phone: data.assignee_phone || '',
+      assignee_address: data.assignee_address || '',
+
+      // Prices (NO dollar signs - they're in the template)
+      purchase_price: formatNumber(data.purchase_price),
+      earnest_money: formatNumber(data.earnest_money),
+      assignment_fee: formatNumber(data.assignment_fee),
+
+      // Escrow
+      escrow_agent_name: data.escrow_agent_name || '',
+      escrow_agent_address: data.escrow_agent_address || '',
+      escrow_officer: data.escrow_officer || '',
+      escrow_agent_email: data.escrow_agent_email || '',
+
+      // Terms - close of escrow is a date, inspection period is number of days
+      close_of_escrow: formatDate(data.close_of_escrow),
+      inspection_period: data.inspection_period || '', // Number of days, not a date
+      personal_property: data.personal_property || '',
+      additional_terms: data.additional_terms || '',
+
+      // Section 1.10 checkbox states (returns 'checked' or '' - all optional)
+      escrow_fees_split_check: data.escrow_fees_split === 'split' ? 'checked' : '',
+      escrow_fees_buyer_check: data.escrow_fees_split === 'buyer' ? 'checked' : '',
+      title_policy_seller_check: data.title_policy_paid_by === 'seller' ? 'checked' : '',
+      title_policy_buyer_check: data.title_policy_paid_by === 'buyer' ? 'checked' : '',
+      hoa_fees_split_check: data.hoa_fees_split === 'split' ? 'checked' : '',
+      hoa_fees_buyer_check: data.hoa_fees_split === 'buyer' ? 'checked' : '',
+
+      // AI Clauses - convert array to HTML if needed
+      ai_clauses: this.formatAiClauses(data.ai_clauses),
+
+      // Date
+      contract_date: contractDate,
+
+      // Buyer signature - generate img tag if signature exists, empty string otherwise
+      buyer_signature_img: data.buyer_signature && data.buyer_signature.trim()
+        ? `<img src="${data.buyer_signature}" style="height: 30px; width: auto; object-fit: contain;" />`
+        : '',
+
+      // Buyer initials - generate img tag if initials exist, empty string otherwise
+      buyer_initials_img: data.buyer_initials && data.buyer_initials.trim()
+        ? `<img src="${data.buyer_initials}" style="height: 20px; width: auto; object-fit: contain;" />`
+        : '',
+    }
+
+    // Replace all {{variable}} patterns
+    let result = template
+    for (const [key, value] of Object.entries(replacements)) {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g')
+      result = result.replace(regex, value)
+    }
+
+    // Handle conditional AI clauses section
+    const hasAiClauses = data.ai_clauses && (
+      (typeof data.ai_clauses === 'string' && data.ai_clauses.trim()) ||
+      (Array.isArray(data.ai_clauses) && data.ai_clauses.length > 0)
+    )
+    if (hasAiClauses) {
+      // Remove the conditional tags, keep the content
+      result = result.replace(/\{\{#if ai_clauses\}\}/g, '')
+      result = result.replace(/\{\{\/if\}\}/g, '')
+    } else {
+      // Remove the entire AI clauses block if empty
+      result = result.replace(/\{\{#if ai_clauses\}\}[\s\S]*?\{\{\/if\}\}/g, '')
+    }
+
+    return result
+  }
+
+  /**
+   * Generate footer template with initials boxes
+   */
+  private generateFooterTemplate(buyerInitialsImg: string): string {
+    return `
+      <div style="width: 100%; font-size: 9px; font-family: 'Times New Roman', serif; padding: 0 0.5in;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #ccc; padding-top: 8px; margin-top: 5px;">
+          <div style="display: flex; align-items: center; gap: 5px;">
+            <span>Seller Initials:</span>
+            <div style="width: 50px; height: 22px; border: 1px solid #000;"></div>
+          </div>
+          <div>Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>
+          <div style="display: flex; align-items: center; gap: 5px;">
+            <span>Buyer Initials:</span>
+            <div style="width: 50px; height: 22px; border: 1px solid #000; display: flex; align-items: center; justify-content: center;">
+              ${buyerInitialsImg}
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  /**
+   * Load signature page HTML from template file based on layout
+   */
+  private async loadSignaturePageTemplate(layout: string): Promise<string> {
+    const templateMap: Record<string, string> = {
+      'two-column': 'two-column.html',
+      'seller-only': 'seller-only.html',
+      'three-party': 'three-party-assignment.html',
+    }
+
+    const fileName = templateMap[layout] || templateMap['two-column']
+    const templatePath = path.join(this.templatesDir, 'signature-pages', fileName)
+
+    try {
+      return await fs.readFile(templatePath, 'utf-8')
+    } catch (error) {
+      console.error(`Error loading signature page template: ${fileName}`, error)
+      // Return a basic fallback
+      return `<div class="signature-page"><p>Signature Page</p></div>`
+    }
+  }
+
+  /**
+   * Get CSS styles for signature pages (extracted from purchase-agreement template)
+   */
+  private getSignaturePageStyles(): string {
+    return `
+      .signature-page {
+        page-break-before: always;
+      }
+
+      .signature-header {
+        text-align: center;
+        font-style: italic;
+        margin-bottom: 30pt;
+        line-height: 1.4;
+      }
+
+      .signature-columns {
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .signature-column {
+        width: 45%;
+      }
+
+      .signature-row {
+        margin-bottom: 16pt;
+      }
+
+      .signature-label {
+        font-size: 9pt;
+        font-weight: bold;
+        margin-bottom: 4pt;
+      }
+
+      .signature-line {
+        border-bottom: 1px solid #000;
+        min-height: 20pt;
+        padding-top: 2pt;
+      }
+
+      .signature-box {
+        border: 1px solid #000;
+        min-height: 35pt;
+      }
+    `
+  }
+
+  /**
+   * Generate signature page HTML based on layout
+   */
+  private async generateSignaturePageHtml(
+    layout: string,
+    data: ContractData
+  ): Promise<string> {
+    // Load the signature page template
+    let signatureHtml = await this.loadSignaturePageTemplate(layout)
+
+    // Interpolate the template with data
+    signatureHtml = this.interpolateTemplate(signatureHtml, data)
+
+    return signatureHtml
+  }
+
+  /**
+   * Generate PDF from HTML template with data
+   * Priority: company template > state-specific template > general template > file
+   */
+  async generatePDF(
+    templateType: TemplateType,
+    data: ContractData,
+    companyTemplateId?: string
+  ): Promise<Buffer> {
+    // Load and interpolate template (pass company template ID and state for lookup)
+    const { html: templateHtml, signatureLayout } = await this.loadTemplate(templateType, data.property_state, companyTemplateId)
+    let html = this.interpolateTemplate(templateHtml, data)
+
+    // Check if the template already has a signature page
+    const hasSignaturePage = html.includes('class="signature-page"') || html.includes('class=\'signature-page\'')
+
+    // If using a company template with a signature layout and no existing signature page, add one
+    if (signatureLayout && !hasSignaturePage) {
+      // Add "SIGNATURES ON FOLLOWING PAGE" notice
+      const signaturesNotice = `
+        <p class="center-text" style="text-align: center; margin-top: 30pt; font-weight: bold;">[SIGNATURES ON THE FOLLOWING PAGE]</p>
+      `
+
+      // Generate the signature page (now async)
+      const signaturePage = await this.generateSignaturePageHtml(signatureLayout, data)
+
+      // Get signature page styles
+      const signatureStyles = this.getSignaturePageStyles()
+
+      // Check if the HTML has a </style> tag to inject styles into
+      if (html.includes('</style>')) {
+        html = html.replace('</style>', `${signatureStyles}</style>`)
+      } else if (html.includes('</head>')) {
+        // Add a new style tag before </head>
+        html = html.replace('</head>', `<style>${signatureStyles}</style></head>`)
+      }
+
+      // Insert before closing </body> tag
+      if (html.includes('</body>')) {
+        html = html.replace('</body>', `${signaturesNotice}${signaturePage}</body>`)
+      } else {
+        html = html + signaturesNotice + signaturePage
+      }
+
+      console.log('[PDF Generator] Added signature page with layout:', signatureLayout)
+    }
+
+    // Generate buyer initials img tag for footer
+    const buyerInitialsImg = data.buyer_initials && data.buyer_initials.trim()
+      ? `<img src="${data.buyer_initials}" style="height: 18px; width: auto; object-fit: contain;" />`
+      : ''
+
+    // Generate footer template with initials
+    const footerTemplate = this.generateFooterTemplate(buyerInitialsImg)
+
+    // Launch Puppeteer
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    })
+
+    let pdfBytes: Uint8Array
+
+    try {
+      const page = await browser.newPage()
+
+      // Set content and wait for styles to load
+      await page.setContent(html, { waitUntil: 'networkidle0' })
+
+      // Generate PDF with footer containing initials
+      pdfBytes = await page.pdf({
+        format: 'Letter',
+        margin: {
+          top: '0.5in',
+          right: '0.5in',
+          bottom: '1in',
+          left: '0.5in',
+        },
+        printBackground: true,
+        displayHeaderFooter: true,
+        headerTemplate: '<div></div>',
+        footerTemplate: footerTemplate,
+      })
+    } finally {
+      await browser.close()
+    }
+
+    // Use pdf-lib to remove footer from the last page by drawing a white rectangle over it
+    const pdfDoc = await PDFDocument.load(pdfBytes)
+    const pages = pdfDoc.getPages()
+
+    if (pages.length > 0) {
+      const lastPage = pages[pages.length - 1]
+      const { width } = lastPage.getSize()
+
+      // Draw a white rectangle over the footer area on the last page
+      // Footer is in the bottom 1 inch (72 points) of the page
+      lastPage.drawRectangle({
+        x: 0,
+        y: 0,
+        width: width,
+        height: 72, // 1 inch = 72 points
+        color: rgb(1, 1, 1), // White
+      })
+    }
+
+    const modifiedPdfBytes = await pdfDoc.save()
+    return Buffer.from(modifiedPdfBytes)
+  }
+
+  /**
+   * Get the number of pages in a PDF buffer
+   */
+  async getPageCount(pdfBuffer: Buffer): Promise<number> {
+    try {
+      // Use pdf-lib for accurate page count
+      const pdfDoc = await PDFDocument.load(pdfBuffer)
+      const count = pdfDoc.getPageCount()
+      console.log(`[PDF Generator] getPageCount: ${count} pages detected`)
+      return count
+    } catch (error) {
+      console.error(`[PDF Generator] getPageCount failed:`, error)
+      // Default to 5 pages for purchase agreement
+      return 5
+    }
+  }
+
+  /**
+   * Get signature field positions from generated PDF
+   * Returns coordinates for where signature fields should be placed
+   * Initials are in the footer (pages 1 to N-1), signature on the last page
+   *
+   * IMPORTANT: Documenso uses PERCENTAGE coordinates (0-100), not points!
+   * positionX, positionY, width, height are all percentages of page dimensions
+   */
+  async getSignaturePositions(
+    templateType: TemplateType,
+    _data: ContractData,
+    pageCount?: number
+  ): Promise<Array<{ page: number; x: number; y: number; width: number; height: number; recipientRole: string; fieldType?: string }>> {
+    const positions: Array<{ page: number; x: number; y: number; width: number; height: number; recipientRole: string; fieldType?: string }> = []
+
+    // All values are PERCENTAGES (0-100) of page dimensions
+    // Letter size reference: 612 x 792 points, but we use percentages
+
+    if (templateType === 'purchase-agreement') {
+      const totalPages = pageCount || 5
+      const pagesWithInitials = totalPages - 1
+
+      console.log(`[PDF Generator] Setting up fields: totalPages=${totalPages}, pagesWithInitials=${pagesWithInitials}`)
+
+      // Seller initials in footer on pages 1 to N-1
+      // Footer: ~0.5in padding from left + "Seller Initials:" text ≈ 16% from left
+      // Footer is in bottom margin, ~96% from top
+      for (let page = 1; page <= pagesWithInitials; page++) {
+        console.log(`[PDF Generator] Adding initials field for page ${page}`)
+        positions.push({
+          page: page,
+          x: 16,        // ~16% from left (after "Seller Initials:" text)
+          y: 95.5,      // ~95.5% from top (in footer area)
+          width: 8,     // ~8% width for initials box
+          height: 2.8,  // ~2.8% height for initials box
+          recipientRole: 'seller',
+          fieldType: 'initials',
+        })
+      }
+
+      // Seller signature on the last page (signature page)
+      // Left column starts at ~6% from left (0.5in margin)
+      // Signature box is ~25% from top (after header + first row)
+      console.log(`[PDF Generator] Adding signature field for page ${totalPages}`)
+      positions.push({
+        page: totalPages,
+        x: 6,         // ~6% from left (left margin)
+        y: 26,        // ~26% from top (after header and first row)
+        width: 32,    // ~32% width (signature box width)
+        height: 4.5,  // ~4.5% height (signature box height)
+        recipientRole: 'seller',
+        fieldType: 'signature',
+      })
+
+      console.log(`[PDF Generator] Total positions: ${positions.length}`, positions.map(p => ({ page: p.page, type: p.fieldType })))
+    }
+
+    // For assignment contract: seller and buyer signatures
+    if (templateType === 'assignment-contract') {
+      positions.push(
+        {
+          page: 2,
+          x: 6,
+          y: 38,
+          width: 32,
+          height: 6,
+          recipientRole: 'seller',
+          fieldType: 'signature',
+        },
+        {
+          page: 2,
+          x: 55,
+          y: 38,
+          width: 32,
+          height: 6,
+          recipientRole: 'buyer',
+          fieldType: 'signature',
+        }
+      )
+    }
+
+    return positions
+  }
+}
+
+export const pdfGenerator = new PDFGeneratorService()

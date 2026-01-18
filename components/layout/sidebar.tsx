@@ -32,7 +32,7 @@ export function Sidebar({ user }: SidebarProps) {
       <div className="p-6 border-b border-gray-200">
         <Link href="/dashboard" className="flex items-center space-x-2">
           <FileText className="h-8 w-8 text-primary" />
-          <span className="text-xl font-bold">WholesaleSign</span>
+          <span className="text-xl font-bold">REI Sign</span>
         </Link>
       </div>
 
