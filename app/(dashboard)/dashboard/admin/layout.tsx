@@ -20,12 +20,12 @@ export default async function AdminLayout({
 
   const { data: userData } = await adminSupabase
     .from('users')
-    .select('role')
+    .select('role, is_system_admin')
     .eq('id', user.id)
     .single()
 
-  // Only allow admin users
-  if (userData?.role !== 'admin') {
+  // Only allow system admins or company admins
+  if (!userData?.is_system_admin && userData?.role !== 'admin') {
     redirect('/dashboard')
   }
 

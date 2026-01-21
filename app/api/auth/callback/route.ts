@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -8,9 +9,22 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { error, data } = await supabase.auth.exchangeCodeForSession(code)
 
-    if (!error) {
+    if (!error && data.user) {
+      // Check if user has a company
+      const adminSupabase = createAdminClient()
+      const { data: userData } = await adminSupabase
+        .from('users')
+        .select('company_id')
+        .eq('id', data.user.id)
+        .single()
+
+      // If no company, redirect to onboarding
+      if (!userData?.company_id) {
+        return NextResponse.redirect(`${origin}/onboarding`)
+      }
+
       return NextResponse.redirect(`${origin}${next}`)
     }
   }

@@ -1,20 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Mail, CheckCircle } from 'lucide-react'
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
+  const [success, setSuccess] = useState(false)
   const supabase = createClient()
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -28,13 +29,21 @@ export default function SignupPage() {
       return
     }
 
+    if (!companyName.trim()) {
+      setError('Company name is required')
+      setLoading(false)
+      return
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName,
+          company_name: companyName,
         },
+        emailRedirectTo: `${window.location.origin}/onboarding`,
       },
     })
 
@@ -44,9 +53,36 @@ export default function SignupPage() {
       return
     }
 
-    // Redirect to onboarding to create company
-    router.push('/onboarding')
-    router.refresh()
+    // Show success message
+    setSuccess(true)
+  }
+
+  if (success) {
+    return (
+      <div className="bg-white border border-[var(--gray-200)] rounded p-8">
+        <div className="text-center">
+          <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
+            <CheckCircle className="w-6 h-6 text-green-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-[var(--gray-900)] mb-2">Check your email</h1>
+          <p className="text-[var(--gray-600)] mb-4">
+            We sent a confirmation link to <strong>{email}</strong>
+          </p>
+          <p className="text-sm text-[var(--gray-500)] mb-6">
+            Click the link in the email to confirm your account, then log in to set up your company.
+          </p>
+          <div className="flex items-center justify-center gap-2 text-sm text-[var(--gray-500)]">
+            <Mail className="w-4 h-4" />
+            <span>Didn&apos;t receive it? Check your spam folder</span>
+          </div>
+          <div className="mt-6">
+            <Link href="/login" className="text-[var(--primary-700)] hover:underline font-medium">
+              Go to login
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -75,6 +111,21 @@ export default function SignupPage() {
             placeholder="John Doe"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
+            required
+            className="border-[var(--gray-300)] rounded"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="companyName" className="text-sm font-medium text-[var(--gray-700)]">
+            Company Name
+          </Label>
+          <Input
+            id="companyName"
+            type="text"
+            placeholder="Acme Wholesaling LLC"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
             required
             className="border-[var(--gray-300)] rounded"
           />

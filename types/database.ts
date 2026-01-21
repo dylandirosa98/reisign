@@ -24,6 +24,15 @@ export type Database = {
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           updated_at: string | null
+          // New billing fields
+          billing_plan: 'free' | 'individual' | 'team' | 'business' | 'admin'
+          actual_plan: 'free' | 'individual' | 'team' | 'business' | 'admin'
+          billing_period_start: string | null
+          contracts_used_this_period: number
+          subscription_status: string
+          trial_ends_at: string | null
+          billing_email: string | null
+          overage_behavior: 'auto_charge' | 'warn_each'
         }
         Insert: {
           created_at?: string | null
@@ -34,6 +43,14 @@ export type Database = {
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           updated_at?: string | null
+          billing_plan?: 'free' | 'individual' | 'team' | 'business' | 'admin'
+          actual_plan?: 'free' | 'individual' | 'team' | 'business' | 'admin'
+          billing_period_start?: string | null
+          contracts_used_this_period?: number
+          subscription_status?: string
+          trial_ends_at?: string | null
+          billing_email?: string | null
+          overage_behavior?: 'auto_charge' | 'warn_each'
         }
         Update: {
           created_at?: string | null
@@ -44,6 +61,14 @@ export type Database = {
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           updated_at?: string | null
+          billing_plan?: 'free' | 'individual' | 'team' | 'business' | 'admin'
+          actual_plan?: 'free' | 'individual' | 'team' | 'business' | 'admin'
+          billing_period_start?: string | null
+          contracts_used_this_period?: number
+          subscription_status?: string
+          trial_ends_at?: string | null
+          billing_email?: string | null
+          overage_behavior?: 'auto_charge' | 'warn_each'
         }
         Relationships: []
       }
@@ -391,6 +416,7 @@ export type Database = {
           is_active: boolean | null
           role: string | null
           updated_at: string | null
+          is_system_admin: boolean
         }
         Insert: {
           company_id?: string | null
@@ -401,6 +427,7 @@ export type Database = {
           is_active?: boolean | null
           role?: string | null
           updated_at?: string | null
+          is_system_admin?: boolean
         }
         Update: {
           company_id?: string | null
@@ -411,6 +438,7 @@ export type Database = {
           is_active?: boolean | null
           role?: string | null
           updated_at?: string | null
+          is_system_admin?: boolean
         }
         Relationships: [
           {

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Button } from '@/components/ui/button'
@@ -11,7 +12,7 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    return <div>Not authenticated</div>
+    redirect('/login')
   }
 
   // Get user's company_id (using admin client to bypass RLS)
@@ -24,7 +25,7 @@ export default async function DashboardPage() {
   const companyId = (userData as { company_id: string | null } | null)?.company_id
 
   if (!companyId) {
-    return <div>No company found</div>
+    redirect('/onboarding')
   }
 
   // Get contract stats (using admin client)

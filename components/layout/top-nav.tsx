@@ -38,6 +38,7 @@ const navigation = [
 ]
 
 const adminNavigation = [
+  { name: 'Accounts', href: '/dashboard/admin/accounts', icon: Users },
   { name: 'Admin Templates', href: '/dashboard/admin/templates', icon: Shield },
 ]
 
@@ -88,8 +89,8 @@ export function TopNav({ user }: TopNavProps) {
           )
         })}
 
-        {/* Admin Navigation - only show for admin users */}
-        {user.role === 'admin' && (
+        {/* Admin Navigation - only show for system admins */}
+        {(user.is_system_admin || user.role === 'admin') && (
           <>
             <span className="mx-2 text-[var(--gray-300)]">|</span>
             {adminNavigation.map((item) => {

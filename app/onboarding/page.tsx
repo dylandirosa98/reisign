@@ -40,6 +40,12 @@ export default function OnboardingPage() {
         return
       }
 
+      // Pre-fill company name from signup metadata if available
+      const metadataCompanyName = user.user_metadata?.company_name
+      if (metadataCompanyName) {
+        setCompanyName(metadataCompanyName)
+      }
+
       setCheckingUser(false)
     }
 
@@ -51,52 +57,28 @@ export default function OnboardingPage() {
     setLoading(true)
     setError(null)
 
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      setError('You must be logged in')
-      setLoading(false)
-      return
-    }
-
-    // Create company
-    const { data: companyRaw, error: companyError } = await supabase
-      .from('companies')
-      .insert({ name: companyName })
-      .select()
-      .single()
-
-    if (companyError) {
-      setError(companyError.message)
-      setLoading(false)
-      return
-    }
-
-    const company = companyRaw as { id: string } | null
-
-    if (!company) {
-      setError('Failed to create company')
-      setLoading(false)
-      return
-    }
-
-    // Update user with company_id and set as manager
-    const { error: userError } = await supabase
-      .from('users')
-      .update({
-        company_id: company.id,
-        role: 'manager'
+    try {
+      const response = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyName }),
       })
-      .eq('id', user.id)
 
-    if (userError) {
-      setError(userError.message)
+      const result = await response.json()
+
+      if (!response.ok) {
+        setError(result.error || 'Failed to create company')
+        setLoading(false)
+        return
+      }
+
+      router.push('/dashboard')
+      router.refresh()
+    } catch (err) {
+      console.error('Onboarding error:', err)
+      setError('Something went wrong. Please try again.')
       setLoading(false)
-      return
     }
-
-    router.push('/dashboard')
-    router.refresh()
   }
 
   if (checkingUser) {
