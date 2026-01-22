@@ -12,6 +12,8 @@ import {
   CreditCard,
   Shield,
   FileCode2,
+  BarChart3,
+  Activity,
 } from 'lucide-react'
 import type { User, Company } from '@/types/database'
 
@@ -33,6 +35,8 @@ const settingsNavigation = [
 ]
 
 const adminNavigation = [
+  { name: 'Analytics', href: '/dashboard/admin/analytics', icon: BarChart3 },
+  { name: 'Activity Log', href: '/dashboard/admin/activity', icon: Activity },
   { name: 'Manage Accounts', href: '/dashboard/admin/accounts', icon: Shield },
   { name: 'Admin Templates', href: '/dashboard/admin/templates', icon: FileCode2 },
 ]
