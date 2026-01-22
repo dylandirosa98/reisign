@@ -20,9 +20,14 @@ interface DocumensoWebhookPayload {
 
 // POST /api/webhooks/documenso - Handle Documenso webhook events
 export async function POST(request: NextRequest) {
-  // Verify webhook signature if secret is configured
+  // Verify webhook signature - secret is required
+  if (!WEBHOOK_SECRET) {
+    console.error('DOCUMENSO_WEBHOOK_SECRET is not configured')
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 })
+  }
+
   const signature = request.headers.get('x-documenso-secret')
-  if (WEBHOOK_SECRET && signature !== WEBHOOK_SECRET) {
+  if (signature !== WEBHOOK_SECRET) {
     console.warn('Invalid Documenso webhook signature')
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }
