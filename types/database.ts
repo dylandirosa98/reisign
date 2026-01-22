@@ -304,6 +304,48 @@ export type Database = {
           },
         ]
       }
+      usage_logs: {
+        Row: {
+          id: string
+          company_id: string | null
+          user_id: string | null
+          action_type: string
+          metadata: Json | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          company_id?: string | null
+          user_id?: string | null
+          action_type: string
+          metadata?: Json | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          company_id?: string | null
+          user_id?: string | null
+          action_type?: string
+          metadata?: Json | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usage_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "usage_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       state_templates: {
         Row: {
           assignment_contract_file_name: string | null
