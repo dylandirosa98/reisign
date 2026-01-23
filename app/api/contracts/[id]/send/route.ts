@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { documenso } from '@/lib/documenso'
 import { pdfGenerator, ContractData, TemplateType } from '@/lib/services/pdf-generator'
 import { aiClauseService, ClauseType } from '@/lib/services/ai-clauses'
+import { canCreateContract, PLANS, formatPrice } from '@/lib/plans'
+import { chargeExtraContract, isStripeConfigured } from '@/lib/stripe'
 
 // POST /api/contracts/[id]/send - Send contract for signing via Documenso
 export async function POST(
@@ -33,7 +35,7 @@ export async function POST(
   // Get company details for "buyer" fields on purchase agreement
   const { data: companyData } = await adminSupabase
     .from('companies')
-    .select('name, email, phone, address, city, state, zip, signer_name')
+    .select('name, email, phone, address, city, state, zip, signer_name, actual_plan, contracts_used_this_period, stripe_customer_id, overage_behavior, subscription_status')
     .eq('id', userData.company_id)
     .single()
 
@@ -47,7 +49,36 @@ export async function POST(
     state?: string
     zip?: string
     signer_name?: string
+    actual_plan?: 'free' | 'individual' | 'team' | 'business' | 'admin'
+    contracts_used_this_period?: number
+    stripe_customer_id?: string
+    overage_behavior?: 'auto_charge' | 'warn_each'
+    subscription_status?: string
   } | null
+
+  // Check if payment is past due - block contract sending
+  if (company?.subscription_status === 'past_due') {
+    return NextResponse.json({
+      error: 'Your payment is past due. Please update your payment method to continue sending contracts.',
+      paymentRequired: true,
+    }, { status: 402 })
+  }
+
+  // Check contract limits
+  const actualPlan = company?.actual_plan || 'free'
+  const contractsUsed = company?.contracts_used_this_period || 0
+  const limitCheck = canCreateContract(actualPlan, contractsUsed)
+
+  // If not allowed and no overage possible (free tier), block
+  if (!limitCheck.allowed && !limitCheck.isOverage) {
+    return NextResponse.json({
+      error: limitCheck.reason || 'Contract limit reached. Please upgrade your plan.',
+      requiresUpgrade: true,
+    }, { status: 403 })
+  }
+
+  // Track if this is an overage contract for billing
+  const isOverageContract = limitCheck.isOverage === true
 
   // Get contract with property
   const { data: contract, error: contractError } = await adminSupabase
@@ -297,12 +328,44 @@ export async function POST(
         },
       })
 
+    // Increment contracts used this period
+    await adminSupabase
+      .from('companies')
+      .update({
+        contracts_used_this_period: (company?.contracts_used_this_period || 0) + 1,
+      })
+      .eq('id', userData.company_id)
+
+    // Charge for overage if applicable
+    let overageCharged = false
+    if (isOverageContract && company?.stripe_customer_id && isStripeConfigured()) {
+      const propertyAddr = customFields?.property_address || contract.property?.address || 'Unknown'
+      const chargeResult = await chargeExtraContract(
+        company.stripe_customer_id,
+        actualPlan,
+        `Extra contract: ${propertyAddr}`
+      )
+      overageCharged = !!chargeResult
+      if (chargeResult) {
+        console.log(`[Send Contract] Overage charged: ${chargeResult.id}`)
+      }
+    }
+
+    // Get the plan-specific overage price for the response
+    const plan = PLANS[actualPlan]
+    const overagePrice = plan.limits.overagePricing.extraContractPrice
+
     return NextResponse.json({
       success: true,
       contract: updated,
       document: {
         id: result.documentId,
         recipients: result.recipients,
+      },
+      billing: {
+        isOverage: isOverageContract,
+        overageCharged,
+        overageAmount: isOverageContract ? formatPrice(overagePrice) : null,
       },
     })
   } catch (error) {

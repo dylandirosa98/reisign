@@ -21,7 +21,9 @@ import {
   Users,
   LogOut,
   ChevronDown,
-  Shield
+  Shield,
+  BarChart3,
+  Activity,
 } from 'lucide-react'
 import type { User, Company } from '@/types/database'
 
@@ -38,8 +40,10 @@ const navigation = [
 ]
 
 const adminNavigation = [
+  { name: 'Analytics', href: '/dashboard/admin/analytics', icon: BarChart3 },
+  { name: 'Activity', href: '/dashboard/admin/activity', icon: Activity },
   { name: 'Accounts', href: '/dashboard/admin/accounts', icon: Users },
-  { name: 'Admin Templates', href: '/dashboard/admin/templates', icon: Shield },
+  { name: 'Templates', href: '/dashboard/admin/templates', icon: Shield },
 ]
 
 export function TopNav({ user }: TopNavProps) {

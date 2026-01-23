@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { PLANS, formatPrice, getUsageSummary, type PlanTier } from '@/lib/plans'
 import {
@@ -13,6 +13,10 @@ import {
   Crown,
   ArrowRight,
   ExternalLink,
+  Receipt,
+  Calendar,
+  Download,
+  Loader2,
 } from 'lucide-react'
 
 interface CompanyBilling {
@@ -28,13 +32,66 @@ interface CompanyBilling {
   trial_ends_at: string | null
 }
 
+interface InvoiceLine {
+  description: string
+  amount: number
+  quantity: number | null
+}
+
+interface Invoice {
+  id: string
+  number: string | null
+  status: string | null
+  amount_due: number
+  amount_paid: number
+  currency: string
+  created: number
+  due_date: number | null
+  paid_at: number | null
+  hosted_invoice_url: string | null
+  invoice_pdf: string | null
+  lines: InvoiceLine[]
+}
+
+interface UpcomingInvoice {
+  amount_due: number
+  amount_remaining: number
+  currency: string
+  next_payment_attempt: number | null
+  period_start: number
+  period_end: number
+  subtotal: number
+  tax: number | null
+  total: number
+  lines: InvoiceLine[]
+}
+
 export default function BillingPage() {
   const [company, setCompany] = useState<CompanyBilling | null>(null)
   const [userCount, setUserCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [upcomingInvoice, setUpcomingInvoice] = useState<UpcomingInvoice | null>(null)
+  const [invoicesLoading, setInvoicesLoading] = useState(false)
 
   const supabase = createClient()
+
+  const fetchInvoices = useCallback(async () => {
+    setInvoicesLoading(true)
+    try {
+      const response = await fetch('/api/stripe/invoices')
+      if (response.ok) {
+        const data = await response.json()
+        setInvoices(data.invoices || [])
+        setUpcomingInvoice(data.upcomingInvoice)
+      }
+    } catch (err) {
+      console.error('Failed to fetch invoices:', err)
+    } finally {
+      setInvoicesLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     fetchBillingInfo()
@@ -84,14 +141,20 @@ export default function BillingPage() {
         .select('id', { count: 'exact', head: true })
         .eq('company_id', userData.company_id)
 
-      setCompany({
+      const companyState = {
         ...companyData,
         billing_plan: companyData.billing_plan || 'free',
         actual_plan: companyData.actual_plan || 'free',
         contracts_used_this_period: companyData.contracts_used_this_period || 0,
         subscription_status: companyData.subscription_status || 'active',
-      })
+      }
+      setCompany(companyState)
       setUserCount(count || 1)
+
+      // Fetch invoices if customer has Stripe
+      if (companyState.stripe_customer_id) {
+        fetchInvoices()
+      }
     } catch (err) {
       console.error('Error fetching billing info:', err)
       setError('Failed to load billing information')
@@ -335,13 +398,222 @@ export default function BillingPage() {
         </div>
       </div>
 
+      {/* Next Invoice Breakdown */}
+      {company.stripe_subscription_id && company.billing_plan !== 'free' && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <Receipt className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Next Invoice Estimate</h2>
+              <p className="text-sm text-gray-500">
+                {company.billing_period_start && (
+                  <>
+                    <Calendar className="w-3 h-3 inline mr-1" />
+                    Billing period: {new Date(company.billing_period_start).toLocaleDateString()} -{' '}
+                    {new Date(new Date(company.billing_period_start).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {/* Base Subscription */}
+            <div className="flex items-center justify-between py-2 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Crown className="w-4 h-4 text-gray-400" />
+                <span className="text-gray-700">{billingPlan.name} Plan (Monthly)</span>
+              </div>
+              <span className="font-medium text-gray-900">{formatPrice(billingPlan.monthlyPrice)}</span>
+            </div>
+
+            {/* Extra Seats */}
+            {usage.users.extra > 0 && (
+              <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-700">
+                    Extra Seats ({usage.users.extra} × {formatPrice(currentPlan.limits.overagePricing.extraSeatPrice)}/mo)
+                  </span>
+                </div>
+                <span className="font-medium text-gray-900">{formatPrice(usage.users.extraCost)}</span>
+              </div>
+            )}
+
+            {/* Contract Overages */}
+            {usage.contracts.extra > 0 && (
+              <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-700">
+                    Extra Contracts ({usage.contracts.extra} × {formatPrice(currentPlan.limits.overagePricing.extraContractPrice)})
+                  </span>
+                </div>
+                <span className="font-medium text-gray-900">{formatPrice(usage.contracts.extraCost)}</span>
+              </div>
+            )}
+
+            {/* Total */}
+            <div className="flex items-center justify-between pt-3">
+              <span className="text-lg font-semibold text-gray-900">Estimated Total</span>
+              <span className="text-lg font-bold text-gray-900">
+                {formatPrice(
+                  billingPlan.monthlyPrice +
+                  usage.users.extraCost +
+                  usage.contracts.extraCost
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <p className="text-xs text-gray-500">
+              * Contract overages are charged at the end of each billing period. Extra seats are charged monthly.
+              Actual invoice may vary based on prorated charges or credits.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Invoices Section */}
+      {company.stripe_customer_id && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Receipt className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Invoices</h2>
+                <p className="text-sm text-gray-500">View and download your billing history</p>
+              </div>
+            </div>
+            {invoicesLoading && (
+              <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+            )}
+          </div>
+
+          {/* Upcoming Invoice from Stripe */}
+          {upcomingInvoice && (
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Upcoming Invoice</h3>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      Due {upcomingInvoice.next_payment_attempt
+                        ? new Date(upcomingInvoice.next_payment_attempt * 1000).toLocaleDateString()
+                        : 'at end of period'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Period: {new Date(upcomingInvoice.period_start * 1000).toLocaleDateString()} - {new Date(upcomingInvoice.period_end * 1000).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-bold text-gray-900">
+                      ${(upcomingInvoice.total / 100).toFixed(2)}
+                    </p>
+                    {upcomingInvoice.tax !== null && upcomingInvoice.tax > 0 && (
+                      <p className="text-xs text-gray-500">
+                        Includes ${(upcomingInvoice.tax / 100).toFixed(2)} tax
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="border-t border-blue-200 pt-3 space-y-1">
+                  {upcomingInvoice.lines.map((line, index) => (
+                    <div key={index} className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">{line.description || 'Subscription'}</span>
+                      <span className="text-gray-900">${(line.amount / 100).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Past Invoices */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Invoice History</h3>
+            {invoices.length === 0 ? (
+              <p className="text-sm text-gray-500">No invoices yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {invoices.map((invoice) => (
+                  <div
+                    key={invoice.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-4 h-4 text-gray-400" />
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {invoice.number || invoice.id.slice(0, 8)}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {new Date(invoice.created * 1000).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="font-medium text-gray-900">
+                          ${(invoice.amount_paid / 100).toFixed(2)}
+                        </p>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full ${
+                            invoice.status === 'paid'
+                              ? 'bg-green-100 text-green-700'
+                              : invoice.status === 'open'
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {invoice.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {invoice.hosted_invoice_url && (
+                          <a
+                            href={invoice.hosted_invoice_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                            title="View Invoice"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        )}
+                        {invoice.invoice_pdf && (
+                          <a
+                            href={invoice.invoice_pdf}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                            title="Download PDF"
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Available Plans */}
       <div className="mb-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Available Plans
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Object.values(PLANS).map((plan) => {
+          {Object.values(PLANS).filter(plan => plan.id !== 'admin').map((plan) => {
             const isCurrent = company.billing_plan === plan.id
             const isUpgrade = Object.keys(PLANS).indexOf(plan.id) > Object.keys(PLANS).indexOf(company.billing_plan)
 

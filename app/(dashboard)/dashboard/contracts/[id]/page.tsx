@@ -16,6 +16,7 @@ import {
   Trash2,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   Home,
   User,
   DollarSign,
@@ -32,6 +33,7 @@ import { Label } from '@/components/ui/label'
 import SignatureCanvas from 'react-signature-canvas'
 import { AIClauseSection } from '@/components/contracts/ai-clause-section'
 import type { AIClause } from '@/components/contracts/clause-review-modal'
+import { PLANS, type PlanTier } from '@/lib/plans'
 
 interface CustomFields {
   buyer_phone?: string
@@ -224,8 +226,20 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const initialsRef = useRef<SignatureCanvas>(null)
   const typedSignatureCanvasRef = useRef<HTMLCanvasElement>(null)
 
+  // Usage/overage state
+  const [usageInfo, setUsageInfo] = useState<{
+    contractsUsed: number
+    contractLimit: number | null
+    planName: string
+    overagePrice: number
+    isOverage: boolean
+    overageBehavior: 'auto_charge' | 'warn_each'
+  } | null>(null)
+  const [pendingSend, setPendingSend] = useState<{ type: 'purchase' | 'assignment' } | null>(null)
+
   useEffect(() => {
     fetchContract()
+    fetchUsageInfo()
   }, [id])
 
   const fetchContract = async () => {
@@ -244,6 +258,55 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     }
   }
 
+  const fetchUsageInfo = async () => {
+    try {
+      const res = await fetch('/api/settings')
+      if (res.ok) {
+        const data = await res.json()
+        const contractsUsed = data.company?.contracts_used_this_period || 0
+        const actualPlan = (data.company?.actual_plan || 'free') as PlanTier
+        const plan = PLANS[actualPlan]
+        const contractLimit = plan.limits.contractsPerMonth
+        const overagePrice = plan.limits.overagePricing.extraContractPrice
+        const isOverage = contractLimit !== null && contractsUsed >= contractLimit
+        const overageBehavior = data.company?.overage_behavior || 'warn_each'
+        setUsageInfo({
+          contractsUsed,
+          contractLimit,
+          planName: plan.name,
+          overagePrice,
+          isOverage,
+          overageBehavior,
+        })
+      }
+    } catch (err) {
+      console.error('Failed to fetch usage info:', err)
+    }
+  }
+
+  // Check if overage warning needed before sending
+  const inititateSend = (type: 'purchase' | 'assignment') => {
+    // Only show warning if:
+    // 1. This is an overage (over contract limit)
+    // 2. Plan allows overages (overagePrice > 0)
+    // 3. Overage behavior is 'warn_each' (not auto_charge)
+    if (usageInfo?.isOverage && usageInfo.overagePrice > 0 && usageInfo.overageBehavior === 'warn_each') {
+      // Show confirmation dialog
+      setPendingSend({ type })
+    } else {
+      // Send directly (either not an overage, or auto_charge is enabled)
+      handleSend(type)
+    }
+  }
+
+  // Confirm and proceed with send
+  const confirmSend = () => {
+    if (pendingSend) {
+      handleSend(pendingSend.type)
+      setPendingSend(null)
+    }
+  }
+
   const handleSend = async (type: 'purchase' | 'assignment' = 'purchase') => {
     setSending(true)
     setError(null)
@@ -257,6 +320,11 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
       if (!res.ok) {
         const data = await res.json()
+        // Handle payment required error specially
+        if (data.paymentRequired) {
+          setError('Payment past due - please update your payment method in Settings > Billing to continue sending contracts.')
+          return
+        }
         throw new Error(data.error || 'Failed to send contract')
       }
 
@@ -1531,7 +1599,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   {/* Send Buttons */}
                   {(contractType === 'purchase' || contractType === 'both') && (
                     <Button
-                      onClick={() => handleSend('purchase')}
+                      onClick={() => inititateSend('purchase')}
                       disabled={sending}
                       className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
                     >
@@ -1546,7 +1614,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
                   {(contractType === 'assignment' || contractType === 'both') && (
                     <Button
-                      onClick={() => handleSend('assignment')}
+                      onClick={() => inititateSend('assignment')}
                       disabled={sending}
                       variant="outline"
                       className="w-full border-[var(--primary-700)] text-[var(--primary-900)]"
@@ -1664,6 +1732,56 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
       </div>
+
+      {/* Overage Confirmation Modal */}
+      {pendingSend && usageInfo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-2 bg-amber-100 rounded-full">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-[var(--gray-900)]">
+                  Contract Limit Reached
+                </h3>
+                <p className="text-sm text-[var(--gray-600)] mt-1">
+                  You&apos;ve used {usageInfo.contractsUsed} of your {usageInfo.contractLimit} monthly contracts on the {usageInfo.planName} plan.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-amber-800">
+                <strong>Overage Charge:</strong> This contract will be billed at{' '}
+                <span className="font-semibold">${(usageInfo.overagePrice / 100).toFixed(2)}</span>{' '}
+                on your next invoice.
+              </p>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setPendingSend(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmSend}
+                disabled={sending}
+                className="bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
+              >
+                {sending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4 mr-2" />
+                )}
+                Send Anyway
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

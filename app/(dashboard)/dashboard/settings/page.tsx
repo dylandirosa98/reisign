@@ -15,6 +15,10 @@ import {
   Zap,
   X,
   Loader2,
+  CreditCard,
+  Receipt,
+  Calendar,
+  ExternalLink,
 } from 'lucide-react'
 
 interface UserData {
@@ -34,6 +38,7 @@ interface CompanyData {
   billing_period_start: string | null
   subscription_status: string
   stripe_customer_id: string | null
+  stripe_subscription_id: string | null
   overage_behavior: 'auto_charge' | 'warn_each'
 }
 
@@ -54,6 +59,7 @@ export default function SettingsPage() {
   const [showPlanModal, setShowPlanModal] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<PlanTier | null>(null)
   const [changingPlan, setChangingPlan] = useState(false)
+  const [openingPortal, setOpeningPortal] = useState(false)
 
   const supabase = createClient()
 
@@ -141,27 +147,93 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleOpenStripePortal() {
+    setOpeningPortal(true)
+    try {
+      const response = await fetch('/api/stripe/portal', {
+        method: 'POST',
+      })
+      const data = await response.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        setMessage({ type: 'error', text: 'Failed to open billing portal' })
+      }
+    } catch (error) {
+      console.error('Error opening portal:', error)
+      setMessage({ type: 'error', text: 'Failed to open billing portal' })
+    } finally {
+      setOpeningPortal(false)
+    }
+  }
+
   async function handleChangePlan() {
     if (!selectedPlan) return
 
     setChangingPlan(true)
     try {
-      const response = await fetch('/api/settings/plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId: selectedPlan }),
-      })
+      // For paid plans, redirect to Stripe checkout
+      if (selectedPlan !== 'free') {
+        const response = await fetch('/api/stripe/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ planId: selectedPlan }),
+        })
 
-      const data = await response.json()
+        const data = await response.json()
 
-      if (!response.ok) {
-        throw new Error(data.error)
+        if (!response.ok) {
+          // If Stripe is not configured, fall back to test mode
+          if (response.status === 503) {
+            // Fall back to test mode
+            const testResponse = await fetch('/api/settings/plan', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ planId: selectedPlan }),
+            })
+            const testData = await testResponse.json()
+            if (!testResponse.ok) throw new Error(testData.error)
+            setMessage({ type: 'success', text: testData.message })
+            setShowPlanModal(false)
+            setSelectedPlan(null)
+            fetchSettings()
+            return
+          }
+          throw new Error(data.error)
+        }
+
+        // Redirect to Stripe checkout
+        if (data.url) {
+          window.location.href = data.url
+          return
+        }
+      } else {
+        // Downgrading to free - use test mode for now (or Stripe portal if configured)
+        if (company?.stripe_customer_id) {
+          // Has Stripe - redirect to customer portal to cancel
+          const response = await fetch('/api/stripe/portal', {
+            method: 'POST',
+          })
+          const data = await response.json()
+          if (data.url) {
+            window.location.href = data.url
+            return
+          }
+        }
+        // Fall back to test mode
+        const response = await fetch('/api/settings/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ planId: selectedPlan }),
+        })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error)
+        setMessage({ type: 'success', text: data.message })
       }
 
-      setMessage({ type: 'success', text: data.message })
       setShowPlanModal(false)
       setSelectedPlan(null)
-      fetchSettings() // Refresh data
+      fetchSettings()
     } catch (error) {
       console.error('Error changing plan:', error)
       setMessage({ type: 'error', text: 'Failed to change plan' })
@@ -351,6 +423,64 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Next Invoice Breakdown */}
+          {company.stripe_subscription_id && company.billing_plan !== 'free' && (
+            <div className="bg-[var(--gray-50)] rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Receipt className="h-4 w-4 text-[var(--gray-500)]" />
+                <span className="text-sm font-medium text-[var(--gray-700)]">
+                  Next Invoice Estimate
+                </span>
+                {company.billing_period_start && (
+                  <span className="text-xs text-[var(--gray-400)] ml-auto flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Due ~{new Date(new Date(company.billing_period_start).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-2 text-sm">
+                {/* Base Plan */}
+                <div className="flex justify-between">
+                  <span className="text-[var(--gray-600)]">{currentPlan.name} Plan</span>
+                  <span className="font-medium text-[var(--gray-900)]">{formatPrice(currentPlan.monthlyPrice)}</span>
+                </div>
+
+                {/* Extra Seats */}
+                {usage.users.extra > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-[var(--gray-600)]">
+                      Extra Seats ({usage.users.extra} × {formatPrice(currentPlan.limits.overagePricing.extraSeatPrice)})
+                    </span>
+                    <span className="font-medium text-[var(--gray-900)]">{formatPrice(usage.users.extraCost)}</span>
+                  </div>
+                )}
+
+                {/* Contract Overages */}
+                {usage.contracts.extra > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-[var(--gray-600)]">
+                      Contract Overages ({usage.contracts.extra} × {formatPrice(currentPlan.limits.overagePricing.extraContractPrice)})
+                    </span>
+                    <span className="font-medium text-[var(--gray-900)]">{formatPrice(usage.contracts.extraCost)}</span>
+                  </div>
+                )}
+
+                {/* Total */}
+                <div className="flex justify-between pt-2 border-t border-[var(--gray-200)]">
+                  <span className="font-semibold text-[var(--gray-900)]">Estimated Total</span>
+                  <span className="font-bold text-[var(--gray-900)]">
+                    {formatPrice(
+                      currentPlan.monthlyPrice +
+                      usage.users.extraCost +
+                      usage.contracts.extraCost
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Change Plan Button */}
           {isManager && (
             <button
@@ -361,18 +491,55 @@ export default function SettingsPage() {
             </button>
           )}
 
-          {/* Test Mode Notice */}
-          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-amber-800">Test Mode</p>
-                <p className="text-sm text-amber-700">
-                  Stripe is not configured. Plan changes are instant and free for testing.
-                </p>
+          {/* Stripe Status Notice */}
+          {company.stripe_customer_id ? (
+            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-2">
+                  <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-green-800">Billing Active</p>
+                    <p className="text-sm text-green-700">
+                      Your subscription is managed through Stripe.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <a
+                    href="/dashboard/settings/billing"
+                    className="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded-lg flex items-center gap-1.5 transition-colors"
+                  >
+                    <Receipt className="h-4 w-4" />
+                    View Invoices
+                  </a>
+                  <button
+                    onClick={handleOpenStripePortal}
+                    disabled={openingPortal}
+                    className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    {openingPortal ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ExternalLink className="h-4 w-4" />
+                    )}
+                    Manage Billing
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <Zap className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Free Trial</p>
+                  <p className="text-sm text-blue-700">
+                    Upgrade to unlock more features. You&apos;ll be redirected to secure Stripe checkout.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -588,18 +755,40 @@ export default function SettingsPage() {
 
               {/* Confirmation */}
               {selectedPlan && (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg mb-4">
+                <div className={`p-4 rounded-lg mb-4 ${
+                  selectedPlan === 'free'
+                    ? 'bg-amber-50 border border-amber-200'
+                    : 'bg-blue-50 border border-blue-200'
+                }`}>
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                    {selectedPlan === 'free' ? (
+                      <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <CreditCard className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                    )}
                     <div>
-                      <p className="text-sm font-medium text-amber-800">
-                        Test Mode - No Payment Required
-                      </p>
-                      <p className="text-sm text-amber-700">
-                        This will instantly change your plan to{' '}
-                        <strong>{PLANS[selectedPlan].name}</strong>. In production,
-                        this would require payment through Stripe.
-                      </p>
+                      {selectedPlan === 'free' ? (
+                        <>
+                          <p className="text-sm font-medium text-amber-800">
+                            Downgrade to Free
+                          </p>
+                          <p className="text-sm text-amber-700">
+                            {company?.stripe_customer_id
+                              ? 'You will be redirected to manage your subscription cancellation.'
+                              : 'Your plan will be changed to Free immediately.'}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium text-blue-800">
+                            Upgrade to {PLANS[selectedPlan].name}
+                          </p>
+                          <p className="text-sm text-blue-700">
+                            You&apos;ll be redirected to secure Stripe checkout to complete your
+                            subscription at {formatPrice(PLANS[selectedPlan].monthlyPrice)}/month.
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -623,7 +812,7 @@ export default function SettingsPage() {
                 className="px-4 py-2 bg-[var(--primary-600)] text-white rounded-lg hover:bg-[var(--primary-700)] disabled:opacity-50 flex items-center gap-2"
               >
                 {changingPlan && <Loader2 className="h-4 w-4 animate-spin" />}
-                Confirm Change
+                {selectedPlan === 'free' ? 'Confirm Downgrade' : 'Continue to Payment'}
               </button>
             </div>
           </div>

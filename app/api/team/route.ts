@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { canAddTeamMember } from '@/lib/plans'
+import { canAddTeamMember, PLANS, type PlanTier } from '@/lib/plans'
+import { addExtraSeat, isStripeConfigured } from '@/lib/stripe'
 
 export async function GET() {
   try {
@@ -98,12 +99,15 @@ export async function POST(request: Request) {
 
     const { data: company } = await adminSupabase
       .from('companies')
-      .select('actual_plan')
+      .select('actual_plan, stripe_customer_id, stripe_subscription_id')
       .eq('id', userData.company_id)
       .single()
 
     const memberCount = existingMembers?.length || 0
     const planCheck = canAddTeamMember(company?.actual_plan || 'free', memberCount)
+
+    // Check if this is an overage seat
+    const isOverageSeat = planCheck.allowed && planCheck.overagePrice !== undefined
 
     if (!planCheck.allowed) {
       return NextResponse.json({ error: planCheck.reason }, { status: 403 })
@@ -156,6 +160,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to create user record' }, { status: 500 })
     }
 
+    // Charge for extra seat if this is an overage
+    let seatChargeAdded = false
+    const actualPlan = (company?.actual_plan || 'free') as PlanTier
+    if (isOverageSeat && company?.stripe_subscription_id && isStripeConfigured()) {
+      const seatResult = await addExtraSeat(company.stripe_subscription_id, actualPlan)
+      seatChargeAdded = !!seatResult
+      if (seatResult) {
+        console.log(`[Team] Extra seat added to subscription: ${seatResult.id}`)
+      }
+    }
+
+    // Get the actual seat price for this plan
+    const plan = PLANS[actualPlan]
+    const seatPrice = plan.limits.overagePricing.extraSeatPrice
+
     return NextResponse.json({
       success: true,
       user: {
@@ -164,7 +183,12 @@ export async function POST(request: Request) {
         full_name,
         role: validRole,
         monthly_contract_limit,
-      }
+      },
+      billing: {
+        isOverageSeat,
+        seatChargeAdded,
+        monthlyCharge: isOverageSeat ? `$${(seatPrice / 100).toFixed(0)}/month` : null,
+      },
     })
   } catch (error) {
     console.error('Team POST error:', error)

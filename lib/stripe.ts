@@ -52,7 +52,21 @@ export const STRIPE_PRICE_IDS: Record<PlanTier, { monthly: string | null; yearly
 // Overage price IDs for metered billing
 export const STRIPE_OVERAGE_PRICE_IDS = {
   extraContract: process.env.STRIPE_PRICE_EXTRA_CONTRACT || null,
-  extraSeat: process.env.STRIPE_PRICE_EXTRA_SEAT || null,
+  // Seat prices by tier
+  extraSeatTeam: process.env.STRIPE_PRICE_EXTRA_SEAT_TEAM || null,
+  extraSeatBusiness: process.env.STRIPE_PRICE_EXTRA_SEAT_BUSINESS || null,
+}
+
+// Get the seat price ID for a given plan
+export function getSeatPriceId(planTier: PlanTier): string | null {
+  switch (planTier) {
+    case 'team':
+      return STRIPE_OVERAGE_PRICE_IDS.extraSeatTeam
+    case 'business':
+      return STRIPE_OVERAGE_PRICE_IDS.extraSeatBusiness
+    default:
+      return null // Individual and free can't add seats
+  }
 }
 
 /**
@@ -85,6 +99,9 @@ export async function createCheckoutSession(
     ],
     success_url: successUrl,
     cancel_url: cancelUrl,
+    automatic_tax: {
+      enabled: true,
+    },
     metadata: {
       companyId,
       planId,
@@ -98,10 +115,9 @@ export async function createCheckoutSession(
   }
 
   // If we have an existing customer, use them
+  // Note: In subscription mode, Stripe automatically creates a customer if none exists
   if (customerId) {
     sessionParams.customer = customerId
-  } else {
-    sessionParams.customer_creation = 'always'
   }
 
   return stripe.checkout.sessions.create(sessionParams)
@@ -243,4 +259,179 @@ export function constructWebhookEvent(
     signature,
     process.env.STRIPE_WEBHOOK_SECRET
   )
+}
+
+/**
+ * Charge for an extra contract (overage)
+ * Adds an invoice item to the customer's upcoming invoice
+ * Price varies by plan: Individual $2.50, Team $2.00, Business $1.50
+ */
+export async function chargeExtraContract(
+  customerId: string,
+  planTier: PlanTier,
+  description: string = 'Extra contract beyond plan limit'
+): Promise<Stripe.InvoiceItem | null> {
+  const stripe = getStripe()
+  if (!stripe) return null
+
+  // Get plan-specific overage price
+  const plan = PLANS[planTier]
+  const overagePrice = plan.limits.overagePricing.extraContractPrice
+
+  if (overagePrice === 0) {
+    console.error(`[Stripe] Plan ${planTier} does not support contract overages`)
+    return null
+  }
+
+  try {
+    const invoiceItem = await stripe.invoiceItems.create({
+      customer: customerId,
+      amount: overagePrice, // Already in cents from plan config
+      currency: 'usd',
+      description: `${description} (${plan.name} plan)`,
+    })
+    console.log(`[Stripe] Charged extra contract: ${invoiceItem.id} ($${(overagePrice / 100).toFixed(2)})`)
+    return invoiceItem
+  } catch (error) {
+    console.error('[Stripe] Failed to charge extra contract:', error)
+    return null
+  }
+}
+
+/**
+ * Add extra seat to subscription
+ * Adds the recurring extra seat price to the subscription
+ * Price varies by plan: Team $20/mo, Business $15/mo
+ */
+export async function addExtraSeat(
+  subscriptionId: string,
+  planTier: PlanTier
+): Promise<Stripe.SubscriptionItem | null> {
+  const stripe = getStripe()
+  if (!stripe) return null
+
+  const priceId = getSeatPriceId(planTier)
+  if (!priceId) {
+    console.error(`[Stripe] No seat price configured for ${planTier} plan`)
+    return null
+  }
+
+  const plan = PLANS[planTier]
+  const seatPrice = plan.limits.overagePricing.extraSeatPrice
+
+  try {
+    // Check if the subscription already has an extra seat item for this price
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+    const existingItem = subscription.items.data.find(
+      item => item.price.id === priceId
+    )
+
+    if (existingItem) {
+      // Increment the quantity
+      const updated = await stripe.subscriptionItems.update(existingItem.id, {
+        quantity: (existingItem.quantity || 1) + 1,
+      })
+      console.log(`[Stripe] Incremented extra seats to ${updated.quantity} ($${(seatPrice / 100).toFixed(2)}/mo each)`)
+      return updated
+    } else {
+      // Add new subscription item for extra seats
+      const newItem = await stripe.subscriptionItems.create({
+        subscription: subscriptionId,
+        price: priceId,
+        quantity: 1,
+      })
+      console.log(`[Stripe] Added extra seat: ${newItem.id} ($${(seatPrice / 100).toFixed(2)}/mo)`)
+      return newItem
+    }
+  } catch (error) {
+    console.error('[Stripe] Failed to add extra seat:', error)
+    return null
+  }
+}
+
+/**
+ * Remove extra seat from subscription
+ * Handles both Team and Business tier seat prices
+ */
+export async function removeExtraSeat(
+  subscriptionId: string,
+  planTier: PlanTier
+): Promise<boolean> {
+  const stripe = getStripe()
+  if (!stripe) return false
+
+  const priceId = getSeatPriceId(planTier)
+  if (!priceId) return false
+
+  try {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+    const existingItem = subscription.items.data.find(
+      item => item.price.id === priceId
+    )
+
+    if (!existingItem) return true // No extra seats to remove
+
+    if ((existingItem.quantity || 1) > 1) {
+      // Decrement the quantity
+      await stripe.subscriptionItems.update(existingItem.id, {
+        quantity: (existingItem.quantity || 1) - 1,
+      })
+      console.log(`[Stripe] Decremented extra seats`)
+    } else {
+      // Remove the item entirely
+      await stripe.subscriptionItems.del(existingItem.id)
+      console.log(`[Stripe] Removed extra seat item`)
+    }
+    return true
+  } catch (error) {
+    console.error('[Stripe] Failed to remove extra seat:', error)
+    return false
+  }
+}
+
+/**
+ * Get past invoices for a customer
+ */
+export async function getInvoices(
+  customerId: string,
+  limit: number = 10
+): Promise<Stripe.Invoice[]> {
+  const stripe = getStripe()
+  if (!stripe) return []
+
+  try {
+    const invoices = await stripe.invoices.list({
+      customer: customerId,
+      limit,
+    })
+    return invoices.data
+  } catch (error) {
+    console.error('[Stripe] Failed to get invoices:', error)
+    return []
+  }
+}
+
+/**
+ * Get upcoming invoice for a customer
+ */
+export async function getUpcomingInvoice(
+  customerId: string
+): Promise<Stripe.Invoice | null> {
+  const stripe = getStripe()
+  if (!stripe) return null
+
+  try {
+    const invoice = await stripe.invoices.createPreview({
+      customer: customerId,
+    })
+    return invoice
+  } catch (error) {
+    // No upcoming invoice is not an error - it means no active subscription
+    const stripeError = error as { code?: string }
+    if (stripeError.code === 'invoice_upcoming_none') {
+      return null
+    }
+    console.error('[Stripe] Failed to get upcoming invoice:', error)
+    return null
+  }
 }

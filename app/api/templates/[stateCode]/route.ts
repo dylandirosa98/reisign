@@ -15,11 +15,11 @@ async function verifyAdminAccess() {
 
   const { data: userData } = await adminSupabase
     .from('users')
-    .select('role')
+    .select('role, is_system_admin')
     .eq('id', user.id)
     .single()
 
-  if (userData?.role !== 'admin') {
+  if (!userData?.is_system_admin && userData?.role !== 'admin') {
     return { error: 'Admin access required', status: 403 }
   }
 

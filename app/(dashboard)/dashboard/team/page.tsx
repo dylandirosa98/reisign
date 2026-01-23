@@ -12,8 +12,10 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  AlertTriangle,
   FileText
 } from 'lucide-react'
+import { PLANS, type PlanTier } from '@/lib/plans'
 
 interface TeamMember {
   id: string
@@ -64,8 +66,18 @@ export default function TeamPage() {
   const [deletingMember, setDeletingMember] = useState<TeamMember | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
+  // Plan/seat limits
+  const [planInfo, setPlanInfo] = useState<{
+    maxUsers: number
+    currentUsers: number
+    extraSeatPrice: number
+    planName: string
+    isOverage: boolean
+  } | null>(null)
+
   useEffect(() => {
     fetchTeam()
+    fetchPlanInfo()
   }, [])
 
   async function fetchTeam() {
@@ -82,6 +94,30 @@ export default function TeamPage() {
       setError('Failed to load team members')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function fetchPlanInfo() {
+    try {
+      const response = await fetch('/api/settings')
+      if (response.ok) {
+        const data = await response.json()
+        // Get plan limits from the company's actual plan
+        const actualPlan = (data.company?.actual_plan || 'free') as PlanTier
+        const plan = PLANS[actualPlan]
+        const maxUsers = plan.limits.maxUsers
+        const currentUsers = data.userCount || 1
+        const extraSeatPrice = plan.limits.overagePricing.extraSeatPrice
+        setPlanInfo({
+          maxUsers,
+          currentUsers,
+          extraSeatPrice,
+          planName: plan.name,
+          isOverage: currentUsers >= maxUsers,
+        })
+      }
+    } catch (err) {
+      console.error('Error fetching plan info:', err)
     }
   }
 
@@ -112,6 +148,7 @@ export default function TeamPage() {
 
       // Success - refresh and close modal
       await fetchTeam()
+      await fetchPlanInfo() // Refresh plan info after adding member
       setShowAddModal(false)
       setAddForm({ email: '', password: '', full_name: '', role: 'user', monthly_contract_limit: '' })
     } catch (err) {
@@ -169,6 +206,7 @@ export default function TeamPage() {
       }
 
       await fetchTeam()
+      await fetchPlanInfo() // Refresh plan info after removing member
       setDeletingMember(null)
     } catch (err) {
       console.error('Delete member error:', err)
@@ -414,6 +452,39 @@ export default function TeamPage() {
                 </div>
               )}
 
+              {/* Overage Warning */}
+              {planInfo?.isOverage && planInfo.extraSeatPrice > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-800">Extra Seat Charge</p>
+                      <p className="text-sm text-amber-700 mt-0.5">
+                        Your {planInfo.planName} plan includes {planInfo.maxUsers} user{planInfo.maxUsers !== 1 ? 's' : ''}.
+                        Adding this member will add{' '}
+                        <span className="font-semibold">${(planInfo.extraSeatPrice / 100).toFixed(2)}/month</span> to your subscription.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Plan limit reached - cannot add (free/individual) */}
+              {planInfo?.isOverage && planInfo.extraSeatPrice === 0 && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-red-800">Team Limit Reached</p>
+                      <p className="text-sm text-red-700 mt-0.5">
+                        Your {planInfo.planName} plan only supports {planInfo.maxUsers} user{planInfo.maxUsers !== 1 ? 's' : ''}.
+                        Please upgrade your plan to add more team members.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
                 <input
@@ -507,10 +578,10 @@ export default function TeamPage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={addLoading}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={addLoading || (planInfo?.isOverage && planInfo.extraSeatPrice === 0)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {addLoading ? 'Adding...' : 'Add Member'}
+                  {addLoading ? 'Adding...' : planInfo?.isOverage && planInfo.extraSeatPrice > 0 ? `Add Member (+$${(planInfo.extraSeatPrice / 100).toFixed(2)}/mo)` : 'Add Member'}
                 </Button>
               </div>
             </form>

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TopNav } from '@/components/layout/top-nav'
+import { PaymentPastDueBanner } from '@/components/layout/payment-past-due-banner'
 import type { User, Company } from '@/types/database'
 
 type UserWithCompany = User & { company: Company | null }
@@ -35,9 +36,12 @@ export default async function DashboardLayout({
     redirect('/onboarding')
   }
 
+  const isPastDue = userData?.company?.subscription_status === 'past_due'
+
   return (
     <div className="min-h-screen flex flex-col bg-[var(--gray-50)]">
       <TopNav user={userData} />
+      {isPastDue && <PaymentPastDueBanner />}
       <main className="flex-1 p-6">
         <div className="max-w-7xl mx-auto">
           {children}

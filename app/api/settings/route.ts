@@ -37,6 +37,7 @@ export async function GET() {
         billing_period_start,
         subscription_status,
         stripe_customer_id,
+        stripe_subscription_id,
         overage_behavior
       `)
       .eq('id', userData.company_id)

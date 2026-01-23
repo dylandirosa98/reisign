@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { removeExtraSeat, isStripeConfigured } from '@/lib/stripe'
+import { PLANS, type PlanTier } from '@/lib/plans'
 
 export async function PATCH(
   request: Request,
@@ -124,6 +126,23 @@ export async function DELETE(
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
     }
 
+    // Get company info for billing check
+    const { data: company } = await adminSupabase
+      .from('companies')
+      .select('actual_plan, stripe_subscription_id')
+      .eq('id', userData.company_id)
+      .single()
+
+    // Count current members (before deletion)
+    const { count: memberCount } = await adminSupabase
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', userData.company_id)
+
+    // Check if they had an overage seat
+    const planLimit = PLANS[company?.actual_plan || 'free'].limits.maxUsers
+    const wasOverageSeat = (memberCount || 0) > planLimit
+
     // Delete the user record first
     const { error: userError } = await adminSupabase
       .from('users')
@@ -143,7 +162,23 @@ export async function DELETE(
       // User record is already deleted, log but don't fail
     }
 
-    return NextResponse.json({ success: true })
+    // Remove extra seat charge if applicable
+    let seatChargeRemoved = false
+    const actualPlan = (company?.actual_plan || 'free') as PlanTier
+    if (wasOverageSeat && company?.stripe_subscription_id && isStripeConfigured()) {
+      seatChargeRemoved = await removeExtraSeat(company.stripe_subscription_id, actualPlan)
+      if (seatChargeRemoved) {
+        console.log(`[Team] Extra seat removed from subscription`)
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      billing: {
+        wasOverageSeat,
+        seatChargeRemoved,
+      },
+    })
   } catch (error) {
     console.error('Team DELETE error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
