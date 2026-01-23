@@ -87,22 +87,26 @@ export async function GET() {
     }))
 
     // Format upcoming invoice
-    const formattedUpcoming = upcomingInvoice ? {
-      amount_due: upcomingInvoice.amount_due,
-      amount_remaining: upcomingInvoice.amount_remaining,
-      currency: upcomingInvoice.currency,
-      next_payment_attempt: upcomingInvoice.next_payment_attempt,
-      period_start: upcomingInvoice.period_start,
-      period_end: upcomingInvoice.period_end,
-      subtotal: upcomingInvoice.subtotal,
-      tax: upcomingInvoice.tax,
-      total: upcomingInvoice.total,
-      lines: upcomingInvoice.lines.data.map(line => ({
-        description: line.description,
-        amount: line.amount,
-        quantity: line.quantity,
-      })),
-    } : null
+    const formattedUpcoming = upcomingInvoice ? (() => {
+      // Calculate tax as difference between total and subtotal
+      const taxAmount = (upcomingInvoice.total ?? 0) - (upcomingInvoice.subtotal ?? 0)
+      return {
+        amount_due: upcomingInvoice.amount_due,
+        amount_remaining: upcomingInvoice.amount_remaining,
+        currency: upcomingInvoice.currency,
+        next_payment_attempt: upcomingInvoice.next_payment_attempt,
+        period_start: upcomingInvoice.period_start,
+        period_end: upcomingInvoice.period_end,
+        subtotal: upcomingInvoice.subtotal,
+        tax: taxAmount > 0 ? taxAmount : null,
+        total: upcomingInvoice.total,
+        lines: upcomingInvoice.lines.data.map(line => ({
+          description: line.description,
+          amount: line.amount,
+          quantity: line.quantity,
+        })),
+      }
+    })() : null
 
     return NextResponse.json({
       invoices: formattedInvoices,
