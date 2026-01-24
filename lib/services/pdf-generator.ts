@@ -374,7 +374,7 @@ class PDFGeneratorService {
    */
   private generateFooterTemplate(buyerInitialsImg: string): string {
     return `
-      <div style="width: 100%; font-size: 9px; font-family: 'Times New Roman', serif; padding: 0 0.5in;">
+      <div style="width: 100%; font-size: 9px; font-family: 'Libre Baskerville', 'Times New Roman', serif; padding: 0 0.5in;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #ccc; padding-top: 8px; margin-top: 5px;">
           <div style="display: flex; align-items: center; gap: 5px;">
             <span>Seller Initials:</span>
@@ -479,6 +479,48 @@ class PDFGeneratorService {
   }
 
   /**
+   * Inject Google Fonts into HTML for consistent rendering
+   * Uses Libre Baskerville as a high-quality Times New Roman alternative
+   */
+  private injectFonts(html: string): string {
+    const fontLinks = `
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    `
+
+    // CSS to apply the font as a fallback for Times New Roman
+    const fontStyles = `
+      <style>
+        /* Override Times New Roman with Libre Baskerville for consistent PDF rendering */
+        body, html {
+          font-family: 'Libre Baskerville', 'Times New Roman', Times, serif !important;
+        }
+        * {
+          font-family: inherit;
+        }
+        /* Ensure headings also use the font */
+        h1, h2, h3, h4, h5, h6 {
+          font-family: 'Libre Baskerville', 'Times New Roman', Times, serif !important;
+        }
+      </style>
+    `
+
+    // Inject font links into head
+    if (html.includes('</head>')) {
+      html = html.replace('</head>', `${fontLinks}${fontStyles}</head>`)
+    } else if (html.includes('<body')) {
+      // No head tag, add before body
+      html = html.replace('<body', `${fontLinks}${fontStyles}<body`)
+    } else {
+      // No standard structure, prepend
+      html = fontLinks + fontStyles + html
+    }
+
+    return html
+  }
+
+  /**
    * Generate PDF from HTML template with data
    * Priority: company template > state-specific template > general template > file
    */
@@ -490,6 +532,9 @@ class PDFGeneratorService {
     // Load and interpolate template (pass company template ID and state for lookup)
     const { html: templateHtml, signatureLayout } = await this.loadTemplate(templateType, data.property_state, companyTemplateId)
     let html = this.interpolateTemplate(templateHtml, data)
+
+    // Inject fonts for consistent rendering
+    html = this.injectFonts(html)
 
     // Check if the template already has a signature page
     const hasSignaturePage = html.includes('class="signature-page"') || html.includes('class=\'signature-page\'')

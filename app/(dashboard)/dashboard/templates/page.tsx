@@ -17,7 +17,14 @@ import {
   ExternalLink,
   FileSearch,
 } from 'lucide-react'
-import { CompanyTemplate, CustomField } from '@/types/database'
+import {
+  CompanyTemplate,
+  CustomField,
+  TemplateFieldConfig,
+  StandardFieldKey,
+  DEFAULT_FIELD_CONFIG,
+  STANDARD_FIELDS_METADATA,
+} from '@/types/database'
 
 interface PlaceholderInfo {
   label: string
@@ -345,6 +352,10 @@ function TemplateEditor({
   const [htmlContent, setHtmlContent] = useState(template?.html_content || getStarterHtml())
   const [signatureLayout, setSignatureLayout] = useState(template?.signature_layout || 'two-column')
   const [customFields, setCustomFields] = useState<CustomField[]>(template?.custom_fields || [])
+  const [fieldConfig, setFieldConfig] = useState<TemplateFieldConfig>(
+    template?.field_config || DEFAULT_FIELD_CONFIG
+  )
+  const [showFieldConfig, setShowFieldConfig] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showPlaceholderPicker, setShowPlaceholderPicker] = useState(false)
 
@@ -391,6 +402,45 @@ function TemplateEditor({
 
   const handleRemoveCustomField = (index: number) => {
     setCustomFields(customFields.filter((_, i) => i !== index))
+  }
+
+  const handleFieldConfigChange = (
+    fieldKey: StandardFieldKey,
+    property: 'visible' | 'required',
+    value: boolean
+  ) => {
+    setFieldConfig((prev) => ({
+      ...prev,
+      standardFields: {
+        ...prev.standardFields,
+        [fieldKey]: {
+          visible: prev.standardFields[fieldKey]?.visible ?? true,
+          required: prev.standardFields[fieldKey]?.required ?? false,
+          [property]: value,
+        },
+      },
+    }))
+  }
+
+  const getFieldConfig = (fieldKey: StandardFieldKey) => {
+    return fieldConfig.standardFields[fieldKey] || { visible: true, required: false }
+  }
+
+  // Group standard fields by category
+  const fieldsByGroup = STANDARD_FIELDS_METADATA.reduce((acc, field) => {
+    if (!acc[field.group]) acc[field.group] = []
+    acc[field.group].push(field)
+    return acc
+  }, {} as Record<string, typeof STANDARD_FIELDS_METADATA>)
+
+  const groupLabels: Record<string, string> = {
+    property: 'Property Information',
+    seller: 'Seller Information',
+    buyer: 'End Buyer Information',
+    financial: 'Financial Details',
+    escrow: 'Escrow Information',
+    terms: 'Contract Terms',
+    closing: 'Closing Costs',
   }
 
   const insertPlaceholder = (key: string) => {
@@ -466,6 +516,7 @@ function TemplateEditor({
           html_content: htmlContent,
           signature_layout: signatureLayout,
           custom_fields: customFields.filter((f) => f.label.trim()),
+          field_config: fieldConfig,
         }),
       })
 
@@ -678,6 +729,79 @@ function TemplateEditor({
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Form Fields Configuration */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowFieldConfig(!showFieldConfig)}
+                  className="flex items-center justify-between w-full text-left"
+                >
+                  <label className="block text-sm font-medium text-[var(--gray-700)]">
+                    Form Field Settings
+                  </label>
+                  <ChevronDown
+                    className={`h-4 w-4 text-[var(--gray-500)] transition-transform ${
+                      showFieldConfig ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                <p className="text-xs text-[var(--gray-500)] mt-1 mb-2">
+                  Control which fields appear when creating a contract with this template
+                </p>
+
+                {showFieldConfig && (
+                  <div className="border border-[var(--gray-200)] rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                    {Object.entries(fieldsByGroup).map(([group, fields]) => (
+                      <div key={group} className="border-b border-[var(--gray-100)] last:border-b-0">
+                        <div className="px-3 py-2 bg-[var(--gray-50)] text-xs font-semibold text-[var(--gray-700)] sticky top-0">
+                          {groupLabels[group]}
+                        </div>
+                        <div className="divide-y divide-[var(--gray-100)]">
+                          {fields.map((field) => {
+                            const config = getFieldConfig(field.key)
+                            return (
+                              <div
+                                key={field.key}
+                                className="flex items-center justify-between px-3 py-2 hover:bg-[var(--gray-50)]"
+                              >
+                                <span className="text-sm text-[var(--gray-700)]">{field.label}</span>
+                                <div className="flex items-center gap-4">
+                                  <label className="flex items-center gap-1.5 text-xs">
+                                    <input
+                                      type="checkbox"
+                                      checked={config.visible}
+                                      onChange={(e) =>
+                                        handleFieldConfigChange(field.key, 'visible', e.target.checked)
+                                      }
+                                      className="rounded border-[var(--gray-300)]"
+                                    />
+                                    <span className="text-[var(--gray-600)]">Visible</span>
+                                  </label>
+                                  <label className="flex items-center gap-1.5 text-xs">
+                                    <input
+                                      type="checkbox"
+                                      checked={config.required}
+                                      onChange={(e) =>
+                                        handleFieldConfigChange(field.key, 'required', e.target.checked)
+                                      }
+                                      disabled={!config.visible}
+                                      className="rounded border-[var(--gray-300)] disabled:opacity-50"
+                                    />
+                                    <span className={`${!config.visible ? 'text-[var(--gray-400)]' : 'text-[var(--gray-600)]'}`}>
+                                      Required
+                                    </span>
+                                  </label>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

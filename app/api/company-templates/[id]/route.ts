@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
-import { CustomField, CompanyTemplate } from '@/types/database'
+import { CustomField, CompanyTemplate, TemplateFieldConfig } from '@/types/database'
 
 // Extract placeholders from HTML content
 function extractPlaceholders(html: string): string[] {
@@ -119,6 +119,7 @@ export async function PUT(
       html_content,
       signature_layout,
       custom_fields,
+      field_config,
     } = body as {
       name?: string
       description?: string
@@ -126,6 +127,7 @@ export async function PUT(
       html_content?: string
       signature_layout?: string
       custom_fields?: CustomField[]
+      field_config?: TemplateFieldConfig
     }
 
     // Build update object
@@ -139,6 +141,7 @@ export async function PUT(
     }
     if (signature_layout !== undefined) updates.signature_layout = signature_layout
     if (custom_fields !== undefined) updates.custom_fields = custom_fields
+    if (field_config !== undefined) updates.field_config = field_config
 
     const { data: template, error } = await adminSupabase
       .from('company_templates' as any)

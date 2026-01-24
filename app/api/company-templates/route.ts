@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
-import { CompanyTemplate, CustomField } from '@/types/database'
+import { CompanyTemplate, CustomField, TemplateFieldConfig } from '@/types/database'
 
 // Standard placeholders that can be used in templates
 export const STANDARD_PLACEHOLDERS = {
@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
       html_content,
       signature_layout,
       custom_fields,
+      field_config,
     } = body as {
       name: string
       description?: string
@@ -189,6 +190,7 @@ export async function POST(request: NextRequest) {
       html_content: string
       signature_layout: string
       custom_fields?: CustomField[]
+      field_config?: TemplateFieldConfig
     }
 
     // Validate required fields
@@ -215,6 +217,7 @@ export async function POST(request: NextRequest) {
         signature_layout: signature_layout || 'two-column',
         custom_fields: custom_fields || [],
         used_placeholders,
+        field_config: field_config || null,
         is_example: false,
         is_active: true,
       })

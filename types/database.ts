@@ -649,6 +649,139 @@ export interface CustomField {
   required: boolean
 }
 
+// Standard field configuration for templates
+export interface StandardFieldConfig {
+  visible: boolean
+  required: boolean
+}
+
+// All available standard fields that can be configured
+export type StandardFieldKey =
+  // Property fields
+  | 'property_address'
+  | 'property_city'
+  | 'property_state'
+  | 'property_zip'
+  | 'apn'
+  // Seller fields
+  | 'seller_name'
+  | 'seller_email'
+  | 'seller_phone'
+  | 'seller_address'
+  // Buyer/Assignee fields (for assignment contracts)
+  | 'buyer_name'
+  | 'buyer_email'
+  | 'buyer_phone'
+  // Financial fields
+  | 'purchase_price'
+  | 'earnest_money'
+  | 'assignment_fee'
+  // Escrow fields
+  | 'escrow_agent_name'
+  | 'escrow_agent_address'
+  | 'escrow_officer'
+  | 'escrow_agent_email'
+  // Terms fields
+  | 'close_of_escrow'
+  | 'inspection_period'
+  | 'personal_property'
+  | 'additional_terms'
+  // Closing amounts (Section 1.10)
+  | 'escrow_fees_split'
+  | 'title_policy_paid_by'
+  | 'hoa_fees_split'
+
+// Template field configuration
+export interface TemplateFieldConfig {
+  standardFields: Partial<Record<StandardFieldKey, StandardFieldConfig>>
+  // customFields is already in the template as custom_fields array
+}
+
+// Default field configuration (all fields visible, core fields required)
+export const DEFAULT_FIELD_CONFIG: TemplateFieldConfig = {
+  standardFields: {
+    // Property - always visible, address required
+    property_address: { visible: true, required: true },
+    property_city: { visible: true, required: true },
+    property_state: { visible: true, required: true },
+    property_zip: { visible: true, required: true },
+    apn: { visible: true, required: false },
+    // Seller - always visible, name/email required
+    seller_name: { visible: true, required: true },
+    seller_email: { visible: true, required: true },
+    seller_phone: { visible: true, required: false },
+    seller_address: { visible: true, required: false },
+    // Buyer - visible by default for assignments
+    buyer_name: { visible: true, required: false },
+    buyer_email: { visible: true, required: false },
+    buyer_phone: { visible: true, required: false },
+    // Financial
+    purchase_price: { visible: true, required: true },
+    earnest_money: { visible: true, required: false },
+    assignment_fee: { visible: true, required: false },
+    // Escrow
+    escrow_agent_name: { visible: true, required: false },
+    escrow_agent_address: { visible: true, required: false },
+    escrow_officer: { visible: true, required: false },
+    escrow_agent_email: { visible: true, required: false },
+    // Terms
+    close_of_escrow: { visible: true, required: false },
+    inspection_period: { visible: true, required: false },
+    personal_property: { visible: true, required: false },
+    additional_terms: { visible: true, required: false },
+    // Closing amounts
+    escrow_fees_split: { visible: true, required: false },
+    title_policy_paid_by: { visible: true, required: false },
+    hoa_fees_split: { visible: true, required: false },
+  },
+}
+
+// Field metadata for UI display
+export interface FieldMetadata {
+  key: StandardFieldKey
+  label: string
+  group: 'property' | 'seller' | 'buyer' | 'financial' | 'escrow' | 'terms' | 'closing'
+  fieldType: 'text' | 'number' | 'date' | 'email' | 'phone' | 'textarea' | 'select'
+  placeholder?: string
+  options?: { value: string; label: string }[]
+}
+
+export const STANDARD_FIELDS_METADATA: FieldMetadata[] = [
+  // Property
+  { key: 'property_address', label: 'Property Address', group: 'property', fieldType: 'text', placeholder: '123 Main St' },
+  { key: 'property_city', label: 'City', group: 'property', fieldType: 'text', placeholder: 'Phoenix' },
+  { key: 'property_state', label: 'State', group: 'property', fieldType: 'text', placeholder: 'AZ' },
+  { key: 'property_zip', label: 'ZIP Code', group: 'property', fieldType: 'text', placeholder: '85001' },
+  { key: 'apn', label: 'APN (Parcel Number)', group: 'property', fieldType: 'text', placeholder: '123-45-678' },
+  // Seller
+  { key: 'seller_name', label: 'Seller Name', group: 'seller', fieldType: 'text', placeholder: 'John Smith' },
+  { key: 'seller_email', label: 'Seller Email', group: 'seller', fieldType: 'email', placeholder: 'seller@email.com' },
+  { key: 'seller_phone', label: 'Seller Phone', group: 'seller', fieldType: 'phone', placeholder: '(555) 123-4567' },
+  { key: 'seller_address', label: 'Seller Address', group: 'seller', fieldType: 'text', placeholder: '456 Oak Ave, City, ST 12345' },
+  // Buyer
+  { key: 'buyer_name', label: 'End Buyer Name', group: 'buyer', fieldType: 'text', placeholder: 'Jane Doe' },
+  { key: 'buyer_email', label: 'End Buyer Email', group: 'buyer', fieldType: 'email', placeholder: 'buyer@email.com' },
+  { key: 'buyer_phone', label: 'End Buyer Phone', group: 'buyer', fieldType: 'phone', placeholder: '(555) 987-6543' },
+  // Financial
+  { key: 'purchase_price', label: 'Purchase Price', group: 'financial', fieldType: 'number', placeholder: '250,000' },
+  { key: 'earnest_money', label: 'Earnest Money Deposit', group: 'financial', fieldType: 'number', placeholder: '5,000' },
+  { key: 'assignment_fee', label: 'Assignment Fee', group: 'financial', fieldType: 'number', placeholder: '10,000' },
+  // Escrow
+  { key: 'escrow_agent_name', label: 'Escrow/Title Company', group: 'escrow', fieldType: 'text', placeholder: 'First American Title' },
+  { key: 'escrow_agent_address', label: 'Escrow Company Address', group: 'escrow', fieldType: 'text', placeholder: '789 Title Blvd, Suite 100' },
+  { key: 'escrow_officer', label: 'Escrow Officer', group: 'escrow', fieldType: 'text', placeholder: 'Sarah Johnson' },
+  { key: 'escrow_agent_email', label: 'Escrow Email', group: 'escrow', fieldType: 'email', placeholder: 'escrow@title.com' },
+  // Terms
+  { key: 'close_of_escrow', label: 'Close of Escrow Date', group: 'terms', fieldType: 'date' },
+  { key: 'inspection_period', label: 'Inspection Period (days)', group: 'terms', fieldType: 'text', placeholder: '10 days' },
+  { key: 'personal_property', label: 'Personal Property Included', group: 'terms', fieldType: 'textarea', placeholder: 'Refrigerator, washer, dryer...' },
+  { key: 'additional_terms', label: 'Additional Terms', group: 'terms', fieldType: 'textarea', placeholder: 'Any additional contract terms...' },
+  // Closing
+  { key: 'escrow_fees_split', label: 'Escrow Fees', group: 'closing', fieldType: 'select', options: [{ value: 'split', label: 'Split 50/50' }, { value: 'buyer', label: 'Buyer pays' }] },
+  { key: 'title_policy_paid_by', label: 'Title Policy Paid By', group: 'closing', fieldType: 'select', options: [{ value: 'seller', label: 'Seller' }, { value: 'buyer', label: 'Buyer' }] },
+  { key: 'hoa_fees_split', label: 'HOA Transfer Fees', group: 'closing', fieldType: 'select', options: [{ value: 'split', label: 'Split 50/50' }, { value: 'buyer', label: 'Buyer pays' }] },
+]
+
 export interface CompanyTemplate {
   id: string
   company_id: string
@@ -660,6 +793,7 @@ export interface CompanyTemplate {
   signature_layout: 'two-column' | 'seller-only' | 'three-party'
   custom_fields: CustomField[]
   used_placeholders: string[]
+  field_config: TemplateFieldConfig | null
   is_example: boolean
   is_active: boolean
   created_at: string
