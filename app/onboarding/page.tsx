@@ -7,13 +7,14 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { FileText } from 'lucide-react'
+import { FileText, Loader2, CheckCircle } from 'lucide-react'
 
 export default function OnboardingPage() {
   const [companyName, setCompanyName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [checkingUser, setCheckingUser] = useState(true)
+  const [processingInvite, setProcessingInvite] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -40,6 +41,14 @@ export default function OnboardingPage() {
         return
       }
 
+      // Check if this is an invited user
+      const inviteToken = user.user_metadata?.invite_token
+      if (inviteToken) {
+        setProcessingInvite(true)
+        await handleInviteAcceptance(user.id, inviteToken)
+        return
+      }
+
       // Pre-fill company name from signup metadata if available
       const metadataCompanyName = user.user_metadata?.company_name
       if (metadataCompanyName) {
@@ -51,6 +60,34 @@ export default function OnboardingPage() {
 
     checkUser()
   }, [router, supabase])
+
+  async function handleInviteAcceptance(userId: string, inviteToken: string) {
+    try {
+      const response = await fetch('/api/team/invite/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: inviteToken }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        setError(result.error || 'Failed to accept invite')
+        setProcessingInvite(false)
+        setCheckingUser(false)
+        return
+      }
+
+      // Success - redirect to dashboard
+      router.push('/dashboard')
+      router.refresh()
+    } catch (err) {
+      console.error('Invite acceptance error:', err)
+      setError('Failed to accept invite. Please try again.')
+      setProcessingInvite(false)
+      setCheckingUser(false)
+    }
+  }
 
   const handleCreateCompany = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,7 +118,7 @@ export default function OnboardingPage() {
     }
   }
 
-  if (checkingUser) {
+  if (checkingUser || processingInvite) {
     return (
       <div className="min-h-screen flex flex-col bg-[var(--gray-50)]">
         <header className="h-16 flex items-center px-6 border-b border-[var(--gray-200)] bg-white">
@@ -91,7 +128,12 @@ export default function OnboardingPage() {
           </Link>
         </header>
         <div className="flex-1 flex items-center justify-center">
-          <div className="spinner"></div>
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-[var(--primary-600)] mx-auto mb-4" />
+            <p className="text-[var(--gray-600)]">
+              {processingInvite ? 'Setting up your account...' : 'Loading...'}
+            </p>
+          </div>
         </div>
       </div>
     )
@@ -143,7 +185,14 @@ export default function OnboardingPage() {
                 className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white font-semibold rounded"
                 disabled={loading}
               >
-                {loading ? 'Creating...' : 'Create Company'}
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Company'
+                )}
               </Button>
             </form>
           </div>

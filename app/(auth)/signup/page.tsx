@@ -1,14 +1,51 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Mail, CheckCircle } from 'lucide-react'
+import { Mail, CheckCircle, RefreshCw, AlertCircle, Building2, Loader2 } from 'lucide-react'
 
-export default function SignupPage() {
+interface InviteData {
+  email: string
+  company_name: string
+  role: string
+}
+
+function getPasswordStrength(password: string): { score: number; label: string; color: string } {
+  let score = 0
+
+  if (password.length >= 8) score++
+  if (password.length >= 12) score++
+  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++
+  if (/\d/.test(password)) score++
+  if (/[^a-zA-Z0-9]/.test(password)) score++
+
+  if (score <= 1) return { score, label: 'Weak', color: 'bg-red-500' }
+  if (score <= 2) return { score, label: 'Fair', color: 'bg-orange-500' }
+  if (score <= 3) return { score, label: 'Good', color: 'bg-yellow-500' }
+  if (score <= 4) return { score, label: 'Strong', color: 'bg-green-500' }
+  return { score, label: 'Very Strong', color: 'bg-green-600' }
+}
+
+function SignupLoading() {
+  return (
+    <div className="bg-white border border-[var(--gray-200)] rounded p-8">
+      <div className="text-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--primary-600)] mx-auto mb-4" />
+        <p className="text-[var(--gray-600)]">Loading...</p>
+      </div>
+    </div>
+  )
+}
+
+function SignupForm() {
+  const searchParams = useSearchParams()
+  const inviteToken = searchParams.get('invite')
+
   const [fullName, setFullName] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
@@ -16,7 +53,40 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [resendSuccess, setResendSuccess] = useState(false)
+
+  // Invite state
+  const [inviteData, setInviteData] = useState<InviteData | null>(null)
+  const [loadingInvite, setLoadingInvite] = useState(!!inviteToken)
+
   const supabase = createClient()
+
+  const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
+
+  // Load invite data if token present
+  useEffect(() => {
+    async function loadInvite() {
+      if (!inviteToken) return
+
+      try {
+        const response = await fetch(`/api/team/invite/verify?token=${inviteToken}`)
+        if (response.ok) {
+          const data = await response.json()
+          setInviteData(data)
+          setEmail(data.email)
+        } else {
+          setError('This invite link is invalid or has expired.')
+        }
+      } catch {
+        setError('Failed to load invite details.')
+      } finally {
+        setLoadingInvite(false)
+      }
+    }
+
+    loadInvite()
+  }, [inviteToken])
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,7 +99,8 @@ export default function SignupPage() {
       return
     }
 
-    if (!companyName.trim()) {
+    // Only require company name if not an invite
+    if (!inviteToken && !companyName.trim()) {
       setError('Company name is required')
       setLoading(false)
       return
@@ -41,9 +112,10 @@ export default function SignupPage() {
       options: {
         data: {
           full_name: fullName,
-          company_name: companyName,
+          company_name: inviteToken ? undefined : companyName,
+          invite_token: inviteToken || undefined,
         },
-        emailRedirectTo: `${window.location.origin}/onboarding`,
+        emailRedirectTo: `${window.location.origin}/api/auth/callback`,
       },
     })
 
@@ -55,6 +127,40 @@ export default function SignupPage() {
 
     // Show success message
     setSuccess(true)
+  }
+
+  const handleResendEmail = async () => {
+    setResending(true)
+    setResendSuccess(false)
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      })
+
+      if (error) {
+        setError(error.message)
+      } else {
+        setResendSuccess(true)
+        setTimeout(() => setResendSuccess(false), 5000)
+      }
+    } catch {
+      setError('Failed to resend verification email')
+    } finally {
+      setResending(false)
+    }
+  }
+
+  if (loadingInvite) {
+    return (
+      <div className="bg-white border border-[var(--gray-200)] rounded p-8">
+        <div className="text-center">
+          <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-[var(--gray-600)]">Loading invite...</p>
+        </div>
+      </div>
+    )
   }
 
   if (success) {
@@ -69,12 +175,37 @@ export default function SignupPage() {
             We sent a confirmation link to <strong>{email}</strong>
           </p>
           <p className="text-sm text-[var(--gray-500)] mb-6">
-            Click the link in the email to confirm your account, then log in to set up your company.
+            Click the link in the email to confirm your account and get started.
           </p>
-          <div className="flex items-center justify-center gap-2 text-sm text-[var(--gray-500)]">
-            <Mail className="w-4 h-4" />
-            <span>Didn&apos;t receive it? Check your spam folder</span>
+
+          {/* Resend button */}
+          <div className="border-t border-[var(--gray-200)] pt-4 mt-4">
+            <p className="text-sm text-[var(--gray-500)] mb-3">
+              Didn&apos;t receive it? Check your spam folder or
+            </p>
+            <Button
+              onClick={handleResendEmail}
+              disabled={resending}
+              variant="outline"
+              className="gap-2"
+            >
+              {resending ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Mail className="w-4 h-4" />
+                  Resend verification email
+                </>
+              )}
+            </Button>
+            {resendSuccess && (
+              <p className="text-sm text-green-600 mt-2">Email sent! Check your inbox.</p>
+            )}
           </div>
+
           <div className="mt-6">
             <Link href="/login" className="text-[var(--primary-700)] hover:underline font-medium">
               Go to login
@@ -88,15 +219,35 @@ export default function SignupPage() {
   return (
     <div className="bg-white border border-[var(--gray-200)] rounded p-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--gray-900)]">Create an account</h1>
+        <h1 className="text-2xl font-bold text-[var(--gray-900)]">
+          {inviteData ? 'Accept Invitation' : 'Create an account'}
+        </h1>
         <p className="text-sm text-[var(--gray-600)] mt-1">
-          Get started with REI Sign
+          {inviteData
+            ? `You've been invited to join ${inviteData.company_name}`
+            : 'Get started with REI Sign'}
         </p>
       </div>
 
+      {/* Invite info banner */}
+      {inviteData && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <Building2 className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div>
+              <p className="font-medium text-blue-900">Joining {inviteData.company_name}</p>
+              <p className="text-sm text-blue-700">
+                You&apos;ll be added as a {inviteData.role === 'manager' ? 'Manager' : 'Team Member'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSignup} className="space-y-4">
         {error && (
-          <div className="p-3 bg-[var(--error-100)] border border-[var(--error-700)] rounded text-sm text-[var(--error-700)]">
+          <div className="p-3 bg-[var(--error-100)] border border-[var(--error-700)] rounded text-sm text-[var(--error-700)] flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
             {error}
           </div>
         )}
@@ -116,20 +267,23 @@ export default function SignupPage() {
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="companyName" className="text-sm font-medium text-[var(--gray-700)]">
-            Company Name
-          </Label>
-          <Input
-            id="companyName"
-            type="text"
-            placeholder="Acme Wholesaling LLC"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            required
-            className="border-[var(--gray-300)] rounded"
-          />
-        </div>
+        {/* Only show company name field if not an invite */}
+        {!inviteData && (
+          <div className="space-y-2">
+            <Label htmlFor="companyName" className="text-sm font-medium text-[var(--gray-700)]">
+              Company Name
+            </Label>
+            <Input
+              id="companyName"
+              type="text"
+              placeholder="Acme Wholesaling LLC"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              required
+              className="border-[var(--gray-300)] rounded"
+            />
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="email" className="text-sm font-medium text-[var(--gray-700)]">
@@ -142,7 +296,8 @@ export default function SignupPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="border-[var(--gray-300)] rounded"
+            disabled={!!inviteData}
+            className="border-[var(--gray-300)] rounded disabled:bg-gray-100"
           />
         </div>
 
@@ -160,6 +315,33 @@ export default function SignupPage() {
             minLength={8}
             className="border-[var(--gray-300)] rounded"
           />
+
+          {/* Password strength indicator */}
+          {password.length > 0 && (
+            <div className="space-y-1">
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <div
+                    key={level}
+                    className={`h-1 flex-1 rounded-full transition-colors ${
+                      level <= passwordStrength.score
+                        ? passwordStrength.color
+                        : 'bg-gray-200'
+                    }`}
+                  />
+                ))}
+              </div>
+              <p className={`text-xs ${
+                passwordStrength.score <= 1 ? 'text-red-600' :
+                passwordStrength.score <= 2 ? 'text-orange-600' :
+                passwordStrength.score <= 3 ? 'text-yellow-600' :
+                'text-green-600'
+              }`}>
+                {passwordStrength.label}
+                {passwordStrength.score < 3 && ' - Try adding uppercase, numbers, or symbols'}
+              </p>
+            </div>
+          )}
         </div>
 
         <Button
@@ -167,7 +349,7 @@ export default function SignupPage() {
           className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white font-semibold rounded"
           disabled={loading}
         >
-          {loading ? 'Creating account...' : 'Create account'}
+          {loading ? 'Creating account...' : inviteData ? 'Accept & Create Account' : 'Create account'}
         </Button>
 
         <p className="text-sm text-[var(--gray-600)] text-center">
@@ -178,5 +360,13 @@ export default function SignupPage() {
         </p>
       </form>
     </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<SignupLoading />}>
+      <SignupForm />
+    </Suspense>
   )
 }

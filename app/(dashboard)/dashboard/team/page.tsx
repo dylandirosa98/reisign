@@ -9,11 +9,14 @@ import {
   Trash2,
   X,
   Save,
-  Eye,
-  EyeOff,
   AlertCircle,
   AlertTriangle,
-  FileText
+  FileText,
+  Mail,
+  Clock,
+  CheckCircle,
+  Copy,
+  Loader2,
 } from 'lucide-react'
 import { PLANS, type PlanTier } from '@/lib/plans'
 
@@ -34,23 +37,33 @@ interface TeamData {
   companyPlan: string
 }
 
+interface PendingInvite {
+  id: string
+  email: string
+  role: string
+  created_at: string
+  expires_at: string
+}
+
 export default function TeamPage() {
   const [data, setData] = useState<TeamData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Add member modal
+  // Add member modal (invite flow)
   const [showAddModal, setShowAddModal] = useState(false)
   const [addForm, setAddForm] = useState({
     email: '',
-    password: '',
-    full_name: '',
     role: 'user',
-    monthly_contract_limit: '',
   })
-  const [showPassword, setShowPassword] = useState(false)
   const [addLoading, setAddLoading] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  const [inviteSuccess, setInviteSuccess] = useState<{ email: string; url?: string } | null>(null)
+  const [copiedUrl, setCopiedUrl] = useState(false)
+
+  // Pending invites
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
+  const [loadingInvites, setLoadingInvites] = useState(false)
 
   // Edit member
   const [editingMember, setEditingMember] = useState<string | null>(null)
@@ -78,7 +91,23 @@ export default function TeamPage() {
   useEffect(() => {
     fetchTeam()
     fetchPlanInfo()
+    fetchPendingInvites()
   }, [])
+
+  async function fetchPendingInvites() {
+    setLoadingInvites(true)
+    try {
+      const response = await fetch('/api/team/invite')
+      if (response.ok) {
+        const data = await response.json()
+        setPendingInvites(data.invites || [])
+      }
+    } catch (err) {
+      console.error('Error fetching invites:', err)
+    } finally {
+      setLoadingInvites(false)
+    }
+  }
 
   async function fetchTeam() {
     try {
@@ -125,38 +154,49 @@ export default function TeamPage() {
     e.preventDefault()
     setAddLoading(true)
     setAddError(null)
+    setInviteSuccess(null)
 
     try {
-      const response = await fetch('/api/team', {
+      const response = await fetch('/api/team/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: addForm.email,
-          password: addForm.password,
-          full_name: addForm.full_name || null,
           role: addForm.role,
-          monthly_contract_limit: addForm.monthly_contract_limit ? parseInt(addForm.monthly_contract_limit) : null,
         }),
       })
 
       const result = await response.json()
 
       if (!response.ok) {
-        setAddError(result.error || 'Failed to add member')
+        setAddError(result.error || 'Failed to send invite')
         return
       }
 
-      // Success - refresh and close modal
-      await fetchTeam()
-      await fetchPlanInfo() // Refresh plan info after adding member
-      setShowAddModal(false)
-      setAddForm({ email: '', password: '', full_name: '', role: 'user', monthly_contract_limit: '' })
+      // Success - show invite sent message
+      setInviteSuccess({
+        email: addForm.email,
+        url: result.emailSent ? undefined : result.inviteUrl,
+      })
+
+      // Refresh invites list
+      await fetchPendingInvites()
+      await fetchPlanInfo()
+
+      // Reset form
+      setAddForm({ email: '', role: 'user' })
     } catch (err) {
       console.error('Add member error:', err)
-      setAddError('Failed to add member')
+      setAddError('Failed to send invite')
     } finally {
       setAddLoading(false)
     }
+  }
+
+  function copyInviteUrl(url: string) {
+    navigator.clipboard.writeText(url)
+    setCopiedUrl(true)
+    setTimeout(() => setCopiedUrl(false), 2000)
   }
 
   async function handleUpdateMember(memberId: string) {
@@ -427,114 +467,181 @@ export default function TeamPage() {
         )}
       </div>
 
-      {/* Add Member Modal */}
+      {/* Pending Invites Section */}
+      {isManager && pendingInvites.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-200 bg-amber-50">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-600" />
+              <h2 className="text-sm font-semibold text-amber-800">
+                Pending Invitations ({pendingInvites.length})
+              </h2>
+            </div>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {pendingInvites.map((invite) => (
+              <div key={invite.id} className="px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
+                    <Mail className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{invite.email}</p>
+                    <p className="text-xs text-gray-500">
+                      Invited {new Date(invite.created_at).toLocaleDateString()} · Expires {new Date(invite.expires_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                  invite.role === 'manager'
+                    ? 'bg-purple-100 text-purple-700'
+                    : 'bg-gray-100 text-gray-700'
+                }`}>
+                  {invite.role === 'manager' ? 'Manager' : 'User'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Add Member Modal (Invite Flow) */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Add Team Member</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Invite Team Member</h3>
               <button
                 onClick={() => {
                   setShowAddModal(false)
                   setAddError(null)
-                  setAddForm({ email: '', password: '', full_name: '', role: 'user', monthly_contract_limit: '' })
+                  setInviteSuccess(null)
+                  setAddForm({ email: '', role: 'user' })
                 }}
                 className="p-1 text-gray-500 hover:text-gray-700"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleAddMember} className="p-6 space-y-4">
-              {addError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" />
-                  {addError}
-                </div>
-              )}
 
-              {/* Overage Warning */}
-              {planInfo?.isOverage && planInfo.extraSeatPrice > 0 && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-amber-800">Extra Seat Charge</p>
-                      <p className="text-sm text-amber-700 mt-0.5">
-                        Your {planInfo.planName} plan includes {planInfo.maxUsers} user{planInfo.maxUsers !== 1 ? 's' : ''}.
-                        Adding this member will add{' '}
-                        <span className="font-semibold">${(planInfo.extraSeatPrice / 100).toFixed(2)}/month</span> to your subscription.
-                      </p>
+            {inviteSuccess ? (
+              // Success state
+              <div className="p-6">
+                <div className="text-center mb-6">
+                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-6 h-6 text-green-600" />
+                  </div>
+                  <h4 className="text-lg font-medium text-gray-900">Invitation Sent!</h4>
+                  <p className="text-sm text-gray-600 mt-1">
+                    We&apos;ve sent an invite to <strong>{inviteSuccess.email}</strong>
+                  </p>
+                </div>
+
+                {inviteSuccess.url && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-amber-800 mb-2">
+                      <strong>Note:</strong> Email delivery failed. Share this link manually:
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={inviteSuccess.url}
+                        className="flex-1 px-3 py-2 text-sm bg-white border border-amber-300 rounded"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyInviteUrl(inviteSuccess.url!)}
+                        className="shrink-0"
+                      >
+                        {copiedUrl ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </Button>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Plan limit reached - cannot add (free/individual) */}
-              {planInfo?.isOverage && planInfo.extraSeatPrice === 0 && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-red-800">Team Limit Reached</p>
-                      <p className="text-sm text-red-700 mt-0.5">
-                        Your {planInfo.planName} plan only supports {planInfo.maxUsers} user{planInfo.maxUsers !== 1 ? 's' : ''}.
-                        Please upgrade your plan to add more team members.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+                <p className="text-sm text-gray-500 text-center">
+                  They&apos;ll receive an email with instructions to create their account and join your team.
+                </p>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                <input
-                  type="email"
-                  required
-                  value={addForm.email}
-                  onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="member@company.com"
-                  autoComplete="off"
-                  name="new-member-email"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    minLength={8}
-                    value={addForm.password}
-                    onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
-                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Minimum 8 characters"
-                    autoComplete="new-password"
-                    name="new-member-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700"
+                <div className="flex justify-center gap-3 mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setInviteSuccess(null)
+                    }}
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                    Invite Another
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowAddModal(false)
+                      setInviteSuccess(null)
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Done
+                  </Button>
                 </div>
               </div>
+            ) : (
+              // Form state
+              <form onSubmit={handleAddMember} className="p-6 space-y-4">
+                {addError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    {addError}
+                  </div>
+                )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                <input
-                  type="text"
-                  value={addForm.full_name}
-                  onChange={(e) => setAddForm({ ...addForm, full_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="John Doe"
-                />
-              </div>
+                {/* Overage Warning */}
+                {planInfo?.isOverage && planInfo.extraSeatPrice > 0 && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-800">Extra Seat Charge</p>
+                        <p className="text-sm text-amber-700 mt-0.5">
+                          Your {planInfo.planName} plan includes {planInfo.maxUsers} user{planInfo.maxUsers !== 1 ? 's' : ''}.
+                          Adding this member will add{' '}
+                          <span className="font-semibold">${(planInfo.extraSeatPrice / 100).toFixed(2)}/month</span> to your subscription when they accept.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-              <div className="grid grid-cols-2 gap-4">
+                {/* Plan limit reached - cannot add (free/individual) */}
+                {planInfo?.isOverage && planInfo.extraSeatPrice === 0 && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-red-800">Team Limit Reached</p>
+                        <p className="text-sm text-red-700 mt-0.5">
+                          Your {planInfo.planName} plan only supports {planInfo.maxUsers} user{planInfo.maxUsers !== 1 ? 's' : ''}.
+                          Please upgrade your plan to add more team members.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
+                  <input
+                    type="email"
+                    required
+                    value={addForm.email}
+                    onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="colleague@company.com"
+                    autoComplete="off"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                   <select
@@ -542,49 +649,47 @@ export default function TeamPage() {
                     onChange={(e) => setAddForm({ ...addForm, role: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="user">User</option>
-                    <option value="manager">Manager</option>
+                    <option value="user">User - Can create and send contracts</option>
+                    <option value="manager">Manager - Full access including team & billing</option>
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Limit</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={addForm.monthly_contract_limit}
-                    onChange={(e) => setAddForm({ ...addForm, monthly_contract_limit: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="No limit"
-                  />
+                <p className="text-xs text-gray-500">
+                  An invitation email will be sent. The recipient will create their own password when they sign up.
+                </p>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowAddModal(false)
+                      setAddError(null)
+                      setAddForm({ email: '', role: 'user' })
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={addLoading || (planInfo?.isOverage && planInfo.extraSeatPrice === 0)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {addLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-4 h-4 mr-2" />
+                        Send Invite
+                      </>
+                    )}
+                  </Button>
                 </div>
-              </div>
-
-              <p className="text-xs text-gray-500">
-                The member will use this email and password to log in. You can set a monthly contract limit to restrict how many contracts they can send.
-              </p>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowAddModal(false)
-                    setAddError(null)
-                    setAddForm({ email: '', password: '', full_name: '', role: 'user', monthly_contract_limit: '' })
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={addLoading || (planInfo?.isOverage && planInfo.extraSeatPrice === 0)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {addLoading ? 'Adding...' : planInfo?.isOverage && planInfo.extraSeatPrice > 0 ? `Add Member (+$${(planInfo.extraSeatPrice / 100).toFixed(2)}/mo)` : 'Add Member'}
-                </Button>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       )}
