@@ -2173,8 +2173,12 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               )}
 
               {/* Seller Signed - Ready to send to Buyer (Three-party contracts) */}
-              {/* Note: seller_signed status only exists for three-party contracts */}
-              {contract.status === 'seller_signed' && (
+              {/* Show when: status is seller_signed, OR (three-party + sent/viewed + signing status is SIGNED) */}
+              {(contract.status === 'seller_signed' ||
+                (isThreeParty &&
+                 (contract.status === 'sent' || contract.status === 'viewed') &&
+                 recipientStatuses.length > 0 &&
+                 recipientStatuses.every(r => r.signingStatus === 'SIGNED'))) && (
                 <div className="py-2">
                   <div className="mb-4 p-3 bg-[var(--success-100)] border border-[var(--success-200)] rounded">
                     <div className="flex items-center gap-2 text-[var(--success-700)] mb-2">

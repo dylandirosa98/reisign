@@ -147,10 +147,13 @@ export async function POST(
   if (isThreeParty) {
     // Three-party has two stages: seller first, then buyer
     if (sendTo === 'buyer') {
-      // Sending to buyer - contract must be in 'seller_signed' status
-      if (contract.status !== 'seller_signed') {
+      // Sending to buyer - contract should be in 'seller_signed' status
+      // Also allow 'sent' or 'viewed' in case webhook didn't update status
+      // (UI validates signing status from Documenso before showing button)
+      const allowedStatuses = ['seller_signed', 'sent', 'viewed']
+      if (!contract.status || !allowedStatuses.includes(contract.status)) {
         return NextResponse.json({
-          error: 'Cannot send to buyer until seller has signed. Current status: ' + contract.status,
+          error: 'Cannot send to buyer. Current status: ' + contract.status,
         }, { status: 400 })
       }
     } else {
