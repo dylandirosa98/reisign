@@ -33,10 +33,36 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body: DocumensoWebhookPayload = await request.json()
-    const { event, payload } = body
+    const body = await request.json()
+    console.log('=== DOCUMENSO WEBHOOK RAW BODY ===')
+    console.log(JSON.stringify(body, null, 2))
+    console.log('=================================')
 
-    console.log('Documenso webhook received:', event, payload)
+    // Handle different payload structures
+    // Some webhooks send { event, payload }, others send the event directly
+    let event: string
+    let payload: DocumensoWebhookPayload['payload']
+
+    if (body.event && body.payload) {
+      // Standard format: { event: "...", payload: {...} }
+      event = body.event
+      payload = body.payload
+    } else if (body.event && body.data) {
+      // Alternative format: { event: "...", data: {...} }
+      event = body.event
+      payload = body.data
+    } else if (body.type) {
+      // Another format: { type: "document.completed", document: {...} }
+      event = body.type
+      payload = body.document || body
+    } else {
+      // Try to extract from body directly
+      event = body.event || body.type || 'unknown'
+      payload = body.payload || body.data || body
+    }
+
+    console.log('Documenso webhook received:', event)
+    console.log('Payload:', JSON.stringify(payload, null, 2))
 
     // Extract contract ID from externalId
     // Three-party format: "contract::{uuid}::{type}::{party}" (seller or buyer)
@@ -83,7 +109,7 @@ export async function POST(request: NextRequest) {
     // Find the contract with custom_fields to check for three-party info
     const { data: contract, error: findError } = await adminSupabase
       .from('contracts')
-      .select('id, status, company_id, documenso_document_id, seller_email, buyer_email, custom_fields')
+      .select('id, status, company_id, documenso_document_id, seller_email, buyer_email, custom_fields, template_id')
       .eq('id', contractId)
       .single()
 
@@ -98,6 +124,40 @@ export async function POST(request: NextRequest) {
     const buyerDocId = customFields?.documenso_buyer_document_id as string | undefined
     const hasSellerDocId = !!sellerDocId
     const hasBuyerDocId = !!buyerDocId
+
+    // Also check company template for signature_layout
+    let templateIsThreeParty = false
+    const companyTemplateId = customFields?.company_template_id as string | undefined
+    if (companyTemplateId) {
+      const { data: templateData } = await adminSupabase
+        .from('company_templates' as any)
+        .select('signature_layout')
+        .eq('id', companyTemplateId)
+        .single()
+      if (templateData && (templateData as any).signature_layout === 'three-party') {
+        templateIsThreeParty = true
+        console.log('Template is three-party based on company_template signature_layout')
+      }
+    }
+
+    // Also check global template for signature_layout if we have template_id
+    if (!templateIsThreeParty && contract.template_id) {
+      const { data: globalTemplate } = await adminSupabase
+        .from('templates')
+        .select('signature_layout')
+        .eq('id', contract.template_id)
+        .single()
+      if (globalTemplate && (globalTemplate as any).signature_layout === 'three-party') {
+        templateIsThreeParty = true
+        console.log('Template is three-party based on global template signature_layout')
+      }
+    }
+
+    // Assignment contracts are typically three-party (seller -> wholesaler -> buyer)
+    const isAssignmentContract = contractType === 'assignment'
+    if (isAssignmentContract && !templateIsThreeParty) {
+      console.log('Contract type is assignment - treating as potential three-party')
+    }
 
     // Determine three-party stage: first from externalId, then by matching document IDs
     let threePartyStage = stageFromExternalId
@@ -122,7 +182,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const isThreePartyContract = hasSellerDocId || threePartyStage === 'seller' || threePartyStage === 'buyer'
+    // NEW: If template is three-party OR assignment contract, and status is sent/viewed with no buyer doc,
+    // assume this is the seller stage completing
+    if (!threePartyStage && (templateIsThreeParty || isAssignmentContract)) {
+      if ((contract.status === 'sent' || contract.status === 'viewed') && !hasBuyerDocId) {
+        threePartyStage = 'seller'
+        console.log('Inferred seller stage: template is three-party or assignment, status is sent/viewed, no buyer doc')
+      } else if (contract.status === 'buyer_pending') {
+        threePartyStage = 'buyer'
+        console.log('Inferred buyer stage: status is buyer_pending')
+      }
+    }
+
+    const isThreePartyContract = hasSellerDocId || templateIsThreeParty || isAssignmentContract || threePartyStage === 'seller' || threePartyStage === 'buyer'
 
     console.log('Is three-party contract:', isThreePartyContract, 'Three-party stage:', threePartyStage || 'none')
     console.log('Seller doc ID:', sellerDocId, 'Buyer doc ID:', buyerDocId, 'Payload doc ID:', payload.id)

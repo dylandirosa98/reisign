@@ -1860,6 +1860,14 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                       displayLabel = 'Sent to Assignee'
                     } else if (metadata.action === 'assignee_added_after_seller_signed') {
                       displayLabel = 'Assignee Added'
+                    } else if (metadata.action === 'recipient_signed') {
+                      displayLabel = 'Signed'
+                    } else if (metadata.action === 'seller_document_completed') {
+                      displayLabel = 'Signed (Ready for Buyer)'
+                    } else if (metadata.action === 'buyer_document_completed') {
+                      displayLabel = 'Signed'
+                    } else if (metadata.action === 'recipient_viewed') {
+                      displayLabel = 'Viewed'
                     }
 
                     return (

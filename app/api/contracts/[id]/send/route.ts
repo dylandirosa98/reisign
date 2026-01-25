@@ -342,7 +342,11 @@ export async function POST(
     // For THREE-PARTY contracts, we use a TWO-DOCUMENT approach:
     // 1. First document: Send to seller with seller-only fields
     // 2. Second document: Send to buyer with buyer-only fields (after seller signs)
-    const isThreePartyTemplate = signatureLayout === 'three-party'
+    // Use isThreeParty (from DB) as source of truth, fallback to PDF generator layout
+    const isThreePartyTemplate = isThreeParty || signatureLayout === 'three-party'
+
+    console.log(`[Send Contract] isThreeParty (from DB): ${isThreeParty}`)
+    console.log(`[Send Contract] isThreePartyTemplate (combined): ${isThreePartyTemplate}`)
 
     // Determine which layout to use for signature positions
     // For three-party, we create single-party documents
