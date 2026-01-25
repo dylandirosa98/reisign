@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendSignedContractEmail } from '@/lib/services/email'
+import { documenso } from '@/lib/documenso'
 
 // Webhook secret for verification (configure in Documenso)
 const WEBHOOK_SECRET = process.env.DOCUMENSO_WEBHOOK_SECRET
@@ -386,6 +388,112 @@ export async function POST(request: NextRequest) {
           })
 
         console.log(`Contract ${contractId} status updated to ${newStatus}`)
+
+        // Send email notification when contract is fully completed
+        if (newStatus === 'completed') {
+          try {
+            console.log(`[Webhook] Contract completed, sending email notifications`)
+
+            // Get full contract details with property
+            const { data: fullContract } = await adminSupabase
+              .from('contracts')
+              .select(`
+                *,
+                property:properties(address, city, state, zip)
+              `)
+              .eq('id', contractId)
+              .single()
+
+            if (fullContract && fullContract.company_id) {
+              // Get managers of the company
+              const { data: managers } = await adminSupabase
+                .from('users')
+                .select('email')
+                .eq('company_id', fullContract.company_id)
+                .eq('role', 'manager')
+
+              // Get the user who created/sent the contract (from status history)
+              const { data: sentHistory } = await adminSupabase
+                .from('contract_status_history')
+                .select('changed_by')
+                .eq('contract_id', contractId)
+                .eq('status', 'sent')
+                .order('created_at', { ascending: true })
+                .limit(1)
+                .single()
+
+              let senderEmail: string | null = null
+              if (sentHistory?.changed_by) {
+                const { data: sender } = await adminSupabase
+                  .from('users')
+                  .select('email, role')
+                  .eq('id', sentHistory.changed_by)
+                  .single()
+                // Only include sender if they're not already a manager
+                if (sender && sender.role !== 'manager') {
+                  senderEmail = sender.email
+                }
+              }
+
+              // Collect all email recipients
+              const emailRecipients: string[] = []
+
+              // Add managers
+              if (managers) {
+                managers.forEach(m => {
+                  if (m.email && !emailRecipients.includes(m.email)) {
+                    emailRecipients.push(m.email)
+                  }
+                })
+              }
+
+              // Add sender if not a manager
+              if (senderEmail && !emailRecipients.includes(senderEmail)) {
+                emailRecipients.push(senderEmail)
+              }
+
+              if (emailRecipients.length > 0) {
+                // Try to download the signed PDF
+                let pdfBuffer: Buffer | undefined
+                const customFieldsEmail = fullContract.custom_fields as {
+                  documenso_buyer_document_id?: string
+                  documenso_seller_document_id?: string
+                  property_address?: string
+                } | null
+
+                // For three-party, use buyer doc (has both signatures), otherwise use main doc
+                const docIdForEmail = customFieldsEmail?.documenso_buyer_document_id ||
+                                     customFieldsEmail?.documenso_seller_document_id ||
+                                     fullContract.documenso_document_id
+
+                if (docIdForEmail) {
+                  try {
+                    pdfBuffer = await documenso.downloadSignedDocumentBuffer(docIdForEmail)
+                    console.log(`[Webhook] Downloaded signed PDF for email: ${pdfBuffer.length} bytes`)
+                  } catch (downloadErr) {
+                    console.error('[Webhook] Failed to download signed PDF for email:', downloadErr)
+                  }
+                }
+
+                const propertyAddress = customFieldsEmail?.property_address ||
+                                       (fullContract.property ? `${fullContract.property.address}, ${fullContract.property.city}, ${fullContract.property.state}` : 'Property')
+
+                await sendSignedContractEmail({
+                  to: emailRecipients,
+                  contractId,
+                  propertyAddress,
+                  sellerName: fullContract.seller_name || 'Seller',
+                  buyerName: fullContract.buyer_name || 'Buyer',
+                  completedAt: fullContract.completed_at || new Date().toISOString(),
+                  pdfBuffer,
+                })
+              }
+            }
+          } catch (emailError) {
+            // Don't fail the webhook if email fails
+            console.error('[Webhook] Failed to send completion email:', emailError)
+          }
+        }
       }
     }
 
