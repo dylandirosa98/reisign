@@ -2165,7 +2165,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               )}
 
               {/* Seller Signed - Ready to send to Buyer (Three-party contracts) */}
-              {contract.status === 'seller_signed' && isThreeParty && (
+              {/* Note: seller_signed status only exists for three-party contracts */}
+              {contract.status === 'seller_signed' && (
                 <div className="py-2">
                   <div className="mb-4 p-3 bg-[var(--success-100)] border border-[var(--success-200)] rounded">
                     <div className="flex items-center gap-2 text-[var(--success-700)] mb-2">
@@ -2200,7 +2201,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               )}
 
               {/* Buyer Pending - Waiting for buyer to sign (Three-party contracts) */}
-              {contract.status === 'buyer_pending' && isThreeParty && (
+              {/* Note: buyer_pending status only exists for three-party contracts */}
+              {contract.status === 'buyer_pending' && (
                 <div className="py-2">
                   <div className="mb-4 p-3 bg-[var(--info-100)] border border-[var(--info-200)] rounded">
                     <div className="flex items-center gap-2 text-[var(--info-700)] mb-2">
