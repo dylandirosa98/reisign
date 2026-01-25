@@ -27,6 +27,8 @@ import {
   PenTool,
   RotateCcw,
   Sparkles,
+  Mail,
+  RefreshCw,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -263,6 +265,18 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const [sendToSellerEmail, setSendToSellerEmail] = useState('')
   const [sendToAssigneeEmail, setSendToAssigneeEmail] = useState('')
 
+  // Recipient signing status from Documenso
+  const [recipientStatuses, setRecipientStatuses] = useState<Array<{
+    id: number
+    email: string
+    name: string
+    role: string
+    signingStatus: 'NOT_SIGNED' | 'SIGNED'
+    signedAt?: string
+  }>>([])
+  const [statusLoading, setStatusLoading] = useState(false)
+  const [resending, setResending] = useState(false)
+
   useEffect(() => {
     fetchContract()
     fetchUsageInfo()
@@ -313,6 +327,52 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       console.error('Failed to fetch usage info:', err)
     }
   }
+
+  const fetchRecipientStatus = async () => {
+    if (!contract?.documenso_document_id) return
+    setStatusLoading(true)
+    try {
+      const res = await fetch(`/api/contracts/${id}/status`)
+      if (res.ok) {
+        const data = await res.json()
+        setRecipientStatuses(data.recipients || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch recipient status:', err)
+    } finally {
+      setStatusLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    if (!contract?.documenso_document_id) return
+    setResending(true)
+    try {
+      const res = await fetch(`/api/contracts/${id}/resend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        alert(data.message || 'Signing request resent successfully')
+      } else {
+        alert(data.error || 'Failed to resend')
+      }
+    } catch (err) {
+      console.error('Failed to resend contract:', err)
+      alert('Failed to resend contract')
+    } finally {
+      setResending(false)
+    }
+  }
+
+  // Fetch recipient status when contract is sent/viewed
+  useEffect(() => {
+    if (contract && (contract.status === 'sent' || contract.status === 'viewed')) {
+      fetchRecipientStatus()
+    }
+  }, [contract?.status, contract?.documenso_document_id])
 
   // Core required fields that are ALWAYS visible (needed for contract creation/update API)
   const ALWAYS_VISIBLE_FIELDS = [
@@ -1847,15 +1907,95 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                 </>
               )}
 
-              {contract.status === 'sent' && contract.documenso_document_id && (
-                <div className="text-center py-4">
-                  <Clock className="w-8 h-8 text-[var(--info-700)] mx-auto mb-2" />
-                  <p className="text-sm text-[var(--gray-700)]">
-                    Waiting for signatures...
-                  </p>
-                  <p className="text-xs text-[var(--gray-500)] mt-1">
-                    The contract has been sent to all parties for signing.
-                  </p>
+              {(contract.status === 'sent' || contract.status === 'viewed') && contract.documenso_document_id && (
+                <div className="py-2">
+                  {/* Recipient Signing Status */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-medium text-[var(--gray-700)]">Signing Status</h4>
+                      <button
+                        onClick={fetchRecipientStatus}
+                        disabled={statusLoading}
+                        className="text-xs text-[var(--gray-500)] hover:text-[var(--gray-700)] flex items-center gap-1"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${statusLoading ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </button>
+                    </div>
+                    {statusLoading && recipientStatuses.length === 0 ? (
+                      <div className="text-center py-2">
+                        <Loader2 className="w-4 h-4 animate-spin mx-auto text-[var(--gray-400)]" />
+                      </div>
+                    ) : recipientStatuses.length > 0 ? (
+                      <div className="space-y-2">
+                        {recipientStatuses.map((recipient) => (
+                          <div
+                            key={recipient.id}
+                            className="flex items-center justify-between p-2 bg-[var(--gray-50)] rounded text-sm"
+                          >
+                            <div>
+                              <span className="font-medium text-[var(--gray-700)]">
+                                {recipient.role === 'seller' ? 'Seller' : recipient.role === 'assignee' ? 'Assignee' : recipient.name}
+                              </span>
+                              <span className="text-[var(--gray-500)] ml-1">
+                                ({recipient.email})
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {recipient.signingStatus === 'SIGNED' ? (
+                                <>
+                                  <CheckCircle className="w-4 h-4 text-[var(--success-600)]" />
+                                  <span className="text-xs text-[var(--success-700)]">Signed</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="w-4 h-4 text-[var(--warning-600)]" />
+                                  <span className="text-xs text-[var(--warning-700)]">Pending</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-2">
+                        <Clock className="w-6 h-6 text-[var(--info-700)] mx-auto mb-1" />
+                        <p className="text-xs text-[var(--gray-500)]">
+                          Waiting for signatures...
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <hr className="my-3 border-[var(--gray-200)]" />
+
+                  {/* Action Buttons */}
+                  <div className="space-y-2">
+                    <Button
+                      onClick={handleResend}
+                      disabled={resending}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      {resending ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Mail className="w-4 h-4 mr-2" />
+                      )}
+                      Resend Contract
+                    </Button>
+                    <a
+                      href={`${process.env.NEXT_PUBLIC_DOCUMENSO_URL || 'http://localhost:3001'}/documents/${contract.documenso_document_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full block"
+                    >
+                      <Button variant="outline" className="w-full">
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        View Document
+                      </Button>
+                    </a>
+                  </div>
                 </div>
               )}
 
@@ -1880,21 +2020,18 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                       Contract completed!
                     </p>
                   </div>
+                  <a
+                    href={`${process.env.NEXT_PUBLIC_DOCUMENSO_URL || 'http://localhost:3001'}/documents/${contract.documenso_document_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full block"
+                  >
+                    <Button variant="outline" className="w-full">
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      View Document
+                    </Button>
+                  </a>
                 </>
-              )}
-
-              {contract.documenso_document_id && (
-                <a
-                  href={`${process.env.NEXT_PUBLIC_DOCUMENSO_URL || 'http://localhost:3001'}/documents/${contract.documenso_document_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full"
-                >
-                  <Button variant="outline" className="w-full">
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    View in Documenso
-                  </Button>
-                </a>
               )}
             </div>
           </div>
