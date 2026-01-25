@@ -299,6 +299,15 @@ export async function POST(
       }, { status: 500 })
     }
 
+    // Validate page numbers - all fields must be on valid pages
+    const invalidPageFields = signaturePositions.filter(p => p.page < 1 || p.page > pageCount)
+    if (invalidPageFields.length > 0) {
+      console.error(`[Send Contract] ERROR: Fields on invalid pages:`, invalidPageFields)
+      return NextResponse.json({
+        error: `Signature fields on invalid pages (PDF has ${pageCount} pages but fields reference pages: ${invalidPageFields.map(f => f.page).join(', ')})`,
+      }, { status: 500 })
+    }
+
     // Prepare recipients based on template's signature layout
     const recipients = isThreePartyTemplate && assigneeEmailToSend
       ? [

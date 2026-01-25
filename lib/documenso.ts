@@ -526,14 +526,22 @@ class DocumensoClient {
     }
 
     // Step 3: Add signature/initials fields
-    console.log(`[Documenso] Adding ${options.signatureFields.length} signature/initials fields`)
+    console.log(`[Documenso] ===== Adding ${options.signatureFields.length} signature/initials fields =====`)
+    console.log(`[Documenso] Recipient map:`, Object.fromEntries(recipientMap))
+
     let fieldsAdded = 0
     let fieldsFailed = 0
+    let fieldsSkipped = 0
+
     for (const field of options.signatureFields) {
-      const recipientId = recipientMap.get(field.recipientEmail.toLowerCase())
+      const emailLower = field.recipientEmail.toLowerCase()
+      const recipientId = recipientMap.get(emailLower)
+
+      console.log(`[Documenso] Processing field: email="${field.recipientEmail}" (lowercase: "${emailLower}"), recipientId=${recipientId}`)
+
       if (recipientId) {
         const fieldType = field.fieldType === 'initials' ? 'INITIALS' : 'SIGNATURE'
-        console.log(`[Documenso] Adding ${fieldType} field: page=${field.page}, x=${field.x}, y=${field.y}, width=${field.width}, height=${field.height}, recipient=${field.recipientEmail}`)
+        console.log(`[Documenso] Adding ${fieldType} field: page=${field.page}, x=${field.x}, y=${field.y}, width=${field.width}, height=${field.height}`)
         try {
           await this.addSignatureField(document.id, recipientId, {
             page: field.page,
@@ -543,7 +551,7 @@ class DocumensoClient {
             height: field.height,
             type: fieldType,
           })
-          console.log(`[Documenso] Successfully added ${fieldType} field for ${field.recipientEmail} on page ${field.page}`)
+          console.log(`[Documenso] SUCCESS: Added ${fieldType} field for ${field.recipientEmail} on page ${field.page}`)
           fieldsAdded++
         } catch (fieldError) {
           console.error(`[Documenso] FAILED to add ${fieldType} field on page ${field.page} for ${field.recipientEmail}:`, fieldError)
@@ -551,18 +559,26 @@ class DocumensoClient {
           // Continue with other fields instead of failing completely
         }
       } else {
-        console.log(`[Documenso] WARNING: No recipientId found for ${field.recipientEmail}`)
+        console.warn(`[Documenso] SKIPPED: No recipientId found for "${field.recipientEmail}" - available emails: ${Array.from(recipientMap.keys()).join(', ')}`)
+        fieldsSkipped++
       }
     }
-    console.log(`[Documenso] Fields summary: ${fieldsAdded} added, ${fieldsFailed} failed`)
+    console.log(`[Documenso] Fields summary: ${fieldsAdded} added, ${fieldsFailed} failed out of ${options.signatureFields.length} total`)
 
     // If no signature fields were added successfully, that's a problem
     if (fieldsAdded === 0 && options.signatureFields.length > 0) {
       throw new Error('Failed to add any signature fields to the document')
     }
 
+    // Log a warning if some fields failed
+    if (fieldsFailed > 0) {
+      console.warn(`[Documenso] WARNING: ${fieldsFailed} fields failed to add. Document may be incomplete.`)
+    }
+
     // Step 4: Send document if requested
     if (options.sendImmediately) {
+      // Small delay to ensure fields are fully registered in Documenso
+      await new Promise(resolve => setTimeout(resolve, 500))
       await this.sendDocument(document.id)
       console.log(`[Documenso] Document sent for signing`)
     }
