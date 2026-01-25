@@ -298,10 +298,15 @@ export async function POST(
     console.log(`[Send Contract] Signature fields to add:`, JSON.stringify(signatureFields, null, 2))
 
     // Create document in Documenso with signatures
-    console.log(`[Send Contract] Creating document in Documenso`)
+    // Use unique externalId with timestamp to avoid conflicts from previous failed attempts
+    const timestamp = Date.now()
+    const externalId = `contract-${id}-${sendType}-${timestamp}`
+    console.log(`[Send Contract] Creating document in Documenso with externalId: ${externalId}`)
+    console.log(`[Send Contract] Recipients:`, JSON.stringify(recipients, null, 2))
+
     const result = await documenso.createDocumentWithSignatures(pdfBuffer, {
       title: `${sendType === 'purchase' ? 'Purchase Agreement' : 'Assignment Contract'} - ${propertyAddress}`,
-      externalId: `contract-${id}-${sendType}`,
+      externalId,
       recipients,
       signatureFields,
       sendImmediately: true,
