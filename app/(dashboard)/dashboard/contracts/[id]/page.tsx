@@ -282,6 +282,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   }>>([])
   const [statusLoading, setStatusLoading] = useState(false)
   const [resending, setResending] = useState(false)
+  const [savingBuyerInfo, setSavingBuyerInfo] = useState(false)
 
   useEffect(() => {
     fetchContract()
@@ -553,6 +554,41 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       setError(err instanceof Error ? err.message : 'Failed to generate preview')
     } finally {
       setPreviewLoading(false)
+    }
+  }
+
+  // Save buyer/assignee info (used when editing before sending to buyer)
+  const handleSaveBuyerInfo = async () => {
+    if (!contract) return
+
+    setSavingBuyerInfo(true)
+    setError(null)
+
+    try {
+      const res = await fetch(`/api/contracts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          buyer_name: sendToAssigneeName,
+          buyer_email: sendToAssigneeEmail,
+          custom_fields: {
+            ...contract.custom_fields,
+            buyer_phone: sendToAssigneePhone,
+          },
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to save buyer info')
+      }
+
+      // Refresh contract data
+      await fetchContract()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save buyer info')
+    } finally {
+      setSavingBuyerInfo(false)
     }
   }
 
@@ -2190,11 +2226,45 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     </p>
                   </div>
 
-                  {/* Buyer Info */}
-                  <div className="mb-4 p-3 bg-[var(--gray-50)] rounded">
-                    <h4 className="text-sm font-medium text-[var(--gray-700)] mb-2">Buyer/Assignee</h4>
-                    <p className="text-sm text-[var(--gray-600)]">{sendToAssigneeName || 'Not set'}</p>
-                    <p className="text-sm text-[var(--gray-500)]">{sendToAssigneeEmail || 'No email'}</p>
+                  {/* Buyer Info - Editable */}
+                  <div className="mb-4 space-y-3">
+                    <h4 className="text-sm font-medium text-[var(--gray-700)]">Buyer/Assignee Information</h4>
+                    <div>
+                      <Label className="text-xs text-[var(--gray-600)]">Name *</Label>
+                      <Input
+                        value={sendToAssigneeName}
+                        onChange={(e) => setSendToAssigneeName(e.target.value)}
+                        placeholder="Buyer/Assignee name"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-[var(--gray-600)]">Email *</Label>
+                      <Input
+                        type="email"
+                        value={sendToAssigneeEmail}
+                        onChange={(e) => setSendToAssigneeEmail(e.target.value)}
+                        placeholder="buyer@email.com"
+                        className="mt-1"
+                      />
+                      {sendToAssigneeEmail && !isValidEmail(sendToAssigneeEmail) && (
+                        <p className="text-xs text-[var(--error-600)] mt-1">Please enter a valid email address</p>
+                      )}
+                    </div>
+                    <Button
+                      onClick={handleSaveBuyerInfo}
+                      disabled={savingBuyerInfo || !sendToAssigneeName.trim() || !sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)}
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    >
+                      {savingBuyerInfo ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4 mr-2" />
+                      )}
+                      Save Buyer Info
+                    </Button>
                   </div>
 
                   <Button
