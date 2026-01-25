@@ -101,19 +101,6 @@ export async function POST(
     }, { status: 400 })
   }
 
-  // Get the template to check signature layout (for three-party validation)
-  let isThreeParty = false
-  const contractTemplateId = (contract as any).company_template_id
-  if (contractTemplateId) {
-    const { data: templateData } = await adminSupabase
-      .from('company_templates' as any)
-      .select('signature_layout')
-      .eq('id', contractTemplateId)
-      .single()
-    const templateLayout = (templateData as any)?.signature_layout
-    isThreeParty = templateLayout === 'three-party'
-  }
-
   // Get the body to determine which contract type to send and AI clauses
   const body = await request.json().catch(() => ({}))
   const sendType = body.type || 'purchase' // 'purchase' or 'assignment'
@@ -151,7 +138,20 @@ export async function POST(
     company_phone?: string
     buyer_signature?: string
     buyer_initials?: string
+    company_template_id?: string
   } | null
+
+  // Get the template to check signature layout (for three-party validation)
+  let isThreeParty = false
+  if (customFields?.company_template_id) {
+    const { data: templateData } = await adminSupabase
+      .from('company_templates' as any)
+      .select('signature_layout')
+      .eq('id', customFields.company_template_id)
+      .single()
+    const templateLayout = (templateData as any)?.signature_layout
+    isThreeParty = templateLayout === 'three-party'
+  }
 
   // Validate required buyer (company) signing fields - only use explicitly saved values
   const missingFields: string[] = []
