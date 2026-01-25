@@ -101,6 +101,17 @@ export async function POST(
     }, { status: 400 })
   }
 
+  // Get the template to check signature layout (for three-party validation)
+  let isThreeParty = false
+  if (contract.company_template_id) {
+    const { data: templateData } = await adminSupabase
+      .from('company_templates' as any)
+      .select('signature_layout')
+      .eq('id', contract.company_template_id)
+      .single()
+    isThreeParty = templateData?.signature_layout === 'three-party'
+  }
+
   // Get the body to determine which contract type to send and AI clauses
   const body = await request.json().catch(() => ({}))
   const sendType = body.type || 'purchase' // 'purchase' or 'assignment'
@@ -147,7 +158,8 @@ export async function POST(
   if (!customFields?.company_email) missingFields.push('Company Email')
   if (!customFields?.company_phone) missingFields.push('Company Phone')
   if (!customFields?.buyer_signature) missingFields.push('Buyer Signature')
-  if (!customFields?.buyer_initials) missingFields.push('Buyer Initials')
+  // Buyer initials only required for non-three-party templates (wholesaler doesn't need initials for three-party)
+  if (!isThreeParty && !customFields?.buyer_initials) missingFields.push('Buyer Initials')
 
   if (missingFields.length > 0) {
     return NextResponse.json({
