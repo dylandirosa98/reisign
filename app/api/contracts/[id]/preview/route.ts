@@ -3,8 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { pdfGenerator, ContractData, TemplateType } from '@/lib/services/pdf-generator'
 import { aiClauseService, ClauseType } from '@/lib/services/ai-clauses'
+import { documenso } from '@/lib/documenso'
 
-// GET /api/contracts/[id]/preview - Generate PDF preview
+// GET /api/contracts/[id]/preview - Generate PDF preview or return signed document
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -67,6 +68,30 @@ export async function GET(
   const type = url.searchParams.get('type') || 'purchase'
   const clausesParam = url.searchParams.get('clauses')
   const requestedClauses = clausesParam ? clausesParam.split(',') as ClauseType[] : []
+  const wantSigned = url.searchParams.get('signed') === 'true'
+
+  // If requesting signed document and contract has been sent to Documenso
+  if (wantSigned && contract.documenso_document_id) {
+    try {
+      console.log(`[Preview] Downloading signed document from Documenso: ${contract.documenso_document_id}`)
+      const pdfBuffer = await documenso.downloadSignedDocumentBuffer(contract.documenso_document_id)
+
+      const propertyAddress = (contract.custom_fields as any)?.property_address ||
+                              contract.property?.address || 'contract'
+
+      return new NextResponse(new Uint8Array(pdfBuffer), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename="${type}-${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}-signed.pdf"`,
+          'Content-Length': pdfBuffer.length.toString(),
+        },
+      })
+    } catch (downloadError) {
+      console.error('[Preview] Failed to download signed document:', downloadError)
+      // Fall through to generate preview if download fails
+    }
+  }
 
   const customFields = contract.custom_fields as {
     property_address?: string

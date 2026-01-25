@@ -842,12 +842,13 @@ class PDFGeneratorService {
         })
       }
 
-      // Seller signature - top section on signature page (same position as three-party seller)
+      // Seller signature - centered layout (container is 50% width, centered at 25% from left)
+      // After header (~12%) and date row (~8%), signature box starts around 22-25%
       positions.push({
         page: totalPages,
-        x: 10,
-        y: 15,
-        width: 30,
+        x: 26,
+        y: 24,
+        width: 42,
         height: 5,
         recipientRole: 'seller',
         fieldType: 'signature',

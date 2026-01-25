@@ -2204,7 +2204,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                       Resend Contract
                     </Button>
                     <a
-                      href={`${process.env.NEXT_PUBLIC_DOCUMENSO_URL || 'http://localhost:3001'}/documents/${contract.documenso_document_id}`}
+                      href={`/api/contracts/${id}/preview?type=${contractType}&signed=true`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full block"
@@ -2348,7 +2348,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     </p>
                   </div>
                   <a
-                    href={`${process.env.NEXT_PUBLIC_DOCUMENSO_URL || 'http://localhost:3001'}/documents/${contract.documenso_document_id}`}
+                    href={`/api/contracts/${id}/preview?type=${contractType}&signed=true`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full block"
