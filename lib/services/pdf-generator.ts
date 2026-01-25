@@ -818,49 +818,55 @@ class PDFGeneratorService {
       const pagesWithInitials = totalPages - 1
 
       // Seller initials in footer (pages 1 to N-1)
-      // Position: y=91 to stay within page bounds (91 + 3 = 94, safely within 100)
+      // Same position as purchase-agreement which works perfectly
       for (let page = 1; page <= pagesWithInitials; page++) {
         positions.push({
           page: page,
-          x: 13,        // Left side initials
-          y: 91,        // Moved up from 95 to stay in bounds
+          x: 13,        // Same as purchase-agreement
+          y: 95,        // Same as purchase-agreement (works perfectly)
           width: 8,
-          height: 3,
+          height: 2.8,
           recipientRole: 'seller',
           fieldType: 'initials',
         })
       }
 
       // Assignee/Buyer initials in footer - RIGHT side (pages 1 to N-1)
+      // Calculated: right padding 36pt, box at 539pt from left = 88%
+      // Same Y as seller initials (95%) since they're in the same footer row
       for (let page = 1; page <= pagesWithInitials; page++) {
         positions.push({
           page: page,
-          x: 79,        // Right side initials
-          y: 91,        // Moved up from 95 to stay in bounds
+          x: 88,        // Calculated: (612 - 36 - 37) / 612 = 88%
+          y: 95,        // Same as seller initials
           width: 8,
-          height: 3,
+          height: 2.8,
           recipientRole: 'buyer',
           fieldType: 'initials',
         })
       }
 
       // Seller signature - first section on signature page
+      // Calculated: 36pt margin + 27pt header + 20pt section header + 12pt label = 95pt
+      // As percentage: 95 / 792 = 12%
       positions.push({
         page: totalPages,
-        x: 6,         // Left column
-        y: 19,        // First section
-        width: 35,
+        x: 8,         // Left column with slight offset into content
+        y: 12,        // Calculated position of seller signature box
+        width: 33,
         height: 5,
         recipientRole: 'seller',
         fieldType: 'signature',
       })
 
       // Assignee/Buyer signature - third section on signature page
+      // Calculated: Section 3 starts at 323pt + 20pt header + 12pt label = 355pt
+      // As percentage: 355 / 792 = 45%
       positions.push({
         page: totalPages,
-        x: 6,         // Left column
-        y: 75,        // Moved up from 81 to ensure it fits
-        width: 35,
+        x: 8,         // Same as seller signature
+        y: 45,        // Calculated position of assignee signature box
+        width: 33,
         height: 5,
         recipientRole: 'buyer',
         fieldType: 'signature',
