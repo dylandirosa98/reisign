@@ -245,9 +245,10 @@ export async function POST(
       ai_clauses: aiClausesHtml,
     }
 
-    // Generate PDF from HTML template
-    console.log(`[Send Contract] Generating PDF for ${templateType}`)
-    const { pdfBuffer, signatureLayout } = await pdfGenerator.generatePDF(templateType, contractData)
+    // Generate PDF from HTML template (pass company template ID to use custom template)
+    const companyTemplateId = customFields?.company_template_id
+    console.log(`[Send Contract] Generating PDF for ${templateType} with company template: ${companyTemplateId || 'none'}`)
+    const { pdfBuffer, signatureLayout } = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
     console.log(`[Send Contract] PDF generated: ${pdfBuffer.length} bytes, layout: ${signatureLayout}`)
 
     // Get page count for signature positioning
