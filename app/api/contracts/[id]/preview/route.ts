@@ -73,10 +73,37 @@ export async function GET(
   // If requesting signed document and contract has been sent to Documenso
   if (wantSigned && contract.documenso_document_id) {
     try {
-      console.log(`[Preview] Downloading signed document from Documenso: ${contract.documenso_document_id}`)
-      const pdfBuffer = await documenso.downloadSignedDocumentBuffer(contract.documenso_document_id)
+      const customFieldsForDoc = contract.custom_fields as {
+        documenso_seller_document_id?: string
+        documenso_buyer_document_id?: string
+        property_address?: string
+      } | null
 
-      const propertyAddress = (contract.custom_fields as any)?.property_address ||
+      // For three-party contracts, the buyer document contains both signatures
+      // (seller signed first, then buyer signs on a document that includes seller's signature)
+      const buyerDocId = customFieldsForDoc?.documenso_buyer_document_id
+      const sellerDocId = customFieldsForDoc?.documenso_seller_document_id
+
+      // Determine which document to download:
+      // 1. If buyer document exists (three-party completed), use that (has both signatures)
+      // 2. Otherwise use the main document ID
+      let documentIdToDownload = contract.documenso_document_id
+
+      if (buyerDocId) {
+        // Three-party contract with buyer document - this has both signatures
+        documentIdToDownload = buyerDocId
+        console.log(`[Preview] Three-party contract: downloading buyer document (has both signatures): ${buyerDocId}`)
+      } else if (sellerDocId) {
+        // Three-party but buyer hasn't signed yet - show seller document
+        documentIdToDownload = sellerDocId
+        console.log(`[Preview] Three-party contract: downloading seller document: ${sellerDocId}`)
+      } else {
+        console.log(`[Preview] Downloading main document: ${contract.documenso_document_id}`)
+      }
+
+      const pdfBuffer = await documenso.downloadSignedDocumentBuffer(documentIdToDownload)
+
+      const propertyAddress = customFieldsForDoc?.property_address ||
                               contract.property?.address || 'contract'
 
       return new NextResponse(new Uint8Array(pdfBuffer), {
