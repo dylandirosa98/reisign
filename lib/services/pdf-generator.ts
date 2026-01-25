@@ -371,8 +371,17 @@ class PDFGeneratorService {
 
   /**
    * Generate footer template with initials boxes
+   * For three-party: Seller initials on left, Assignee initials on right (both via Documenso, no pre-filled)
+   * For other layouts: Seller initials on left (Documenso), Buyer initials on right (pre-filled by wholesaler)
    */
-  private generateFooterTemplate(buyerInitialsImg: string): string {
+  private generateFooterTemplate(buyerInitialsImg: string, signatureLayout?: string): string {
+    const isThreeParty = signatureLayout === 'three-party'
+
+    // For three-party, use "Assignee Initials" label and empty box (Documenso will fill)
+    // For other layouts, use "Buyer Initials" with pre-filled image from form
+    const rightLabel = isThreeParty ? 'Assignee Initials:' : 'Buyer Initials:'
+    const rightContent = isThreeParty ? '' : buyerInitialsImg
+
     return `
       <div style="width: 100%; font-size: 9px; font-family: 'Tinos', 'Times New Roman', Times, serif; padding: 0 0.5in;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #ccc; padding-top: 8px; margin-top: 5px;">
@@ -382,9 +391,9 @@ class PDFGeneratorService {
           </div>
           <div>Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>
           <div style="display: flex; align-items: center; gap: 5px;">
-            <span>Buyer Initials:</span>
+            <span>${rightLabel}</span>
             <div style="width: 50px; height: 22px; border: 1px solid #000; display: flex; align-items: center; justify-content: center;">
-              ${buyerInitialsImg}
+              ${rightContent}
             </div>
           </div>
         </div>
@@ -599,8 +608,8 @@ class PDFGeneratorService {
       ? `<img src="${data.buyer_initials}" style="height: 18px; width: auto; object-fit: contain;" />`
       : ''
 
-    // Generate footer template with initials
-    const footerTemplate = this.generateFooterTemplate(buyerInitialsImg)
+    // Generate footer template with initials (pass signatureLayout for three-party handling)
+    const footerTemplate = this.generateFooterTemplate(buyerInitialsImg, signatureLayout)
 
     // Launch Puppeteer with appropriate chromium for environment
     const browser = await puppeteer.launch({

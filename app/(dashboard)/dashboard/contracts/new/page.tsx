@@ -115,8 +115,6 @@ interface FormData {
   escrow_fees_split: string
   title_policy_paid_by: string
   hoa_fees_split: string
-  // Contract type
-  contract_type: string
   // Buyer signature page
   company_name: string
   company_signer_name: string
@@ -178,7 +176,6 @@ const initialFormData: FormData = {
   escrow_fees_split: '',
   title_policy_paid_by: '',
   hoa_fees_split: '',
-  contract_type: 'purchase',
   company_name: '',
   company_signer_name: '',
   company_email: '',
@@ -418,7 +415,6 @@ export default function NewContractPage() {
             assignmentFee: formData.assignment_fee
               ? parseFloat(formData.assignment_fee.replace(/[,$]/g, ''))
               : 0,
-            contractType: formData.contract_type,
           },
           customFields: {
             property_address: formData.property_address,
@@ -442,7 +438,6 @@ export default function NewContractPage() {
             escrow_fees_split: formData.escrow_fees_split || undefined,
             title_policy_paid_by: formData.title_policy_paid_by || undefined,
             hoa_fees_split: formData.hoa_fees_split || undefined,
-            contract_type: formData.contract_type,
             company_name: formData.company_name,
             company_signer_name: formData.company_signer_name,
             company_email: formData.company_email,
@@ -698,6 +693,10 @@ export default function NewContractPage() {
                         onChange={(e) => updateField('seller_email', e.target.value)}
                         placeholder="seller@email.com"
                       />
+                      <p className="text-xs text-[var(--primary-600)] mt-1">
+                        Signing document will be sent here via Documenso
+                        {selectedTemplate?.signature_layout === 'three-party' ? ' (Signs 1st)' : ''}
+                      </p>
                     </div>
                   )}
                   {isFieldVisible('seller_phone') && (
@@ -729,14 +728,18 @@ export default function NewContractPage() {
               </div>
             )}
 
-            {/* End Buyer Section */}
+            {/* End Buyer/Assignee Section */}
             {isGroupVisible(['buyer_name', 'buyer_email', 'buyer_phone']) && (
               <div>
                 <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
                   <User className="w-4 h-4 text-[var(--gray-400)]" />
-                  End Buyer (for Assignment)
+                  {selectedTemplate?.signature_layout === 'three-party' ? 'Assignee (End Buyer)' : 'End Buyer (for Assignment)'}
                 </h3>
-                <p className="text-xs text-[var(--gray-500)] mb-3">Optional - only needed if assigning the contract</p>
+                <p className="text-xs text-[var(--gray-500)] mb-3">
+                  {selectedTemplate?.signature_layout === 'three-party'
+                    ? 'Required for three-party assignment contracts'
+                    : 'Optional - only needed if assigning the contract'}
+                </p>
                 <div className="grid grid-cols-2 gap-3">
                   {isFieldVisible('buyer_name') && (
                     <div>
@@ -761,6 +764,11 @@ export default function NewContractPage() {
                         onChange={(e) => updateField('buyer_email', e.target.value)}
                         placeholder="buyer@email.com"
                       />
+                      {selectedTemplate?.signature_layout === 'three-party' && (
+                        <p className="text-xs text-[var(--primary-600)] mt-1">
+                          Signing document will be sent here via Documenso (Signs 2nd, after Seller)
+                        </p>
+                      )}
                     </div>
                   )}
                   {isFieldVisible('buyer_phone') && (
@@ -1062,28 +1070,16 @@ export default function NewContractPage() {
               </div>
             )}
 
-            {/* Contract Type */}
-            <div>
-              <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Contract Type</h3>
-              <select
-                value={formData.contract_type}
-                onChange={(e) => updateField('contract_type', e.target.value)}
-                className="w-full px-3 py-2 border border-[var(--gray-300)] rounded-md text-sm"
-              >
-                <option value="purchase">Purchase Agreement Only</option>
-                <option value="assignment">Assignment Contract Only</option>
-                <option value="both">Both (Purchase + Assignment)</option>
-              </select>
-            </div>
-
             {/* Signature Page - Buyer/Company Details */}
             <div className="border-t border-[var(--gray-200)] pt-6">
               <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-1 flex items-center gap-2">
                 <PenTool className="w-4 h-4 text-[var(--gray-400)]" />
-                Buyer Signature Page (Your Company)
+                {selectedTemplate?.signature_layout === 'three-party' ? 'Assignor Signature (Your Company)' : 'Buyer Signature Page (Your Company)'}
               </h3>
               <p className="text-xs text-[var(--gray-500)] mb-4">
-                These fields appear on the signature page of the contract. All fields marked with * are required before sending.
+                {selectedTemplate?.signature_layout === 'three-party'
+                  ? 'Your company pre-signs as the Assignor (wholesaler). This signature will be embedded in the contract before sending to other parties.'
+                  : 'These fields appear on the signature page of the contract. All fields marked with * are required before sending.'}
               </p>
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div>
