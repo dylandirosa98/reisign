@@ -261,9 +261,13 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   } | null>(null)
   const [pendingSend, setPendingSend] = useState<{ type: 'purchase' | 'assignment' } | null>(null)
 
-  // Editable "send to" emails - can differ from contract values
+  // Editable signer info - can differ from contract values
+  const [sendToSellerName, setSendToSellerName] = useState('')
   const [sendToSellerEmail, setSendToSellerEmail] = useState('')
+  const [sendToSellerPhone, setSendToSellerPhone] = useState('')
+  const [sendToAssigneeName, setSendToAssigneeName] = useState('')
   const [sendToAssigneeEmail, setSendToAssigneeEmail] = useState('')
+  const [sendToAssigneePhone, setSendToAssigneePhone] = useState('')
 
   // Recipient signing status from Documenso
   const [recipientStatuses, setRecipientStatuses] = useState<Array<{
@@ -292,9 +296,13 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       setContract(data.contract)
       setHistory(data.history || [])
       setTemplate(data.template || null)
-      // Initialize send-to emails from contract values
+      // Initialize send-to info from contract values
+      setSendToSellerName(data.contract.seller_name || '')
       setSendToSellerEmail(data.contract.seller_email || '')
+      setSendToSellerPhone(data.contract.custom_fields?.seller_phone || '')
+      setSendToAssigneeName(data.contract.buyer_name || '')
       setSendToAssigneeEmail(data.contract.buyer_email || '')
+      setSendToAssigneePhone(data.contract.custom_fields?.buyer_phone || '')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load contract')
     } finally {
@@ -410,27 +418,47 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   // Validate email format
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
-  // Check if we can send (emails are required)
+  // Check if we can send (names and emails are required)
   const canSend = () => {
+    // Seller name and email required
+    if (!sendToSellerName.trim()) {
+      return false
+    }
     if (!sendToSellerEmail || !isValidEmail(sendToSellerEmail)) {
       return false
     }
-    if (isThreeParty && (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail))) {
-      return false
+    // For three-party, assignee name and email also required
+    if (isThreeParty) {
+      if (!sendToAssigneeName.trim()) {
+        return false
+      }
+      if (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)) {
+        return false
+      }
     }
     return true
   }
 
   // Check if overage warning needed before sending
   const inititateSend = (type: 'purchase' | 'assignment') => {
-    // Validate emails first
+    // Validate names and emails first
+    if (!sendToSellerName.trim()) {
+      setError('Please enter the seller name before sending.')
+      return
+    }
     if (!sendToSellerEmail || !isValidEmail(sendToSellerEmail)) {
       setError('Please enter a valid seller email address before sending.')
       return
     }
-    if (isThreeParty && (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail))) {
-      setError('For three-party contracts, both seller and assignee email addresses are required before sending.')
-      return
+    if (isThreeParty) {
+      if (!sendToAssigneeName.trim()) {
+        setError('For three-party contracts, assignee name is required before sending.')
+        return
+      }
+      if (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)) {
+        setError('For three-party contracts, a valid assignee email address is required before sending.')
+        return
+      }
     }
 
     // Only show warning if:
@@ -464,9 +492,13 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type,
-          // Use editable send-to emails (can differ from contract values)
+          // Use editable signer info (can differ from contract values)
+          sellerName: sendToSellerName,
           sellerEmail: sendToSellerEmail,
+          sellerPhone: sendToSellerPhone,
+          assigneeName: sendToAssigneeName,
           assigneeEmail: sendToAssigneeEmail,
+          assigneePhone: sendToAssigneePhone,
         }),
       })
 
@@ -1866,7 +1898,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Send Contract - Email Recipients */}
+          {/* Send Contract - Signer Information */}
           {contract.status === 'draft' && (
             <div className="bg-white border border-[var(--gray-200)] rounded">
               <div className="px-4 py-3 border-b border-[var(--gray-200)]">
@@ -1874,36 +1906,86 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               </div>
               <div className="p-4 space-y-4">
                 <p className="text-xs text-[var(--gray-600)]">
-                  Edit the email addresses below to customize where the signing document will be sent via Documenso.
+                  Enter the signer information below. The signing document will be sent via Documenso.
                 </p>
 
-                {/* Seller Email */}
-                <div>
-                  <Label className="text-xs text-[var(--gray-600)]">
-                    Seller Email {isThreeParty && <span className="text-[var(--primary-600)]">(Signs 1st)</span>}
-                  </Label>
-                  <Input
-                    type="email"
-                    value={sendToSellerEmail}
-                    onChange={(e) => setSendToSellerEmail(e.target.value)}
-                    placeholder="seller@email.com"
-                    className="mt-1"
-                  />
+                {/* Seller Section */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-[var(--gray-700)] flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    Seller {isThreeParty && <span className="text-xs text-[var(--primary-600)]">(Signs 1st)</span>}
+                  </h3>
+                  <div className="grid grid-cols-1 gap-2">
+                    <div>
+                      <Label className="text-xs text-[var(--gray-600)]">Name *</Label>
+                      <Input
+                        value={sendToSellerName}
+                        onChange={(e) => setSendToSellerName(e.target.value)}
+                        placeholder="Seller name"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-[var(--gray-600)]">Email *</Label>
+                      <Input
+                        type="email"
+                        value={sendToSellerEmail}
+                        onChange={(e) => setSendToSellerEmail(e.target.value)}
+                        placeholder="seller@email.com"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-[var(--gray-600)]">Phone</Label>
+                      <Input
+                        value={sendToSellerPhone}
+                        onChange={(e) => setSendToSellerPhone(formatPhoneNumber(e.target.value))}
+                        placeholder="(555) 123-4567"
+                        maxLength={14}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Assignee Email - only for three-party */}
+                {/* Assignee Section - only for three-party */}
                 {isThreeParty && (
-                  <div>
-                    <Label className="text-xs text-[var(--gray-600)]">
-                      Assignee Email <span className="text-[var(--primary-600)]">(Signs 2nd)</span>
-                    </Label>
-                    <Input
-                      type="email"
-                      value={sendToAssigneeEmail}
-                      onChange={(e) => setSendToAssigneeEmail(e.target.value)}
-                      placeholder="assignee@email.com"
-                      className="mt-1"
-                    />
+                  <div className="space-y-2 pt-2 border-t border-[var(--gray-200)]">
+                    <h3 className="text-sm font-medium text-[var(--gray-700)] flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      Assignee <span className="text-xs text-[var(--primary-600)]">(Signs 2nd)</span>
+                    </h3>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div>
+                        <Label className="text-xs text-[var(--gray-600)]">Name *</Label>
+                        <Input
+                          value={sendToAssigneeName}
+                          onChange={(e) => setSendToAssigneeName(e.target.value)}
+                          placeholder="Assignee name"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-[var(--gray-600)]">Email *</Label>
+                        <Input
+                          type="email"
+                          value={sendToAssigneeEmail}
+                          onChange={(e) => setSendToAssigneeEmail(e.target.value)}
+                          placeholder="assignee@email.com"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-[var(--gray-600)]">Phone</Label>
+                        <Input
+                          value={sendToAssigneePhone}
+                          onChange={(e) => setSendToAssigneePhone(formatPhoneNumber(e.target.value))}
+                          placeholder="(555) 123-4567"
+                          maxLength={14}
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1911,8 +1993,14 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   <div className="text-xs text-[var(--warning-700)] bg-[var(--warning-100)] p-2 rounded">
                     <p className="font-medium">Required before sending:</p>
                     <ul className="mt-1 list-disc list-inside">
+                      {!sendToSellerName.trim() && (
+                        <li>Seller name</li>
+                      )}
                       {(!sendToSellerEmail || !isValidEmail(sendToSellerEmail)) && (
                         <li>Valid seller email address</li>
+                      )}
+                      {isThreeParty && !sendToAssigneeName.trim() && (
+                        <li>Assignee name</li>
                       )}
                       {isThreeParty && (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)) && (
                         <li>Valid assignee email address</li>

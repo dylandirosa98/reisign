@@ -105,9 +105,13 @@ export async function POST(
   const body = await request.json().catch(() => ({}))
   const sendType = body.type || 'purchase' // 'purchase' or 'assignment'
   const requestedClauses = body.clauses as ClauseType[] | undefined
-  // Allow overriding email addresses for sending (use provided values or fall back to contract values)
+  // Allow overriding signer info for sending (use provided values or fall back to contract values)
+  const sellerNameToSend = body.sellerName || contract.seller_name
   const sellerEmailToSend = body.sellerEmail || contract.seller_email
+  const sellerPhoneToSend = body.sellerPhone || (contract.custom_fields as Record<string, unknown>)?.seller_phone || ''
+  const assigneeNameToSend = body.assigneeName || contract.buyer_name
   const assigneeEmailToSend = body.assigneeEmail || contract.buyer_email
+  const assigneePhoneToSend = body.assigneePhone || (contract.custom_fields as Record<string, unknown>)?.buyer_phone || ''
 
   const customFields = contract.custom_fields as {
     property_address?: string
@@ -198,10 +202,10 @@ export async function POST(
       property_zip: propertyZip,
       apn: customFields?.apn,
 
-      // Seller
-      seller_name: contract.seller_name || '',
-      seller_email: contract.seller_email || '',
-      seller_phone: customFields?.seller_phone,
+      // Seller - use send-to values which may override contract values
+      seller_name: sellerNameToSend || '',
+      seller_email: sellerEmailToSend || '',
+      seller_phone: sellerPhoneToSend || customFields?.seller_phone,
       seller_address: customFields?.seller_address,
 
       // Company (Buyer on Purchase Agreement) - only use explicitly saved values
@@ -210,10 +214,10 @@ export async function POST(
       company_phone: customFields?.company_phone || '',
       company_signer_name: customFields?.company_signer_name || '',
 
-      // End Buyer (Assignment Contract)
-      buyer_name: contract.buyer_name,
-      buyer_email: contract.buyer_email,
-      buyer_phone: customFields?.buyer_phone,
+      // End Buyer/Assignee (Assignment Contract) - use send-to values which may override contract values
+      buyer_name: assigneeNameToSend,
+      buyer_email: assigneeEmailToSend,
+      buyer_phone: assigneePhoneToSend || customFields?.buyer_phone,
 
       // Prices
       purchase_price: contract.price || 0,
@@ -269,7 +273,7 @@ export async function POST(
     const recipients = sendType === 'purchase'
       ? [
           {
-            name: contract.seller_name,
+            name: sellerNameToSend,
             email: sellerEmailToSend,
             role: 'SIGNER' as const,
             signingOrder: 1,
@@ -277,13 +281,13 @@ export async function POST(
         ]
       : [
           {
-            name: contract.seller_name,
+            name: sellerNameToSend,
             email: sellerEmailToSend,
             role: 'SIGNER' as const,
             signingOrder: 1,
           },
           ...(assigneeEmailToSend ? [{
-            name: contract.buyer_name || 'Buyer',
+            name: assigneeNameToSend || 'Buyer',
             email: assigneeEmailToSend,
             role: 'SIGNER' as const,
             signingOrder: 2,
