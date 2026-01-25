@@ -1049,12 +1049,12 @@ export default function NewContractPage() {
             {/* Additional Terms */}
             {isGroupVisible(['personal_property', 'additional_terms']) && (
               <div>
-                <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Additional Terms (Sections 1.11 & 1.12)</h3>
+                <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Additional Terms</h3>
                 <div className="space-y-3">
                   {isFieldVisible('personal_property') && (
                     <div>
                       <Label className="text-xs text-[var(--gray-600)]">
-                        Personal Property Included (1.11) {isFieldRequired('personal_property') && '*'}
+                        Personal Property Included {isFieldRequired('personal_property') && '*'}
                       </Label>
                       <Input
                         value={formData.personal_property}
@@ -1066,7 +1066,7 @@ export default function NewContractPage() {
                   {isFieldVisible('additional_terms') && (
                     <div>
                       <Label className="text-xs text-[var(--gray-600)]">
-                        Additional Terms & Conditions (1.12) {isFieldRequired('additional_terms') && '*'}
+                        Additional Terms & Conditions {isFieldRequired('additional_terms') && '*'}
                       </Label>
                       <textarea
                         value={formData.additional_terms}
@@ -1251,7 +1251,9 @@ export default function NewContractPage() {
                 )}
               </div>
 
-              {/* Buyer Initials */}
+              {/* Buyer Initials - Only for non-three-party templates */}
+              {/* For three-party, wholesaler only pre-signs (no initials needed - Seller/Assignee initial via Documenso) */}
+              {selectedTemplate?.signature_layout !== 'three-party' && (
               <div>
                 <Label className="text-xs text-[var(--gray-600)] mb-2 block">Buyer Initials</Label>
                 {formData.buyer_initials ? (
@@ -1378,6 +1380,7 @@ export default function NewContractPage() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           </div>
 

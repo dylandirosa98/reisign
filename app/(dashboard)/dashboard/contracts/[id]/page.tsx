@@ -1115,19 +1115,23 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   </div>
 
                   {/* Additional Terms */}
+                  {isGroupVisible(['personal_property', 'additional_terms']) && (
                   <div>
-                    <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Additional Terms (Sections 1.11 & 1.12)</h3>
+                    <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Additional Terms</h3>
                     <div className="space-y-3">
+                      {isFieldVisible('personal_property') && (
                       <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Personal Property Included (1.11)</Label>
+                        <Label className="text-xs text-[var(--gray-600)]">Personal Property Included</Label>
                         <Input
                           value={formData.personal_property}
                           onChange={(e) => updateField('personal_property', e.target.value)}
                           placeholder="Leave blank if none, or list items like: Washer, Dryer, Refrigerator"
                         />
                       </div>
+                      )}
+                      {isFieldVisible('additional_terms') && (
                       <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Additional Terms & Conditions (1.12)</Label>
+                        <Label className="text-xs text-[var(--gray-600)]">Additional Terms & Conditions</Label>
                         <textarea
                           value={formData.additional_terms}
                           onChange={(e) => updateField('additional_terms', e.target.value)}
@@ -1135,8 +1139,10 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                           className="w-full px-3 py-2 border border-[var(--gray-300)] rounded-md text-sm min-h-[80px]"
                         />
                       </div>
+                      )}
                     </div>
                   </div>
+                  )}
 
                   {/* Signature Page - Buyer/Company Details */}
                   <div className="border-t border-[var(--gray-200)] pt-6">
@@ -1311,135 +1317,137 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                       )}
                     </div>
 
-                    {/* Buyer Initials */}
-                    <div>
-                      <Label className="text-xs text-[var(--gray-600)] mb-2 block">Buyer Initials *</Label>
-                      {formData.buyer_initials ? (
-                        <div className="space-y-2">
-                          <div className="border border-[var(--gray-300)] rounded-md p-2 bg-white inline-block">
-                            <img
-                              src={formData.buyer_initials}
-                              alt="Initials"
-                              className="h-12"
-                            />
-                          </div>
-                          <div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={clearInitials}
-                              className="text-xs"
-                            >
-                              <RotateCcw className="w-3 h-3 mr-1" />
-                              Clear & Re-initial
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {/* Initials Mode Toggle */}
-                          <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden w-48">
-                            <button
-                              type="button"
-                              onClick={() => setInitialsMode('draw')}
-                              className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                                initialsMode === 'draw'
-                                  ? 'bg-[var(--primary-900)] text-white'
-                                  : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
-                              }`}
-                            >
-                              <PenTool className="w-3 h-3 inline mr-1" />
-                              Draw
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setInitialsMode('type')}
-                              className={`flex-1 px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
-                                initialsMode === 'type'
-                                  ? 'bg-[var(--primary-900)] text-white'
-                                  : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
-                              }`}
-                            >
-                              Type
-                            </button>
-                          </div>
-
-                          {initialsMode === 'draw' ? (
-                            /* Draw Initials */
-                            <div className="space-y-2">
-                              <div className="border border-[var(--gray-300)] rounded-md bg-white inline-block">
-                                <SignatureCanvas
-                                  ref={initialsRef}
-                                  canvasProps={{
-                                    className: 'rounded-md',
-                                    style: { width: '100px', height: '50px' }
-                                  }}
-                                  backgroundColor="white"
-                                />
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => initialsRef.current?.clear()}
-                                  className="text-xs"
-                                >
-                                  <RotateCcw className="w-3 h-3 mr-1" />
-                                  Clear
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={saveDrawnInitials}
-                                  className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
-                                >
-                                  <CheckCircle className="w-3 h-3 mr-1" />
-                                  Save Initials
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            /* Type Initials */
-                            <div className="space-y-2">
-                              <Input
-                                value={typedInitials}
-                                onChange={(e) => setTypedInitials(e.target.value.slice(0, 4))}
-                                placeholder="e.g. JD"
-                                className="text-base w-24"
-                                maxLength={4}
+                    {/* Buyer Initials - Only for non-three-party templates */}
+                    {!isThreeParty && (
+                      <div>
+                        <Label className="text-xs text-[var(--gray-600)] mb-2 block">Buyer Initials *</Label>
+                        {formData.buyer_initials ? (
+                          <div className="space-y-2">
+                            <div className="border border-[var(--gray-300)] rounded-md p-2 bg-white inline-block">
+                              <img
+                                src={formData.buyer_initials}
+                                alt="Initials"
+                                className="h-12"
                               />
-                              {typedInitials && (
-                                <div className="border border-[var(--gray-300)] rounded-md p-2 bg-white inline-block min-w-[100px] min-h-[50px] flex items-center justify-center">
-                                  <span
-                                    style={{
-                                      fontFamily: '"Dancing Script", "Brush Script MT", cursive',
-                                      fontSize: '28px',
-                                      color: '#000'
-                                    }}
-                                  >
-                                    {typedInitials.toUpperCase()}
-                                  </span>
-                                </div>
-                              )}
-                              <div>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={saveTypedInitials}
-                                  disabled={!typedInitials.trim()}
-                                  className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
-                                >
-                                  <CheckCircle className="w-3 h-3 mr-1" />
-                                  Save Initials
-                                </Button>
-                              </div>
                             </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                            <div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={clearInitials}
+                                className="text-xs"
+                              >
+                                <RotateCcw className="w-3 h-3 mr-1" />
+                                Clear & Re-initial
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {/* Initials Mode Toggle */}
+                            <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden w-48">
+                              <button
+                                type="button"
+                                onClick={() => setInitialsMode('draw')}
+                                className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                                  initialsMode === 'draw'
+                                    ? 'bg-[var(--primary-900)] text-white'
+                                    : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
+                                }`}
+                              >
+                                <PenTool className="w-3 h-3 inline mr-1" />
+                                Draw
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setInitialsMode('type')}
+                                className={`flex-1 px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
+                                  initialsMode === 'type'
+                                    ? 'bg-[var(--primary-900)] text-white'
+                                    : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
+                                }`}
+                              >
+                                Type
+                              </button>
+                            </div>
+
+                            {initialsMode === 'draw' ? (
+                              /* Draw Initials */
+                              <div className="space-y-2">
+                                <div className="border border-[var(--gray-300)] rounded-md bg-white inline-block">
+                                  <SignatureCanvas
+                                    ref={initialsRef}
+                                    canvasProps={{
+                                      className: 'rounded-md',
+                                      style: { width: '100px', height: '50px' }
+                                    }}
+                                    backgroundColor="white"
+                                  />
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => initialsRef.current?.clear()}
+                                    className="text-xs"
+                                  >
+                                    <RotateCcw className="w-3 h-3 mr-1" />
+                                    Clear
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={saveDrawnInitials}
+                                    className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
+                                  >
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                    Save Initials
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              /* Type Initials */
+                              <div className="space-y-2">
+                                <Input
+                                  value={typedInitials}
+                                  onChange={(e) => setTypedInitials(e.target.value.slice(0, 4))}
+                                  placeholder="e.g. JD"
+                                  className="text-base w-24"
+                                  maxLength={4}
+                                />
+                                {typedInitials && (
+                                  <div className="border border-[var(--gray-300)] rounded-md p-2 bg-white inline-block min-w-[100px] min-h-[50px] flex items-center justify-center">
+                                    <span
+                                      style={{
+                                        fontFamily: '"Dancing Script", "Brush Script MT", cursive',
+                                        fontSize: '28px',
+                                        color: '#000'
+                                      }}
+                                    >
+                                      {typedInitials.toUpperCase()}
+                                    </span>
+                                  </div>
+                                )}
+                                <div>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={saveTypedInitials}
+                                    disabled={!typedInitials.trim()}
+                                    className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
+                                  >
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                    Save Initials
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* AI Clause Generation Section */}
