@@ -552,7 +552,7 @@ class PDFGeneratorService {
     templateType: TemplateType,
     data: ContractData,
     companyTemplateId?: string
-  ): Promise<Buffer> {
+  ): Promise<{ pdfBuffer: Buffer; signatureLayout?: string }> {
     // Load and interpolate template (pass company template ID and state for lookup)
     const { html: templateHtml, signatureLayout } = await this.loadTemplate(templateType, data.property_state, companyTemplateId)
     let html = this.interpolateTemplate(templateHtml, data)
@@ -664,7 +664,10 @@ class PDFGeneratorService {
     }
 
     const modifiedPdfBytes = await pdfDoc.save()
-    return Buffer.from(modifiedPdfBytes)
+    return {
+      pdfBuffer: Buffer.from(modifiedPdfBytes),
+      signatureLayout,
+    }
   }
 
   /**
@@ -694,81 +697,127 @@ class PDFGeneratorService {
    * - Origin is TOP-LEFT (0,0 = top-left corner)
    * - X increases going right, Y increases going down
    *
-   * Letter size reference: 8.5" x 11" = 612 x 792 points
-   * PDF margins: top=0.5", right=0.5", bottom=1", left=0.5"
+   * Letter size: 612 x 792 points
+   * PDF margins (Puppeteer): top=0.5" (36pt), left=0.5" (36pt), right=0.5" (36pt), bottom=1" (72pt)
+   * Content area: 540 x 684 points
+   *
+   * Positions calculated via scripts/measure-signatures.ts using Puppeteer rendering
    */
   async getSignaturePositions(
     templateType: TemplateType,
     _data: ContractData,
-    pageCount?: number
+    pageCount?: number,
+    signatureLayout?: string
   ): Promise<Array<{ page: number; x: number; y: number; width: number; height: number; recipientRole: string; fieldType?: string }>> {
     const positions: Array<{ page: number; x: number; y: number; width: number; height: number; recipientRole: string; fieldType?: string }> = []
 
     if (templateType === 'purchase-agreement') {
       const totalPages = pageCount || 5
       const pagesWithInitials = totalPages - 1
+      const layout = signatureLayout || 'two-column'
 
-      console.log(`[PDF Generator] Setting up fields: totalPages=${totalPages}, pagesWithInitials=${pagesWithInitials}`)
+      console.log(`[PDF Generator] Setting up fields: totalPages=${totalPages}, pagesWithInitials=${pagesWithInitials}, layout=${layout}`)
 
       // Seller initials in footer on pages 1 to N-1
-      // Footer structure: 0.5" padding + "Seller Initials:" text (~10%) + box
-      // Footer is in bottom 1" margin, roughly 91% from top
+      // Measured position: left side of footer after "Seller Initials:" text
       for (let page = 1; page <= pagesWithInitials; page++) {
-        console.log(`[PDF Generator] Adding initials field for page ${page}`)
+        console.log(`[PDF Generator] Adding seller initials field for page ${page}`)
         positions.push({
           page: page,
-          x: 13,        // After 0.5" padding + "Seller Initials:" text
-          y: 95,        // In footer area (bottom 1" of page)
-          width: 8,     // Box is ~50px = 8% of page width
-          height: 2.8,  // Box is ~22px = 2.8% of page height
+          x: 13,        // Measured: after 0.5" padding + "Seller Initials:" text
+          y: 95,        // In footer area
+          width: 8,     // Initials box width
+          height: 2.8,  // Initials box height
           recipientRole: 'seller',
           fieldType: 'initials',
         })
       }
 
-      // Seller signature on the last page (signature page)
-      // Two-column layout: left column starts after 0.5" margin
-      // Signature box is after header (~80pt) + first row (~50pt) + label (~15pt)
+      // Seller signature on the last page - position depends on layout
       console.log(`[PDF Generator] Adding signature field for page ${totalPages}`)
-      positions.push({
-        page: totalPages,
-        x: 7,         // Left margin (0.5") + small offset = ~7%
-        y: 29,        // After header + first row = ~29% from top
-        width: 35,    // Signature column is 45% of content, box fills it = ~35%
-        height: 4.5,  // Box is 35pt = ~4.5% of page height
-        recipientRole: 'seller',
-        fieldType: 'signature',
-      })
+
+      if (layout === 'seller-only') {
+        // Seller-only: centered layout (50% width container, margin: 0 auto)
+        // Measured: x=27.9%, y=31.2%
+        positions.push({
+          page: totalPages,
+          x: 28,        // Centered container starts at ~28% from left
+          y: 31,        // After header + first row
+          width: 35,    // Box width
+          height: 5,    // Box height
+          recipientRole: 'seller',
+          fieldType: 'signature',
+        })
+      } else {
+        // Two-column (default): left column signature
+        // Measured: x=5.9%, y=31.2%
+        positions.push({
+          page: totalPages,
+          x: 6,         // Left edge of content area (36pt / 612pt = 5.9%)
+          y: 31,        // After header + first row (measured: 31.2%)
+          width: 35,    // Signature box width
+          height: 5,    // Signature box height
+          recipientRole: 'seller',
+          fieldType: 'signature',
+        })
+      }
 
       console.log(`[PDF Generator] Total positions: ${positions.length}`, positions.map(p => ({ page: p.page, type: p.fieldType })))
     }
 
-    // For assignment contract: seller and buyer signatures
-    // Uses three-party layout with seller at top, assignor (pre-signed) in middle, assignee at bottom
+    // For assignment contract: three-party layout
+    // Seller signs first, Assignor pre-signs (no Documenso field), Assignee signs second
     if (templateType === 'assignment-contract') {
-      const lastPage = pageCount || 2
+      const totalPages = pageCount || 2
+      const pagesWithInitials = totalPages - 1
+
+      // Seller initials in footer (pages 1 to N-1)
+      for (let page = 1; page <= pagesWithInitials; page++) {
+        positions.push({
+          page: page,
+          x: 13,        // Left side initials
+          y: 95,
+          width: 8,
+          height: 2.8,
+          recipientRole: 'seller',
+          fieldType: 'initials',
+        })
+      }
+
+      // Assignee/Buyer initials in footer - RIGHT side (pages 1 to N-1)
+      for (let page = 1; page <= pagesWithInitials; page++) {
+        positions.push({
+          page: page,
+          x: 79,        // Right side initials (mirror of 13%: 100% - 13% - 8% = 79%)
+          y: 95,
+          width: 8,
+          height: 2.8,
+          recipientRole: 'buyer',
+          fieldType: 'initials',
+        })
+      }
 
       // Seller signature - first section on signature page
-      // After header (~50pt) + section header "ORIGINAL SELLER" (~30pt) + label (~15pt)
+      // Measured: x=5.9%, y=22.8%
       positions.push({
-        page: lastPage,
-        x: 7,         // Left column start
-        y: 18,        // After headers = ~18% from top
-        width: 35,    // Signature box width
-        height: 4.5,  // Signature box height
+        page: totalPages,
+        x: 6,         // Left column
+        y: 23,        // First section (measured: 22.8%)
+        width: 35,
+        height: 5,
         recipientRole: 'seller',
         fieldType: 'signature',
       })
 
-      // Assignee signature - third section on signature page
-      // After seller section (~100pt) + assignor section (~100pt) + header + label
+      // Assignee/Buyer signature - third section on signature page
+      // Measured: x=5.9%, y=83.7%
       positions.push({
-        page: lastPage,
-        x: 7,         // Left column start
-        y: 62,        // Third section = ~62% from top
-        width: 35,    // Signature box width
-        height: 4.5,  // Signature box height
-        recipientRole: 'buyer',  // End buyer/assignee
+        page: totalPages,
+        x: 6,         // Left column
+        y: 84,        // Third section (measured: 83.7%)
+        width: 35,
+        height: 5,
+        recipientRole: 'buyer',
         fieldType: 'signature',
       })
     }

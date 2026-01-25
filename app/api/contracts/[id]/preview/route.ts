@@ -163,7 +163,7 @@ export async function GET(
 
     // Generate PDF - use company template if available
     const companyTemplateId = customFields?.company_template_id
-    const pdfBuffer = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
+    const { pdfBuffer } = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
 
     // Return PDF
     return new NextResponse(new Uint8Array(pdfBuffer), {

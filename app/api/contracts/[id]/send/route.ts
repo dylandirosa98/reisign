@@ -230,15 +230,15 @@ export async function POST(
 
     // Generate PDF from HTML template
     console.log(`[Send Contract] Generating PDF for ${templateType}`)
-    const pdfBuffer = await pdfGenerator.generatePDF(templateType, contractData)
-    console.log(`[Send Contract] PDF generated: ${pdfBuffer.length} bytes`)
+    const { pdfBuffer, signatureLayout } = await pdfGenerator.generatePDF(templateType, contractData)
+    console.log(`[Send Contract] PDF generated: ${pdfBuffer.length} bytes, layout: ${signatureLayout}`)
 
     // Get page count for signature positioning
     const pageCount = await pdfGenerator.getPageCount(pdfBuffer)
     console.log(`[Send Contract] PDF has ${pageCount} pages`)
 
     // Get signature field positions (including seller initials on each page)
-    const signaturePositions = await pdfGenerator.getSignaturePositions(templateType, contractData, pageCount)
+    const signaturePositions = await pdfGenerator.getSignaturePositions(templateType, contractData, pageCount, signatureLayout)
 
     // Prepare recipients based on contract type
     const recipients = sendType === 'purchase'
