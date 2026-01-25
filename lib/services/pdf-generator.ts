@@ -374,7 +374,7 @@ class PDFGeneratorService {
    */
   private generateFooterTemplate(buyerInitialsImg: string): string {
     return `
-      <div style="width: 100%; font-size: 9px; font-family: 'Libre Baskerville', 'Times New Roman', serif; padding: 0 0.5in;">
+      <div style="width: 100%; font-size: 9px; font-family: 'Tinos', 'Times New Roman', Times, serif; padding: 0 0.5in;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #ccc; padding-top: 8px; margin-top: 5px;">
           <div style="display: flex; align-items: center; gap: 5px;">
             <span>Seller Initials:</span>
@@ -480,28 +480,52 @@ class PDFGeneratorService {
 
   /**
    * Inject Google Fonts into HTML for consistent rendering
-   * Uses Libre Baskerville as a high-quality Times New Roman alternative
+   * Uses Tinos - a metric-compatible replacement for Times New Roman
+   * This ensures the PDF looks identical to the template preview
    */
   private injectFonts(html: string): string {
     const fontLinks = `
       <link rel="preconnect" href="https://fonts.googleapis.com">
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-      <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+      <link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
     `
 
-    // CSS to apply the font as a fallback for Times New Roman
+    // CSS to replace Times New Roman with Tinos (metric-compatible replacement)
+    // This ensures exact same character widths and document layout
     const fontStyles = `
       <style>
-        /* Override Times New Roman with Libre Baskerville for consistent PDF rendering */
-        body, html {
-          font-family: 'Libre Baskerville', 'Times New Roman', Times, serif !important;
+        /* Replace Times New Roman with Tinos for consistent PDF rendering */
+        @font-face {
+          font-family: 'Times New Roman';
+          src: local('Tinos'), local('Tinos-Regular');
+          font-weight: normal;
+          font-style: normal;
         }
-        * {
-          font-family: inherit;
+        @font-face {
+          font-family: 'Times New Roman';
+          src: local('Tinos-Bold');
+          font-weight: bold;
+          font-style: normal;
         }
-        /* Ensure headings also use the font */
-        h1, h2, h3, h4, h5, h6 {
-          font-family: 'Libre Baskerville', 'Times New Roman', Times, serif !important;
+        @font-face {
+          font-family: 'Times New Roman';
+          src: local('Tinos-Italic');
+          font-weight: normal;
+          font-style: italic;
+        }
+        @font-face {
+          font-family: 'Times New Roman';
+          src: local('Tinos-BoldItalic');
+          font-weight: bold;
+          font-style: italic;
+        }
+        @font-face {
+          font-family: 'Times';
+          src: local('Tinos'), local('Tinos-Regular');
+        }
+        /* Also apply Tinos directly to body as fallback */
+        body {
+          font-family: 'Tinos', 'Times New Roman', Times, serif;
         }
       </style>
     `
