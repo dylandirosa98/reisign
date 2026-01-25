@@ -103,11 +103,12 @@ export async function POST(
 
   // Get the template to check signature layout (for three-party validation)
   let isThreeParty = false
-  if (contract.company_template_id) {
+  const contractTemplateId = (contract as any).company_template_id
+  if (contractTemplateId) {
     const { data: templateData } = await adminSupabase
       .from('company_templates' as any)
       .select('signature_layout')
-      .eq('id', contract.company_template_id)
+      .eq('id', contractTemplateId)
       .single()
     isThreeParty = templateData?.signature_layout === 'three-party'
   }
