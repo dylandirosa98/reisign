@@ -252,8 +252,18 @@ export default function NewContractPage() {
     return { visible: isUsed, required: false }
   }
 
+  // Core required fields that are ALWAYS visible (needed for contract creation API)
+  const ALWAYS_VISIBLE_FIELDS: StandardFieldKey[] = [
+    'property_address', 'property_city', 'property_state', 'property_zip',
+    'seller_name', 'seller_email', 'purchase_price',
+  ]
+
   // Check if a field should be visible
   const isFieldVisible = (fieldKey: StandardFieldKey): boolean => {
+    // Core required fields are always visible regardless of template config
+    if (ALWAYS_VISIBLE_FIELDS.includes(fieldKey)) {
+      return true
+    }
     return getFieldConfig(fieldKey).visible
   }
 

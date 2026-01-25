@@ -33,6 +33,13 @@ const REQUIRED_WHEN_VISIBLE = [
   'seller_name', 'seller_email', 'purchase_price',
 ]
 
+// Fields that are ALWAYS visible and required (needed for contract creation API)
+// These will show in the form regardless of whether the template uses them
+const ALWAYS_REQUIRED_FIELDS = [
+  'property_address', 'property_city', 'property_state', 'property_zip',
+  'seller_name', 'seller_email', 'purchase_price',
+]
+
 // Map template placeholders to form field names
 const PLACEHOLDER_TO_FIELD_MAP: Record<string, string> = {
   property_address: 'property_address',
@@ -86,6 +93,11 @@ function generateFieldConfig(usedPlaceholders: string[]): TemplateFieldConfig {
     usedFields.add('property_city')
     usedFields.add('property_state')
     usedFields.add('property_zip')
+  }
+
+  // Always add the core required fields (needed for contract creation API)
+  for (const field of ALWAYS_REQUIRED_FIELDS) {
+    usedFields.add(field)
   }
 
   const standardFields: Record<string, { visible: boolean; required: boolean }> = {}

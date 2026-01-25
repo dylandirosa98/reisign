@@ -307,8 +307,18 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     }
   }
 
+  // Core required fields that are ALWAYS visible (needed for contract creation/update API)
+  const ALWAYS_VISIBLE_FIELDS = [
+    'property_address', 'property_city', 'property_state', 'property_zip',
+    'seller_name', 'seller_email', 'purchase_price', 'price',
+  ]
+
   // Field visibility helpers - based on template's field_config.standardFields
   const isFieldVisible = (fieldName: string): boolean => {
+    // Core required fields are always visible regardless of template config
+    if (ALWAYS_VISIBLE_FIELDS.includes(fieldName)) {
+      return true
+    }
     if (!template?.field_config?.standardFields) return true // Show all if no template config
     const config = template.field_config.standardFields[fieldName]
     return config?.visible !== false // Default to visible if not configured
