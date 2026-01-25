@@ -913,8 +913,8 @@ class PDFGeneratorService {
       // Seller signature - left column on last page
       positions.push({
         page: totalPages,
-        x: 8,
-        y: 29,
+        x: 9,
+        y: 28,
         width: 35,
         height: 5,
         recipientRole: 'seller',
