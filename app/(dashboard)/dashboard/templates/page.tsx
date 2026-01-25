@@ -1228,105 +1228,105 @@ function TemplatePreview({
         </div>
       `
     } else {
-      // three-party
+      // three-party - compact layout to fit on single page
       return `
         <div class="signature-page">
-          <p class="signature-header">
+          <p style="text-align: center; font-size: 9pt; margin-bottom: 12pt; line-height: 1.3;">
             All parties acknowledge and agree that they have read and fully understand the terms and conditions of this Assignment Contract and are entering into this Contract voluntarily.
           </p>
-          <div style="margin-bottom: 30pt;">
-            <h3 style="font-size: 11pt; font-weight: bold; margin-bottom: 10pt; border-bottom: 2px solid #000; padding-bottom: 5pt;">ORIGINAL SELLER</h3>
+          <div style="margin-bottom: 12pt;">
+            <div style="font-size: 10pt; font-weight: bold; margin-bottom: 6pt; border-bottom: 1px solid #000; padding-bottom: 3pt;">ORIGINAL SELLER</div>
             <div class="signature-columns">
               <div class="signature-column">
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">SELLER SIGNATURE:</div>
-                  <div class="signature-box"></div>
+                  <div class="signature-box" style="min-height: 30pt;"></div>
                 </div>
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">PRINTED NAME:</div>
                   <div class="signature-line">John Doe</div>
                 </div>
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">DATE:</div>
                   <div class="signature-line"></div>
                 </div>
               </div>
               <div class="signature-column">
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">EMAIL:</div>
                   <div class="signature-line">seller@example.com</div>
                 </div>
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">PHONE:</div>
                   <div class="signature-line">(555) 123-4567</div>
                 </div>
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">ADDRESS:</div>
                   <div class="signature-line">123 Main St, City, ST 12345</div>
                 </div>
               </div>
             </div>
           </div>
-          <div style="margin-bottom: 30pt;">
-            <h3 style="font-size: 11pt; font-weight: bold; margin-bottom: 10pt; border-bottom: 2px solid #000; padding-bottom: 5pt;">ASSIGNOR (WHOLESALER)</h3>
+          <div style="margin-bottom: 12pt;">
+            <div style="font-size: 10pt; font-weight: bold; margin-bottom: 6pt; border-bottom: 1px solid #000; padding-bottom: 3pt;">ASSIGNOR (WHOLESALER)</div>
             <div class="signature-columns">
               <div class="signature-column">
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">ASSIGNOR SIGNATURE:</div>
-                  <div class="signature-box" style="display: flex; align-items: center; justify-content: center; font-style: italic; color: #666;">[Pre-signed]</div>
+                  <div class="signature-box" style="display: flex; align-items: center; justify-content: center; font-style: italic; color: #666; min-height: 30pt;">[Pre-signed]</div>
                 </div>
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">COMPANY NAME:</div>
                   <div class="signature-line">Acme Investments LLC</div>
                 </div>
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">SIGNER NAME:</div>
                   <div class="signature-line">John Smith</div>
                 </div>
               </div>
               <div class="signature-column">
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">DATE:</div>
                   <div class="signature-line">January 15, 2025</div>
                 </div>
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">EMAIL:</div>
                   <div class="signature-line">buyer@company.com</div>
                 </div>
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">PHONE:</div>
                   <div class="signature-line">(555) 987-6543</div>
                 </div>
               </div>
             </div>
           </div>
-          <div style="margin-bottom: 20pt;">
-            <h3 style="font-size: 11pt; font-weight: bold; margin-bottom: 10pt; border-bottom: 2px solid #000; padding-bottom: 5pt;">ASSIGNEE (END BUYER)</h3>
+          <div>
+            <div style="font-size: 10pt; font-weight: bold; margin-bottom: 6pt; border-bottom: 1px solid #000; padding-bottom: 3pt;">ASSIGNEE (END BUYER)</div>
             <div class="signature-columns">
               <div class="signature-column">
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">ASSIGNEE SIGNATURE:</div>
-                  <div class="signature-box"></div>
+                  <div class="signature-box" style="min-height: 30pt;"></div>
                 </div>
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">PRINTED NAME:</div>
                   <div class="signature-line">Jane Wilson</div>
                 </div>
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">DATE:</div>
                   <div class="signature-line"></div>
                 </div>
               </div>
               <div class="signature-column">
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">EMAIL:</div>
                   <div class="signature-line">assignee@example.com</div>
                 </div>
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">PHONE:</div>
                   <div class="signature-line">(555) 555-5555</div>
                 </div>
-                <div class="signature-row">
+                <div style="margin-bottom: 8pt;">
                   <div class="signature-label">ADDRESS:</div>
                   <div class="signature-line">456 Oak Ave, Town, ST 67890</div>
                 </div>
