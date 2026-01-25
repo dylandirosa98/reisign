@@ -16,6 +16,89 @@ function extractPlaceholders(html: string): string[] {
   return Array.from(placeholders)
 }
 
+// All standard form field keys that can be configured
+const ALL_STANDARD_FIELDS = [
+  'property_address', 'property_city', 'property_state', 'property_zip', 'apn',
+  'seller_name', 'seller_email', 'seller_phone', 'seller_address',
+  'buyer_name', 'buyer_email', 'buyer_phone',
+  'purchase_price', 'earnest_money', 'assignment_fee',
+  'escrow_agent_name', 'escrow_agent_address', 'escrow_officer', 'escrow_agent_email',
+  'close_of_escrow', 'inspection_period', 'personal_property', 'additional_terms',
+  'escrow_fees_split', 'title_policy_paid_by', 'hoa_fees_split',
+] as const
+
+// Fields that should always be required when visible
+const REQUIRED_WHEN_VISIBLE = [
+  'property_address', 'property_city', 'property_state', 'property_zip',
+  'seller_name', 'seller_email', 'purchase_price',
+]
+
+// Map template placeholders to form field names
+const PLACEHOLDER_TO_FIELD_MAP: Record<string, string> = {
+  property_address: 'property_address',
+  property_city: 'property_city',
+  property_state: 'property_state',
+  property_zip: 'property_zip',
+  apn: 'apn',
+  seller_name: 'seller_name',
+  seller_email: 'seller_email',
+  seller_phone: 'seller_phone',
+  seller_address: 'seller_address',
+  buyer_name: 'buyer_name',
+  buyer_email: 'buyer_email',
+  buyer_phone: 'buyer_phone',
+  purchase_price: 'purchase_price',
+  earnest_money: 'earnest_money',
+  assignment_fee: 'assignment_fee',
+  escrow_agent_name: 'escrow_agent_name',
+  escrow_agent_address: 'escrow_agent_address',
+  escrow_officer: 'escrow_officer',
+  escrow_agent_email: 'escrow_agent_email',
+  close_of_escrow: 'close_of_escrow',
+  inspection_period: 'inspection_period',
+  personal_property: 'personal_property',
+  additional_terms: 'additional_terms',
+  escrow_fees_split_check: 'escrow_fees_split',
+  escrow_fees_buyer_check: 'escrow_fees_split',
+  title_policy_seller_check: 'title_policy_paid_by',
+  title_policy_buyer_check: 'title_policy_paid_by',
+  hoa_fees_split_check: 'hoa_fees_split',
+  hoa_fees_buyer_check: 'hoa_fees_split',
+  full_property_address: 'property_address',
+  assignee_name: 'buyer_name',
+  assignee_email: 'buyer_email',
+  assignee_phone: 'buyer_phone',
+  assignee_address: 'buyer_phone',
+}
+
+// Auto-generate field_config based on placeholders used in the template
+function generateFieldConfig(usedPlaceholders: string[]): TemplateFieldConfig {
+  const usedFields = new Set<string>()
+
+  for (const placeholder of usedPlaceholders) {
+    const fieldName = PLACEHOLDER_TO_FIELD_MAP[placeholder]
+    if (fieldName) {
+      usedFields.add(fieldName)
+    }
+  }
+
+  if (usedPlaceholders.includes('full_property_address')) {
+    usedFields.add('property_city')
+    usedFields.add('property_state')
+    usedFields.add('property_zip')
+  }
+
+  const standardFields: Record<string, { visible: boolean; required: boolean }> = {}
+
+  for (const field of ALL_STANDARD_FIELDS) {
+    const isVisible = usedFields.has(field)
+    const isRequired = isVisible && REQUIRED_WHEN_VISIBLE.includes(field)
+    standardFields[field] = { visible: isVisible, required: isRequired }
+  }
+
+  return { standardFields }
+}
+
 // GET - Get a single template by ID
 export async function GET(
   request: NextRequest,
@@ -137,11 +220,14 @@ export async function PUT(
     if (tags !== undefined) updates.tags = tags
     if (html_content !== undefined) {
       updates.html_content = html_content
-      updates.used_placeholders = extractPlaceholders(html_content)
+      const usedPlaceholders = extractPlaceholders(html_content)
+      updates.used_placeholders = usedPlaceholders
+      // Auto-generate field_config based on placeholders used in template
+      updates.field_config = generateFieldConfig(usedPlaceholders)
     }
     if (signature_layout !== undefined) updates.signature_layout = signature_layout
     if (custom_fields !== undefined) updates.custom_fields = custom_fields
-    if (field_config !== undefined) updates.field_config = field_config
+    // Note: field_config is now auto-generated from html_content, so we ignore passed field_config
 
     const { data: template, error } = await adminSupabase
       .from('company_templates' as any)
