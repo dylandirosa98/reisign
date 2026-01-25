@@ -862,13 +862,12 @@ class PDFGeneratorService {
       })
 
       // Assignee/Buyer signature - third section on signature page (ASSIGNEE/END BUYER)
-      // User feedback: y=45 was "way too high", need to move significantly lower
-      // Section 3 is at the bottom third of the page
-      // Adjusted based on feedback: move down to ~68% and right to ~12%
+      // User feedback: y=68 was "a little bit below", x=10 was "slightly to the left"
+      // Adjusted: right 1% (x=10→11), up 3% (y=68→65)
       positions.push({
         page: totalPages,
-        x: 10,        // Same x as seller for consistency
-        y: 68,        // Adjusted down significantly based on "way too high" feedback
+        x: 11,        // Moved right 1% from x=10
+        y: 65,        // Moved up 3% from y=68
         width: 30,
         height: 5,
         recipientRole: 'buyer',

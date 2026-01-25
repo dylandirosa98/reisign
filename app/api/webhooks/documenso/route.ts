@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { documenso } from '@/lib/documenso'
 
 // Webhook secret for verification (configure in Documenso)
 const WEBHOOK_SECRET = process.env.DOCUMENSO_WEBHOOK_SECRET
@@ -16,6 +17,19 @@ interface DocumensoWebhookPayload {
       signedAt?: string
     }>
   }
+}
+
+interface PendingAssignee {
+  name: string
+  email: string
+  fields: Array<{
+    page: number
+    x: number
+    y: number
+    width: number
+    height: number
+    fieldType?: string
+  }>
 }
 
 // POST /api/webhooks/documenso - Handle Documenso webhook events
@@ -62,10 +76,10 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = createAdminClient()
 
-    // Find the contract
+    // Find the contract with custom_fields for pending assignee
     const { data: contract, error: findError } = await adminSupabase
       .from('contracts')
-      .select('id, status, company_id')
+      .select('id, status, company_id, documenso_document_id, custom_fields')
       .eq('id', contractId)
       .single()
 
@@ -92,9 +106,79 @@ export async function POST(request: NextRequest) {
 
       case 'DOCUMENT_SIGNED':
       case 'document.signed':
-        // Individual recipient signed
-        // We could track partial signatures here if needed
+        // Individual recipient signed - check if we need to add assignee for sequential signing
         console.log('Document signed by recipient')
+
+        // Check for pending assignee (sequential signing)
+        const customFields = contract.custom_fields as { pending_assignee?: PendingAssignee } | null
+        const pendingAssignee = customFields?.pending_assignee
+
+        if (pendingAssignee && contract.documenso_document_id) {
+          console.log('[Webhook] Sequential signing: Adding assignee after seller signed')
+          console.log('[Webhook] Pending assignee:', pendingAssignee.email)
+
+          try {
+            const documentId = parseInt(contract.documenso_document_id)
+
+            // Add assignee as recipient
+            const addedRecipient = await documenso.addRecipient(documentId, {
+              name: pendingAssignee.name,
+              email: pendingAssignee.email,
+              role: 'SIGNER',
+              signingOrder: 2,
+            })
+
+            console.log('[Webhook] Added assignee recipient:', addedRecipient.id)
+
+            // Add assignee's signature fields
+            for (const field of pendingAssignee.fields) {
+              const fieldType = field.fieldType === 'initials' ? 'INITIALS' : 'SIGNATURE'
+              try {
+                await documenso.addSignatureField(documentId, addedRecipient.id, {
+                  page: field.page,
+                  x: field.x,
+                  y: field.y,
+                  width: field.width,
+                  height: field.height,
+                  type: fieldType,
+                })
+                console.log(`[Webhook] Added ${fieldType} field for assignee on page ${field.page}`)
+              } catch (fieldError) {
+                console.error(`[Webhook] Failed to add field:`, fieldError)
+              }
+            }
+
+            // Send to assignee (resend triggers email to new recipient)
+            await documenso.resendToRecipients(documentId, [addedRecipient.id])
+            console.log('[Webhook] Sent signing request to assignee')
+
+            // Clear pending assignee from contract
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const updatedCustomFields: any = { ...(customFields || {}) }
+            delete updatedCustomFields.pending_assignee
+            await adminSupabase
+              .from('contracts')
+              .update({ custom_fields: updatedCustomFields })
+              .eq('id', contractId)
+
+            // Record in history
+            await adminSupabase
+              .from('contract_status_history')
+              .insert({
+                contract_id: contractId,
+                status: contract.status || 'sent',
+                metadata: {
+                  action: 'assignee_added_after_seller_signed',
+                  assignee_email: pendingAssignee.email,
+                  assignee_recipient_id: addedRecipient.id,
+                },
+              })
+
+            console.log('[Webhook] Sequential signing: Assignee added successfully')
+          } catch (error) {
+            console.error('[Webhook] Failed to add assignee:', error)
+          }
+        }
         break
 
       case 'DOCUMENT_COMPLETED':
