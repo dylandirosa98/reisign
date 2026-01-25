@@ -258,14 +258,14 @@ export async function POST(
     // Get signature field positions (including seller initials on each page)
     const signaturePositions = await pdfGenerator.getSignaturePositions(templateType, contractData, pageCount, signatureLayout)
 
-    // For three-party contracts, use sequential sending:
-    // 1. Only add seller initially, send only to seller
-    // 2. After seller signs (via webhook), add assignee and send to them
-    const isSequentialSigning = sendType === 'assignment' && isThreeParty && assigneeEmailToSend
+    // For three-party contracts, add both signers with signing order
+    // Seller signs first (signingOrder: 1), then assignee (signingOrder: 2)
+    // Documenso will only allow assignee to sign after seller completes
+    const isThreePartyAssignment = sendType === 'assignment' && isThreeParty && assigneeEmailToSend
 
-    console.log(`[Send Contract] Sequential signing: ${isSequentialSigning}, isThreeParty: ${isThreeParty}`)
+    console.log(`[Send Contract] Three-party assignment: ${isThreePartyAssignment}, isThreeParty: ${isThreeParty}`)
 
-    // Prepare recipients - for sequential signing, only add seller first
+    // Prepare recipients - for three-party, add both with signing order
     const recipients = sendType === 'purchase'
       ? [
           {
@@ -275,45 +275,26 @@ export async function POST(
             signingOrder: 1,
           },
         ]
-      : isSequentialSigning
-        ? [
-            // Only seller for now - assignee will be added after seller signs
-            {
-              name: contract.seller_name,
-              email: sellerEmailToSend,
-              role: 'SIGNER' as const,
-              signingOrder: 1,
-            },
-          ]
-        : [
-            {
-              name: contract.seller_name,
-              email: sellerEmailToSend,
-              role: 'SIGNER' as const,
-              signingOrder: 1,
-            },
-            ...(assigneeEmailToSend ? [{
-              name: contract.buyer_name || 'Buyer',
-              email: assigneeEmailToSend,
-              role: 'SIGNER' as const,
-              signingOrder: 2,
-            }] : []),
-          ]
+      : [
+          {
+            name: contract.seller_name,
+            email: sellerEmailToSend,
+            role: 'SIGNER' as const,
+            signingOrder: 1,
+          },
+          ...(assigneeEmailToSend ? [{
+            name: contract.buyer_name || 'Buyer',
+            email: assigneeEmailToSend,
+            role: 'SIGNER' as const,
+            signingOrder: 2,
+          }] : []),
+        ]
 
     // Map signature positions to recipient emails
-    // For sequential signing, only include seller's fields now
     console.log(`[Send Contract] Mapping ${signaturePositions.length} positions to recipients`)
     console.log(`[Send Contract] Seller email: ${sellerEmailToSend}, Assignee email: ${assigneeEmailToSend}`)
 
     const signatureFields = signaturePositions
-      .filter(pos => {
-        // For sequential signing, only include seller fields initially
-        if (isSequentialSigning && pos.recipientRole !== 'seller') {
-          console.log(`[Send Contract] Skipping ${pos.recipientRole} field (sequential signing - will add after seller signs)`)
-          return false
-        }
-        return true
-      })
       .map(pos => {
         const recipientEmail = pos.recipientRole === 'seller'
           ? sellerEmailToSend
@@ -336,14 +317,11 @@ export async function POST(
     const assigneeFields = signatureFields.filter(f => f.recipientEmail === assigneeEmailToSend)
     console.log(`[Send Contract] Fields summary: ${sellerFields.length} for seller, ${assigneeFields.length} for assignee`)
     console.log(`[Send Contract] Seller fields:`, sellerFields.map(f => ({ page: f.page, type: f.fieldType, x: f.x, y: f.y })))
-    if (!isSequentialSigning) {
-      console.log(`[Send Contract] Assignee fields:`, assigneeFields.map(f => ({ page: f.page, type: f.fieldType, x: f.x, y: f.y })))
-    }
+    console.log(`[Send Contract] Assignee fields:`, assigneeFields.map(f => ({ page: f.page, type: f.fieldType, x: f.x, y: f.y })))
 
     // Create document in Documenso with signatures
-    // Use unique externalId with timestamp to avoid conflicts from previous failed attempts
-    const timestamp = Date.now()
-    const externalId = `contract-${id}-${sendType}-${timestamp}`
+    // Format: contract::{uuid}::{type} - using :: as separator to avoid confusion with UUID dashes
+    const externalId = `contract::${id}::${sendType}`
     console.log(`[Send Contract] Creating document in Documenso with externalId: ${externalId}`)
     console.log(`[Send Contract] Recipients:`, JSON.stringify(recipients, null, 2))
 
@@ -373,41 +351,6 @@ export async function POST(
       console.error('Failed to update contract status:', updateError)
     }
 
-    // For sequential signing, store pending assignee info in contract for webhook to use
-    if (isSequentialSigning) {
-      // Get assignee's signature positions for later
-      const pendingAssigneeFields = signaturePositions
-        .filter(pos => pos.recipientRole !== 'seller')
-        .map(pos => ({
-          page: pos.page,
-          x: pos.x,
-          y: pos.y,
-          width: pos.width,
-          height: pos.height,
-          fieldType: pos.fieldType,
-        }))
-
-      const existingCustomFields = (contract.custom_fields || {}) as Record<string, unknown>
-      await adminSupabase
-        .from('contracts')
-        .update({
-          custom_fields: {
-            ...existingCustomFields,
-            pending_assignee: {
-              name: contract.buyer_name || 'Buyer',
-              email: assigneeEmailToSend,
-              fields: pendingAssigneeFields,
-            },
-          },
-        })
-        .eq('id', id)
-
-      console.log(`[Send Contract] Stored pending assignee info for sequential signing:`, {
-        email: assigneeEmailToSend,
-        fieldCount: pendingAssigneeFields.length,
-      })
-    }
-
     // Record status change
     await adminSupabase
       .from('contract_status_history')
@@ -425,8 +368,7 @@ export async function POST(
             email: r.email,
             url: r.signingUrl,
           })),
-          sequential_signing: isSequentialSigning,
-          pending_assignee: isSequentialSigning ? assigneeEmailToSend : undefined,
+          three_party: isThreePartyAssignment,
         },
       })
 

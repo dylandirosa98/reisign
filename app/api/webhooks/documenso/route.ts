@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { documenso } from '@/lib/documenso'
 
 // Webhook secret for verification (configure in Documenso)
 const WEBHOOK_SECRET = process.env.DOCUMENSO_WEBHOOK_SECRET
@@ -17,19 +16,6 @@ interface DocumensoWebhookPayload {
       signedAt?: string
     }>
   }
-}
-
-interface PendingAssignee {
-  name: string
-  email: string
-  fields: Array<{
-    page: number
-    x: number
-    y: number
-    width: number
-    height: number
-    fieldType?: string
-  }>
 }
 
 // POST /api/webhooks/documenso - Handle Documenso webhook events
@@ -52,20 +38,35 @@ export async function POST(request: NextRequest) {
 
     console.log('Documenso webhook received:', event, payload)
 
-    // Extract contract ID from externalId (format: "contract-{uuid}-{type}")
-    // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    // Extract contract ID from externalId
+    // New format: "contract::{uuid}::{type}" (using :: as separator)
+    // Old format: "contract-{uuid}-{type}" (still supported for existing documents)
     const externalId = payload.externalId
-    if (!externalId?.startsWith('contract-')) {
+    if (!externalId?.startsWith('contract')) {
       console.log('Webhook not for a contract, ignoring')
       return NextResponse.json({ received: true })
     }
 
-    // Parse: "contract-d518d472-9360-4fdd-9d09-b7348a48d9af-purchase"
-    // Remove "contract-" prefix, then extract the last part as type
-    const withoutPrefix = externalId.replace('contract-', '')
-    const lastDashIndex = withoutPrefix.lastIndexOf('-')
-    const contractId = withoutPrefix.substring(0, lastDashIndex)
-    const contractType = withoutPrefix.substring(lastDashIndex + 1) // 'purchase' or 'assignment'
+    let contractId: string
+    let contractType: string
+
+    if (externalId.includes('::')) {
+      // New format: "contract::{uuid}::{type}"
+      const parts = externalId.split('::')
+      contractId = parts[1]
+      contractType = parts[2] // 'purchase' or 'assignment'
+    } else {
+      // Old format: "contract-{uuid}-{type}" or "contract-{uuid}-{type}-{timestamp}"
+      // UUID is always 36 chars, so extract it precisely
+      const withoutPrefix = externalId.replace('contract-', '')
+      // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (36 chars)
+      contractId = withoutPrefix.substring(0, 36)
+      // Type is after the UUID and dash
+      const afterUuid = withoutPrefix.substring(37) // skip the dash after UUID
+      // Type could be followed by another dash and timestamp, so get first segment
+      const typeParts = afterUuid.split('-')
+      contractType = typeParts[0] // 'purchase' or 'assignment'
+    }
 
     if (!contractId) {
       console.log('Invalid externalId format')
@@ -76,10 +77,10 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = createAdminClient()
 
-    // Find the contract with custom_fields for pending assignee
+    // Find the contract
     const { data: contract, error: findError } = await adminSupabase
       .from('contracts')
-      .select('id, status, company_id, documenso_document_id, custom_fields, seller_email, buyer_email')
+      .select('id, status, company_id, documenso_document_id, seller_email, buyer_email')
       .eq('id', contractId)
       .single()
 
@@ -107,7 +108,24 @@ export async function POST(request: NextRequest) {
     switch (event) {
       case 'DOCUMENT_OPENED':
       case 'document.opened':
-        // Recipient opened the document
+        // Recipient opened the document - always record in history
+        const viewerParty = getPartyFromEmail(recipientEmail)
+        await adminSupabase
+          .from('contract_status_history')
+          .insert({
+            contract_id: contractId,
+            status: contract.status || 'sent',
+            metadata: {
+              action: 'recipient_viewed',
+              party: viewerParty,
+              recipient_email: recipientEmail,
+              event,
+              contract_type: contractType,
+            },
+          })
+        console.log(`Recorded view from ${viewerParty || 'unknown'} (${recipientEmail})`)
+
+        // Update contract status to viewed only if still in sent status
         if (contract.status === 'sent') {
           newStatus = 'viewed'
           updateData = {
@@ -115,7 +133,7 @@ export async function POST(request: NextRequest) {
             viewed_at: new Date().toISOString(),
           }
           additionalMetadata = {
-            party: getPartyFromEmail(recipientEmail),
+            party: viewerParty,
             recipient_email: recipientEmail,
           }
         }
@@ -123,7 +141,7 @@ export async function POST(request: NextRequest) {
 
       case 'DOCUMENT_SIGNED':
       case 'document.signed':
-        // Individual recipient signed - record and check if we need to add assignee
+        // Individual recipient signed - record the event
         console.log('Document signed by recipient:', recipientEmail)
 
         // Record the signed event with party info
@@ -138,79 +156,10 @@ export async function POST(request: NextRequest) {
               party: signerParty,
               recipient_email: recipientEmail,
               event,
+              contract_type: contractType,
             },
           })
-
-        // Check for pending assignee (sequential signing)
-        const customFields = contract.custom_fields as { pending_assignee?: PendingAssignee } | null
-        const pendingAssignee = customFields?.pending_assignee
-
-        if (pendingAssignee && contract.documenso_document_id) {
-          console.log('[Webhook] Sequential signing: Adding assignee after seller signed')
-          console.log('[Webhook] Pending assignee:', pendingAssignee.email)
-
-          try {
-            const documentId = parseInt(contract.documenso_document_id)
-
-            // Add assignee as recipient
-            const addedRecipient = await documenso.addRecipient(documentId, {
-              name: pendingAssignee.name,
-              email: pendingAssignee.email,
-              role: 'SIGNER',
-              signingOrder: 2,
-            })
-
-            console.log('[Webhook] Added assignee recipient:', addedRecipient.id)
-
-            // Add assignee's signature fields
-            for (const field of pendingAssignee.fields) {
-              const fieldType = field.fieldType === 'initials' ? 'INITIALS' : 'SIGNATURE'
-              try {
-                await documenso.addSignatureField(documentId, addedRecipient.id, {
-                  page: field.page,
-                  x: field.x,
-                  y: field.y,
-                  width: field.width,
-                  height: field.height,
-                  type: fieldType,
-                })
-                console.log(`[Webhook] Added ${fieldType} field for assignee on page ${field.page}`)
-              } catch (fieldError) {
-                console.error(`[Webhook] Failed to add field:`, fieldError)
-              }
-            }
-
-            // Send to assignee (resend triggers email to new recipient)
-            await documenso.resendToRecipients(documentId, [addedRecipient.id])
-            console.log('[Webhook] Sent signing request to assignee')
-
-            // Clear pending assignee from contract
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const updatedCustomFields: any = { ...(customFields || {}) }
-            delete updatedCustomFields.pending_assignee
-            await adminSupabase
-              .from('contracts')
-              .update({ custom_fields: updatedCustomFields })
-              .eq('id', contractId)
-
-            // Record in history
-            await adminSupabase
-              .from('contract_status_history')
-              .insert({
-                contract_id: contractId,
-                status: contract.status || 'sent',
-                metadata: {
-                  action: 'assignee_added_after_seller_signed',
-                  assignee_email: pendingAssignee.email,
-                  assignee_recipient_id: addedRecipient.id,
-                },
-              })
-
-            console.log('[Webhook] Sequential signing: Assignee added successfully')
-          } catch (error) {
-            console.error('[Webhook] Failed to add assignee:', error)
-          }
-        }
+        console.log(`Recorded signature from ${signerParty || 'unknown'} (${recipientEmail})`)
         break
 
       case 'DOCUMENT_COMPLETED':
