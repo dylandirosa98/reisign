@@ -110,7 +110,8 @@ export async function POST(
       .select('signature_layout')
       .eq('id', contractTemplateId)
       .single()
-    isThreeParty = templateData?.signature_layout === 'three-party'
+    const templateLayout = (templateData as any)?.signature_layout
+    isThreeParty = templateLayout === 'three-party'
   }
 
   // Get the body to determine which contract type to send and AI clauses
