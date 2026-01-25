@@ -297,13 +297,30 @@ class DocumensoClient {
   }
 
   /**
-   * Download signed document
+   * Download signed document URL
    */
   async downloadSignedDocument(documentId: string | number): Promise<string> {
     const response = await this.request<{ downloadUrl: string }>(
       `/documents/${documentId}/download`
     )
     return response.downloadUrl
+  }
+
+  /**
+   * Download signed document as PDF buffer
+   * Fetches the actual PDF content from Documenso
+   */
+  async downloadSignedDocumentBuffer(documentId: string | number): Promise<Buffer> {
+    const downloadUrl = await this.downloadSignedDocument(documentId)
+    console.log(`[Documenso] Downloading signed PDF from: ${downloadUrl}`)
+
+    const response = await fetch(downloadUrl)
+    if (!response.ok) {
+      throw new Error(`Failed to download signed PDF: ${response.status}`)
+    }
+
+    const arrayBuffer = await response.arrayBuffer()
+    return Buffer.from(arrayBuffer)
   }
 
   /**
