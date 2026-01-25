@@ -50,14 +50,14 @@ export async function POST(request: NextRequest) {
 
     let contractId: string
     let contractType: string
-    let threePartyStage: string | undefined // 'seller' or 'buyer' for three-party contracts
+    let stageFromExternalId: string | undefined // 'seller' or 'buyer' from externalId
 
     if (externalId.includes('::')) {
       // New format: "contract::{uuid}::{type}" or "contract::{uuid}::{type}::{party}"
       const parts = externalId.split('::')
       contractId = parts[1]
       contractType = parts[2] // 'purchase' or 'assignment'
-      threePartyStage = parts[3] // 'seller' or 'buyer' (optional, for three-party)
+      stageFromExternalId = parts[3] // 'seller' or 'buyer' (optional, for three-party)
     } else {
       // Old format: "contract-{uuid}-{type}" or "contract-{uuid}-{type}-{timestamp}"
       // UUID is always 36 chars, so extract it precisely
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true })
     }
 
-    console.log('Parsed contract ID:', contractId, 'Type:', contractType, 'Three-party stage:', threePartyStage || 'none')
+    console.log('Parsed contract ID:', contractId, 'Type:', contractType, 'Stage from externalId:', stageFromExternalId || 'none')
 
     const adminSupabase = createAdminClient()
 
@@ -94,11 +94,39 @@ export async function POST(request: NextRequest) {
 
     // Check if this is a three-party contract based on custom_fields
     const customFields = contract.custom_fields as Record<string, unknown> | null
-    const hasSellerDocId = !!customFields?.documenso_seller_document_id
-    const hasBuyerDocId = !!customFields?.documenso_buyer_document_id
+    const sellerDocId = customFields?.documenso_seller_document_id as string | undefined
+    const buyerDocId = customFields?.documenso_buyer_document_id as string | undefined
+    const hasSellerDocId = !!sellerDocId
+    const hasBuyerDocId = !!buyerDocId
+
+    // Determine three-party stage: first from externalId, then by matching document IDs
+    let threePartyStage = stageFromExternalId
+    if (!threePartyStage && hasSellerDocId) {
+      // Fallback: determine stage by matching document ID from payload
+      const docIdFromPayload = String(payload.id)
+      if (sellerDocId === docIdFromPayload) {
+        threePartyStage = 'seller'
+        console.log('Detected seller stage by matching document ID')
+      } else if (buyerDocId === docIdFromPayload) {
+        threePartyStage = 'buyer'
+        console.log('Detected buyer stage by matching document ID')
+      }
+    }
+
+    // Also check: if contract has seller doc ID but no buyer doc ID, and status is sent/viewed,
+    // this must be the seller document completing
+    if (!threePartyStage && hasSellerDocId && !hasBuyerDocId) {
+      if (contract.status === 'sent' || contract.status === 'viewed') {
+        threePartyStage = 'seller'
+        console.log('Inferred seller stage: has seller doc ID, no buyer doc ID, status is sent/viewed')
+      }
+    }
+
     const isThreePartyContract = hasSellerDocId || threePartyStage === 'seller' || threePartyStage === 'buyer'
 
-    console.log('Is three-party contract:', isThreePartyContract, 'Stage from externalId:', threePartyStage)
+    console.log('Is three-party contract:', isThreePartyContract, 'Three-party stage:', threePartyStage || 'none')
+    console.log('Seller doc ID:', sellerDocId, 'Buyer doc ID:', buyerDocId, 'Payload doc ID:', payload.id)
+    console.log('Contract status:', contract.status)
 
     // Helper to determine party from recipient email
     const getPartyFromEmail = (email?: string): string => {
@@ -198,6 +226,8 @@ export async function POST(request: NextRequest) {
       case 'DOCUMENT_COMPLETED':
       case 'document.completed':
         // Document completed - handle differently for three-party contracts
+        console.log('DOCUMENT_COMPLETED: isThreePartyContract=', isThreePartyContract, 'threePartyStage=', threePartyStage)
+
         if (isThreePartyContract && threePartyStage === 'seller') {
           // Seller's document completed - move to 'seller_signed' status
           // User can now send the buyer document
