@@ -251,9 +251,15 @@ export async function POST(
 
     // Generate PDF from HTML template (pass company template ID to use custom template)
     const companyTemplateId = customFields?.company_template_id
-    console.log(`[Send Contract] Generating PDF for ${templateType} with company template: ${companyTemplateId || 'none'}`)
+    console.log(`[Send Contract] ===== STARTING CONTRACT SEND =====`)
+    console.log(`[Send Contract] Company template ID: ${companyTemplateId || 'NONE'}`)
+    console.log(`[Send Contract] Template type: ${templateType}`)
+    console.log(`[Send Contract] Seller: ${sellerNameToSend} <${sellerEmailToSend}>`)
+    console.log(`[Send Contract] Assignee: ${assigneeNameToSend} <${assigneeEmailToSend}>`)
+
     const { pdfBuffer, signatureLayout } = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
-    console.log(`[Send Contract] PDF generated: ${pdfBuffer.length} bytes, layout: ${signatureLayout}`)
+    console.log(`[Send Contract] PDF generated: ${pdfBuffer.length} bytes`)
+    console.log(`[Send Contract] Signature layout from template: "${signatureLayout}" (type: ${typeof signatureLayout})`)
 
     // Get page count for signature positioning
     const pageCount = await pdfGenerator.getPageCount(pdfBuffer)
@@ -261,6 +267,10 @@ export async function POST(
 
     // Get signature field positions (including seller initials on each page)
     const signaturePositions = await pdfGenerator.getSignaturePositions(templateType, contractData, pageCount, signatureLayout)
+    console.log(`[Send Contract] Got ${signaturePositions.length} signature positions:`)
+    signaturePositions.forEach((pos, i) => {
+      console.log(`[Send Contract]   Position ${i+1}: role=${pos.recipientRole}, type=${pos.fieldType}, page=${pos.page}, x=${pos.x}, y=${pos.y}`)
+    })
 
     // For three-party templates, add both signers with signing order
     // Seller signs first (signingOrder: 1), then assignee (signingOrder: 2)
@@ -268,7 +278,26 @@ export async function POST(
     // Check signature layout from template, not sendType
     const isThreePartyTemplate = signatureLayout === 'three-party'
 
-    console.log(`[Send Contract] Three-party template: ${isThreePartyTemplate}, signatureLayout: ${signatureLayout}`)
+    console.log(`[Send Contract] Three-party template: ${isThreePartyTemplate}`)
+
+    // Validate we have the expected signature positions
+    const sellerPositions = signaturePositions.filter(p => p.recipientRole === 'seller')
+    const buyerPositions = signaturePositions.filter(p => p.recipientRole === 'buyer')
+    console.log(`[Send Contract] Seller positions: ${sellerPositions.length}, Buyer positions: ${buyerPositions.length}`)
+
+    if (sellerPositions.length === 0) {
+      console.error(`[Send Contract] ERROR: No seller signature positions found!`)
+      return NextResponse.json({
+        error: 'No seller signature fields found. Please check template configuration.',
+      }, { status: 500 })
+    }
+
+    if (isThreePartyTemplate && buyerPositions.length === 0) {
+      console.error(`[Send Contract] ERROR: Three-party template but no buyer positions!`)
+      return NextResponse.json({
+        error: 'Three-party template requires buyer signature fields. Please check template configuration.',
+      }, { status: 500 })
+    }
 
     // Prepare recipients based on template's signature layout
     const recipients = isThreePartyTemplate && assigneeEmailToSend
