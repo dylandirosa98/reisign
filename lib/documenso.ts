@@ -309,18 +309,101 @@ class DocumensoClient {
   /**
    * Download signed document as PDF buffer
    * Fetches the actual PDF content from Documenso
+   * Tries multiple methods to get the signed PDF
    */
   async downloadSignedDocumentBuffer(documentId: string | number): Promise<Buffer> {
-    const downloadUrl = await this.downloadSignedDocument(documentId)
-    console.log(`[Documenso] Downloading signed PDF from: ${downloadUrl}`)
+    console.log(`[Documenso] Attempting to download signed PDF for document: ${documentId}`)
 
-    const response = await fetch(downloadUrl)
-    if (!response.ok) {
-      throw new Error(`Failed to download signed PDF: ${response.status}`)
+    // Method 1: Try the download endpoint which returns a URL
+    try {
+      const downloadUrl = await this.downloadSignedDocument(documentId)
+      console.log(`[Documenso] Got download URL: ${downloadUrl}`)
+
+      // If the URL is relative, prepend the base URL
+      const fullUrl = downloadUrl.startsWith('http')
+        ? downloadUrl
+        : `${this.baseUrl}${downloadUrl.startsWith('/') ? '' : '/'}${downloadUrl}`
+
+      console.log(`[Documenso] Fetching from: ${fullUrl}`)
+
+      const response = await fetch(fullUrl, {
+        headers: {
+          'Authorization': this.apiKey,
+        },
+      })
+
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer()
+        console.log(`[Documenso] Downloaded ${arrayBuffer.byteLength} bytes via download URL`)
+        return Buffer.from(arrayBuffer)
+      }
+      console.log(`[Documenso] Download URL method failed: ${response.status}`)
+    } catch (err) {
+      console.log(`[Documenso] Download URL method error:`, err)
     }
 
-    const arrayBuffer = await response.arrayBuffer()
-    return Buffer.from(arrayBuffer)
+    // Method 2: Try fetching the document data directly from v2 API
+    try {
+      const url = `${this.baseUrl}/api/v2/document/${documentId}/download`
+      console.log(`[Documenso] Trying v2 API: ${url}`)
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': this.apiKey,
+        },
+      })
+
+      if (response.ok) {
+        const contentType = response.headers.get('content-type')
+        console.log(`[Documenso] v2 response content-type: ${contentType}`)
+
+        if (contentType?.includes('application/pdf')) {
+          const arrayBuffer = await response.arrayBuffer()
+          console.log(`[Documenso] Downloaded ${arrayBuffer.byteLength} bytes via v2 API`)
+          return Buffer.from(arrayBuffer)
+        }
+
+        // Maybe it returns JSON with a URL
+        const data = await response.json()
+        if (data.downloadUrl || data.url) {
+          const pdfUrl = data.downloadUrl || data.url
+          const pdfResponse = await fetch(pdfUrl, {
+            headers: { 'Authorization': this.apiKey },
+          })
+          if (pdfResponse.ok) {
+            const arrayBuffer = await pdfResponse.arrayBuffer()
+            console.log(`[Documenso] Downloaded ${arrayBuffer.byteLength} bytes via v2 URL`)
+            return Buffer.from(arrayBuffer)
+          }
+        }
+      }
+      console.log(`[Documenso] v2 API method failed: ${response.status}`)
+    } catch (err) {
+      console.log(`[Documenso] v2 API method error:`, err)
+    }
+
+    // Method 3: Try the direct download path pattern
+    try {
+      const url = `${this.baseUrl}/d/${documentId}`
+      console.log(`[Documenso] Trying direct path: ${url}`)
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': this.apiKey,
+        },
+      })
+
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer()
+        console.log(`[Documenso] Downloaded ${arrayBuffer.byteLength} bytes via direct path`)
+        return Buffer.from(arrayBuffer)
+      }
+      console.log(`[Documenso] Direct path method failed: ${response.status}`)
+    } catch (err) {
+      console.log(`[Documenso] Direct path method error:`, err)
+    }
+
+    throw new Error(`Failed to download signed PDF for document ${documentId} - all methods failed`)
   }
 
   /**

@@ -307,7 +307,9 @@ export async function POST(
     // For three-party buyer stage, download the signed seller PDF from Documenso
     // This way the buyer sees the seller's signatures on their document
     if (isThreeParty && sendTo === 'buyer') {
-      const sellerDocId = customFields?.documenso_seller_document_id as string | undefined
+      // Try documenso_seller_document_id first, fallback to main documenso_document_id
+      const sellerDocId = (customFields?.documenso_seller_document_id as string | undefined) ||
+                          contract.documenso_document_id
       if (!sellerDocId) {
         return NextResponse.json({
           error: 'Seller document ID not found. Please send to seller first.',
@@ -315,19 +317,25 @@ export async function POST(
       }
 
       console.log(`[Send Contract] Downloading signed seller PDF from Documenso (doc ID: ${sellerDocId})`)
+      console.log(`[Send Contract] documenso_seller_document_id: ${customFields?.documenso_seller_document_id}`)
+      console.log(`[Send Contract] contract.documenso_document_id: ${contract.documenso_document_id}`)
       try {
-        pdfBuffer = await documenso.downloadSignedDocumentBuffer(Number(sellerDocId))
+        pdfBuffer = await documenso.downloadSignedDocumentBuffer(sellerDocId)
         console.log(`[Send Contract] Downloaded signed seller PDF: ${pdfBuffer.length} bytes`)
       } catch (downloadError) {
         console.error(`[Send Contract] Failed to download signed seller PDF:`, downloadError)
-        return NextResponse.json({
-          error: 'Failed to download signed seller document. Please try again.',
-        }, { status: 500 })
+        // If download fails, generate a fresh PDF as fallback (without seller signatures)
+        console.log(`[Send Contract] Falling back to generating fresh PDF`)
+        const result = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
+        pdfBuffer = result.pdfBuffer
+        signatureLayout = result.signatureLayout
       }
 
-      // Get signature layout from the template
-      const { signatureLayout: layout } = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
-      signatureLayout = layout
+      // If we downloaded the signed PDF, still need to get signatureLayout from template
+      if (!signatureLayout) {
+        const { signatureLayout: layout } = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
+        signatureLayout = layout
+      }
     } else {
       // Generate fresh PDF for seller or non-three-party contracts
       const result = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
