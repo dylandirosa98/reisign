@@ -818,13 +818,14 @@ class PDFGeneratorService {
       const pagesWithInitials = totalPages - 1
 
       // Seller initials in footer (pages 1 to N-1)
+      // Position: y=91 to stay within page bounds (91 + 3 = 94, safely within 100)
       for (let page = 1; page <= pagesWithInitials; page++) {
         positions.push({
           page: page,
           x: 13,        // Left side initials
-          y: 95,
+          y: 91,        // Moved up from 95 to stay in bounds
           width: 8,
-          height: 2.8,
+          height: 3,
           recipientRole: 'seller',
           fieldType: 'initials',
         })
@@ -834,21 +835,20 @@ class PDFGeneratorService {
       for (let page = 1; page <= pagesWithInitials; page++) {
         positions.push({
           page: page,
-          x: 79,        // Right side initials (mirror of 13%: 100% - 13% - 8% = 79%)
-          y: 95,
+          x: 79,        // Right side initials
+          y: 91,        // Moved up from 95 to stay in bounds
           width: 8,
-          height: 2.8,
+          height: 3,
           recipientRole: 'buyer',
           fieldType: 'initials',
         })
       }
 
       // Seller signature - first section on signature page
-      // Measured: x=5.9%, y=18.6% (compact template redesign)
       positions.push({
         page: totalPages,
         x: 6,         // Left column
-        y: 19,        // First section (measured: 18.6%)
+        y: 19,        // First section
         width: 35,
         height: 5,
         recipientRole: 'seller',
@@ -856,11 +856,10 @@ class PDFGeneratorService {
       })
 
       // Assignee/Buyer signature - third section on signature page
-      // Measured: x=5.9%, y=80.9% (compact template redesign)
       positions.push({
         page: totalPages,
         x: 6,         // Left column
-        y: 81,        // Third section (measured: 80.9%)
+        y: 75,        // Moved up from 81 to ensure it fits
         width: 35,
         height: 5,
         recipientRole: 'buyer',
