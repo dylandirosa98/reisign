@@ -360,9 +360,20 @@ export async function POST(
     // Log field counts per recipient
     const sellerFields = signatureFields.filter(f => f.recipientEmail === sellerEmailToSend)
     const assigneeFields = signatureFields.filter(f => f.recipientEmail === assigneeEmailToSend)
-    console.log(`[Send Contract] Fields summary: ${sellerFields.length} for seller, ${assigneeFields.length} for assignee`)
-    console.log(`[Send Contract] Seller fields:`, sellerFields.map(f => ({ page: f.page, type: f.fieldType, x: f.x, y: f.y })))
-    console.log(`[Send Contract] Assignee fields:`, assigneeFields.map(f => ({ page: f.page, type: f.fieldType, x: f.x, y: f.y })))
+    console.log(`[Send Contract] ===== FINAL FIELDS SUMMARY =====`)
+    console.log(`[Send Contract] Total signatureFields: ${signatureFields.length}`)
+    console.log(`[Send Contract] Seller fields (${sellerFields.length}):`, JSON.stringify(sellerFields.map(f => ({ page: f.page, type: f.fieldType, x: f.x, y: f.y }))))
+    console.log(`[Send Contract] Assignee fields (${assigneeFields.length}):`, JSON.stringify(assigneeFields.map(f => ({ page: f.page, type: f.fieldType, x: f.x, y: f.y }))))
+
+    // CRITICAL: Fail if no fields after mapping
+    if (signatureFields.length === 0) {
+      console.error(`[Send Contract] CRITICAL ERROR: No signature fields after mapping!`)
+      console.error(`[Send Contract] signaturePositions had ${signaturePositions.length} items`)
+      console.error(`[Send Contract] sellerEmailToSend: "${sellerEmailToSend}", assigneeEmailToSend: "${assigneeEmailToSend}"`)
+      return NextResponse.json({
+        error: 'No signature fields could be mapped to recipients. Check that seller/assignee emails are correct.',
+      }, { status: 500 })
+    }
 
     // Create document in Documenso with signatures
     // Format: contract::{uuid}::{type} - using :: as separator to avoid confusion with UUID dashes

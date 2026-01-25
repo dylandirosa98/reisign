@@ -421,16 +421,20 @@ class DocumensoClient {
       type?: 'SIGNATURE' | 'INITIALS'
     }
   ): Promise<AddFieldResponse> {
+    // IMPORTANT: Documenso uses 0-indexed page numbers, but our code uses 1-indexed
+    // Convert from 1-indexed (page 1 = first page) to 0-indexed (page 0 = first page)
+    const zeroIndexedPage = field.page - 1
+
     const payload = {
       recipientId,
       type: field.type || 'SIGNATURE',
-      pageNumber: field.page,
+      pageNumber: zeroIndexedPage,
       pageX: field.x,
       pageY: field.y,
       pageWidth: field.width,
       pageHeight: field.height,
     }
-    console.log(`[Documenso] addSignatureField payload:`, JSON.stringify(payload))
+    console.log(`[Documenso] addSignatureField payload (page ${field.page} -> ${zeroIndexedPage}):`, JSON.stringify(payload))
 
     try {
       const result = await this.request<AddFieldResponse>(`/documents/${documentId}/fields`, {
@@ -526,8 +530,15 @@ class DocumensoClient {
     }
 
     // Step 3: Add signature/initials fields
-    console.log(`[Documenso] ===== Adding ${options.signatureFields.length} signature/initials fields =====`)
-    console.log(`[Documenso] Recipient map:`, Object.fromEntries(recipientMap))
+    console.log(`[Documenso] ===== STEP 3: Adding signature fields =====`)
+    console.log(`[Documenso] Total fields to add: ${options.signatureFields.length}`)
+    console.log(`[Documenso] Recipient map:`, JSON.stringify(Object.fromEntries(recipientMap)))
+
+    // CRITICAL: Fail if no fields to add
+    if (options.signatureFields.length === 0) {
+      console.error(`[Documenso] CRITICAL ERROR: No signature fields provided!`)
+      throw new Error('No signature fields to add - cannot send document without signature fields')
+    }
 
     let fieldsAdded = 0
     let fieldsFailed = 0
