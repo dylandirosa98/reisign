@@ -70,6 +70,19 @@ interface CustomFields {
   buyer_initials?: string // Base64 initials image
   // AI-generated clauses
   ai_clauses?: AIClause[]
+  // Pending assignee for sequential signing (three-party)
+  pending_assignee?: {
+    name: string
+    email: string
+    fields: Array<{
+      page: number
+      x: number
+      y: number
+      width: number
+      height: number
+      fieldType?: string
+    }>
+  }
 }
 
 interface Contract {
@@ -276,6 +289,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   }>>([])
   const [statusLoading, setStatusLoading] = useState(false)
   const [resending, setResending] = useState(false)
+  const [sendingToAssignee, setSendingToAssignee] = useState(false)
 
   useEffect(() => {
     fetchContract()
@@ -366,6 +380,34 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       setResending(false)
     }
   }
+
+  const handleSendToAssignee = async () => {
+    if (!contract?.documenso_document_id) return
+    setSendingToAssignee(true)
+    try {
+      const res = await fetch(`/api/contracts/${id}/send-to-assignee`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const data = await res.json()
+      if (res.ok) {
+        alert(data.message || 'Contract sent to assignee successfully')
+        // Refresh contract data to update UI
+        fetchContract()
+        fetchRecipientStatus()
+      } else {
+        alert(data.error || 'Failed to send to assignee')
+      }
+    } catch (err) {
+      console.error('Failed to send to assignee:', err)
+      alert('Failed to send to assignee')
+    } finally {
+      setSendingToAssignee(false)
+    }
+  }
+
+  // Check if there's a pending assignee
+  const hasPendingAssignee = contract?.custom_fields?.pending_assignee != null
 
   // Fetch recipient status when contract is sent/viewed
   useEffect(() => {
@@ -1769,6 +1811,40 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   {history.map((item, index) => {
                     const itemStatus = statusConfig[item.status] || statusConfig.draft
                     const ItemIcon = itemStatus.icon
+
+                    // Get party label from metadata for three-party contracts
+                    const metadata = item.metadata as {
+                      action?: string
+                      party?: string
+                      assignee_email?: string
+                      assignee_name?: string
+                      documenso_payload?: {
+                        recipients?: Array<{ email: string; signingStatus: string }>
+                      }
+                    }
+
+                    // Determine party label based on action or context
+                    let partyLabel = ''
+                    if (isThreeParty) {
+                      if (metadata.party === 'seller') {
+                        partyLabel = 'Seller'
+                      } else if (metadata.party === 'assignee') {
+                        partyLabel = 'Assignee'
+                      } else if (metadata.action === 'sent_for_signing') {
+                        partyLabel = 'Seller' // Initial send is to seller
+                      } else if (metadata.action === 'sent_to_assignee' || metadata.action === 'assignee_added_after_seller_signed') {
+                        partyLabel = 'Assignee'
+                      }
+                    }
+
+                    // Build display label
+                    let displayLabel = itemStatus.label
+                    if (metadata.action === 'sent_to_assignee') {
+                      displayLabel = 'Sent to Assignee'
+                    } else if (metadata.action === 'assignee_added_after_seller_signed') {
+                      displayLabel = 'Assignee Added'
+                    }
+
                     return (
                       <div key={item.id} className="flex gap-3">
                         <div
@@ -1781,11 +1857,19 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-medium text-[var(--gray-900)]">
-                            {itemStatus.label}
+                            {partyLabel && (
+                              <span className="text-[var(--primary-600)]">{partyLabel}: </span>
+                            )}
+                            {displayLabel}
                           </p>
                           <p className="text-xs text-[var(--gray-500)]">
                             {new Date(item.created_at).toLocaleString()}
                           </p>
+                          {metadata.assignee_email && (
+                            <p className="text-xs text-[var(--gray-400)]">
+                              {metadata.assignee_email}
+                            </p>
+                          )}
                         </div>
                       </div>
                     )
@@ -1966,6 +2050,33 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                       </div>
                     )}
                   </div>
+
+                  {/* Pending Assignee Notice */}
+                  {hasPendingAssignee && contract.custom_fields?.pending_assignee && (
+                    <>
+                      <hr className="my-3 border-[var(--gray-200)]" />
+                      <div className="bg-[var(--info-50)] border border-[var(--info-200)] rounded p-3 mb-3">
+                        <p className="text-sm font-medium text-[var(--info-700)] mb-1">
+                          Seller has signed
+                        </p>
+                        <p className="text-xs text-[var(--info-600)]">
+                          Ready to send to assignee: {contract.custom_fields.pending_assignee.email}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleSendToAssignee}
+                        disabled={sendingToAssignee}
+                        className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
+                      >
+                        {sendingToAssignee ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4 mr-2" />
+                        )}
+                        Send to Assignee
+                      </Button>
+                    </>
+                  )}
 
                   <hr className="my-3 border-[var(--gray-200)]" />
 

@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     // Find the contract with custom_fields for pending assignee
     const { data: contract, error: findError } = await adminSupabase
       .from('contracts')
-      .select('id, status, company_id, documenso_document_id, custom_fields')
+      .select('id, status, company_id, documenso_document_id, custom_fields, seller_email, buyer_email')
       .eq('id', contractId)
       .single()
 
@@ -88,8 +88,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true })
     }
 
+    // Helper to determine party from recipient email
+    const getPartyFromEmail = (email?: string): string => {
+      if (!email) return ''
+      const lowerEmail = email.toLowerCase()
+      if (contract.seller_email?.toLowerCase() === lowerEmail) return 'seller'
+      if (contract.buyer_email?.toLowerCase() === lowerEmail) return 'assignee'
+      return ''
+    }
+
+    // Get recipient email from payload if available
+    const recipientEmail = payload.recipients?.[0]?.email
+
     let newStatus: string | null = null
     let updateData: Record<string, unknown> = {}
+    let additionalMetadata: Record<string, unknown> = {}
 
     switch (event) {
       case 'DOCUMENT_OPENED':
@@ -101,13 +114,32 @@ export async function POST(request: NextRequest) {
             status: 'viewed',
             viewed_at: new Date().toISOString(),
           }
+          additionalMetadata = {
+            party: getPartyFromEmail(recipientEmail),
+            recipient_email: recipientEmail,
+          }
         }
         break
 
       case 'DOCUMENT_SIGNED':
       case 'document.signed':
-        // Individual recipient signed - check if we need to add assignee for sequential signing
-        console.log('Document signed by recipient')
+        // Individual recipient signed - record and check if we need to add assignee
+        console.log('Document signed by recipient:', recipientEmail)
+
+        // Record the signed event with party info
+        const signerParty = getPartyFromEmail(recipientEmail)
+        await adminSupabase
+          .from('contract_status_history')
+          .insert({
+            contract_id: contractId,
+            status: contract.status || 'sent',
+            metadata: {
+              action: 'recipient_signed',
+              party: signerParty,
+              recipient_email: recipientEmail,
+              event,
+            },
+          })
 
         // Check for pending assignee (sequential signing)
         const customFields = contract.custom_fields as { pending_assignee?: PendingAssignee } | null
@@ -214,7 +246,7 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         console.error('Failed to update contract:', updateError)
       } else {
-        // Record status change in history
+        // Record status change in history with party info
         await adminSupabase
           .from('contract_status_history')
           .insert({
@@ -225,6 +257,7 @@ export async function POST(request: NextRequest) {
               event,
               contract_type: contractType,
               documenso_payload: payload,
+              ...additionalMetadata,
             },
           })
 
