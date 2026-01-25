@@ -284,19 +284,31 @@ export async function POST(
         ]
 
     // Map signature positions to recipient emails (use editable send-to emails)
-    const signatureFields = signaturePositions.map(pos => ({
-      page: pos.page,
-      x: pos.x,
-      y: pos.y,
-      width: pos.width,
-      height: pos.height,
-      recipientEmail: pos.recipientRole === 'seller'
-        ? sellerEmailToSend
-        : assigneeEmailToSend || '',
-      fieldType: pos.fieldType as 'signature' | 'initials' | undefined,
-    })).filter(f => f.recipientEmail)
+    console.log(`[Send Contract] Mapping ${signaturePositions.length} positions to recipients`)
+    console.log(`[Send Contract] Seller email: ${sellerEmailToSend}, Assignee email: ${assigneeEmailToSend}`)
 
-    console.log(`[Send Contract] Signature fields to add:`, JSON.stringify(signatureFields, null, 2))
+    const signatureFields = signaturePositions.map(pos => {
+      const recipientEmail = pos.recipientRole === 'seller'
+        ? sellerEmailToSend
+        : assigneeEmailToSend || ''
+      console.log(`[Send Contract] Position: role=${pos.recipientRole}, type=${pos.fieldType}, page=${pos.page} -> email=${recipientEmail}`)
+      return {
+        page: pos.page,
+        x: pos.x,
+        y: pos.y,
+        width: pos.width,
+        height: pos.height,
+        recipientEmail,
+        fieldType: pos.fieldType as 'signature' | 'initials' | undefined,
+      }
+    }).filter(f => f.recipientEmail)
+
+    // Log field counts per recipient
+    const sellerFields = signatureFields.filter(f => f.recipientEmail === sellerEmailToSend)
+    const assigneeFields = signatureFields.filter(f => f.recipientEmail === assigneeEmailToSend)
+    console.log(`[Send Contract] Fields summary: ${sellerFields.length} for seller, ${assigneeFields.length} for assignee`)
+    console.log(`[Send Contract] Seller fields:`, sellerFields.map(f => ({ page: f.page, type: f.fieldType, x: f.x, y: f.y })))
+    console.log(`[Send Contract] Assignee fields:`, assigneeFields.map(f => ({ page: f.page, type: f.fieldType, x: f.x, y: f.y })))
 
     // Create document in Documenso with signatures
     // Use unique externalId with timestamp to avoid conflicts from previous failed attempts

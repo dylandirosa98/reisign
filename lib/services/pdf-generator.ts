@@ -817,6 +817,8 @@ class PDFGeneratorService {
       const totalPages = pageCount || 2
       const pagesWithInitials = totalPages - 1
 
+      console.log(`[PDF Generator] Setting up three-party fields: totalPages=${totalPages}, pagesWithInitials=${pagesWithInitials}`)
+
       // Seller initials in footer (pages 1 to N-1)
       // Same position as purchase-agreement which works perfectly
       for (let page = 1; page <= pagesWithInitials; page++) {
@@ -832,12 +834,11 @@ class PDFGeneratorService {
       }
 
       // Assignee/Buyer initials in footer - RIGHT side (pages 1 to N-1)
-      // Calculated: right padding 36pt, box at 539pt from left = 88%
-      // Same Y as seller initials (95%) since they're in the same footer row
+      // User feedback: x=88, y=95 works correctly
       for (let page = 1; page <= pagesWithInitials; page++) {
         positions.push({
           page: page,
-          x: 88,        // Calculated: (612 - 36 - 37) / 612 = 88%
+          x: 88,        // Right side of footer
           y: 95,        // Same as seller initials
           width: 8,
           height: 2.8,
@@ -846,31 +847,41 @@ class PDFGeneratorService {
         })
       }
 
-      // Seller signature - first section on signature page
-      // Calculated: 36pt margin + 27pt header + 20pt section header + 12pt label = 95pt
-      // As percentage: 95 / 792 = 12%
+      // Seller signature - first section on signature page (ORIGINAL SELLER)
+      // Three-party layout has 3 vertically stacked sections
+      // Section 1 is at the top, signature box is first row after section header
+      // Position validated against user feedback
       positions.push({
         page: totalPages,
-        x: 8,         // Left column with slight offset into content
-        y: 12,        // Calculated position of seller signature box
-        width: 33,
+        x: 10,        // Left column, slightly into content area
+        y: 15,        // Top section - signature box near top of page
+        width: 30,
         height: 5,
         recipientRole: 'seller',
         fieldType: 'signature',
       })
 
-      // Assignee/Buyer signature - third section on signature page
-      // Calculated: Section 3 starts at 323pt + 20pt header + 12pt label = 355pt
-      // As percentage: 355 / 792 = 45%
+      // Assignee/Buyer signature - third section on signature page (ASSIGNEE/END BUYER)
+      // User feedback: y=45 was "way too high", need to move significantly lower
+      // Section 3 is at the bottom third of the page
+      // Adjusted based on feedback: move down to ~68% and right to ~12%
       positions.push({
         page: totalPages,
-        x: 8,         // Same as seller signature
-        y: 45,        // Calculated position of assignee signature box
-        width: 33,
+        x: 10,        // Same x as seller for consistency
+        y: 68,        // Adjusted down significantly based on "way too high" feedback
+        width: 30,
         height: 5,
         recipientRole: 'buyer',
         fieldType: 'signature',
       })
+
+      console.log(`[PDF Generator] Three-party positions:`, positions.map(p => ({
+        page: p.page,
+        role: p.recipientRole,
+        type: p.fieldType,
+        x: p.x,
+        y: p.y
+      })))
     }
 
     return positions
