@@ -187,6 +187,8 @@ const statusConfig: Record<string, { label: string; icon: typeof Clock; color: s
   draft: { label: 'Draft', icon: FileText, color: 'var(--gray-700)', bgColor: 'var(--gray-100)' },
   sent: { label: 'Sent', icon: Send, color: 'var(--info-700)', bgColor: 'var(--info-100)' },
   viewed: { label: 'Viewed', icon: Eye, color: 'var(--warning-700)', bgColor: 'var(--warning-100)' },
+  seller_signed: { label: 'Seller Signed', icon: CheckCircle, color: 'var(--success-700)', bgColor: 'var(--success-100)' },
+  buyer_pending: { label: 'Awaiting Buyer', icon: Clock, color: 'var(--info-700)', bgColor: 'var(--info-100)' },
   completed: { label: 'Completed', icon: CheckCircle, color: 'var(--success-700)', bgColor: 'var(--success-100)' },
   cancelled: { label: 'Cancelled', icon: XCircle, color: 'var(--error-700)', bgColor: 'var(--error-100)' },
 }
@@ -482,7 +484,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     }
   }
 
-  const handleSend = async (type: 'purchase' | 'assignment' = 'purchase') => {
+  const handleSend = async (type: 'purchase' | 'assignment' = 'purchase', sendTo?: 'seller' | 'buyer') => {
     setSending(true)
     setError(null)
 
@@ -492,6 +494,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type,
+          sendTo, // For three-party: 'seller' or 'buyer'
           // Use editable signer info (can differ from contract values)
           sellerName: sendToSellerName,
           sellerEmail: sendToSellerEmail,
@@ -2158,6 +2161,77 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                       </Button>
                     </a>
                   </div>
+                </div>
+              )}
+
+              {/* Seller Signed - Ready to send to Buyer (Three-party contracts) */}
+              {contract.status === 'seller_signed' && isThreeParty && (
+                <div className="py-2">
+                  <div className="mb-4 p-3 bg-[var(--success-100)] border border-[var(--success-200)] rounded">
+                    <div className="flex items-center gap-2 text-[var(--success-700)] mb-2">
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="font-medium">Seller has signed!</span>
+                    </div>
+                    <p className="text-sm text-[var(--success-600)]">
+                      The seller has completed their signature. You can now send the contract to the buyer for their signature.
+                    </p>
+                  </div>
+
+                  {/* Buyer Info */}
+                  <div className="mb-4 p-3 bg-[var(--gray-50)] rounded">
+                    <h4 className="text-sm font-medium text-[var(--gray-700)] mb-2">Buyer/Assignee</h4>
+                    <p className="text-sm text-[var(--gray-600)]">{sendToAssigneeName || 'Not set'}</p>
+                    <p className="text-sm text-[var(--gray-500)]">{sendToAssigneeEmail || 'No email'}</p>
+                  </div>
+
+                  <Button
+                    onClick={() => handleSend(contractType, 'buyer')}
+                    disabled={sending || !sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)}
+                    className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {sending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4 mr-2" />
+                    )}
+                    Send to Buyer for Signature
+                  </Button>
+                </div>
+              )}
+
+              {/* Buyer Pending - Waiting for buyer to sign (Three-party contracts) */}
+              {contract.status === 'buyer_pending' && isThreeParty && (
+                <div className="py-2">
+                  <div className="mb-4 p-3 bg-[var(--info-100)] border border-[var(--info-200)] rounded">
+                    <div className="flex items-center gap-2 text-[var(--info-700)] mb-2">
+                      <Clock className="w-5 h-5" />
+                      <span className="font-medium">Waiting for Buyer</span>
+                    </div>
+                    <p className="text-sm text-[var(--info-600)]">
+                      The contract has been sent to the buyer. Waiting for their signature.
+                    </p>
+                  </div>
+
+                  {/* Buyer Info */}
+                  <div className="mb-4 p-3 bg-[var(--gray-50)] rounded">
+                    <h4 className="text-sm font-medium text-[var(--gray-700)] mb-2">Buyer/Assignee</h4>
+                    <p className="text-sm text-[var(--gray-600)]">{sendToAssigneeName || 'Not set'}</p>
+                    <p className="text-sm text-[var(--gray-500)]">{sendToAssigneeEmail || 'No email'}</p>
+                  </div>
+
+                  <Button
+                    onClick={handleResend}
+                    disabled={resending}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {resending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Mail className="w-4 h-4 mr-2" />
+                    )}
+                    Resend to Buyer
+                  </Button>
                 </div>
               )}
 

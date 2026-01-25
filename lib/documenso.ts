@@ -422,27 +422,17 @@ class DocumensoClient {
     }
   ): Promise<AddFieldResponse> {
     // Documenso uses 1-indexed pages (pageNumber must be > 0)
-    // Our positions are in percentages (0-100), need to convert to absolute coordinates
-    // Letter size PDF: 612 x 792 points
-    const PDF_WIDTH = 612
-    const PDF_HEIGHT = 792
-
-    // Convert percentage coordinates to absolute points
-    const absoluteX = (field.x / 100) * PDF_WIDTH
-    const absoluteY = (field.y / 100) * PDF_HEIGHT
-    const absoluteWidth = (field.width / 100) * PDF_WIDTH
-    const absoluteHeight = (field.height / 100) * PDF_HEIGHT
-
+    // Coordinates are percentages (0-100) relative to page size
     const payload = {
       recipientId,
       type: field.type || 'SIGNATURE',
-      pageNumber: field.page, // 1-indexed (page 1 = first page)
-      pageX: absoluteX,
-      pageY: absoluteY,
-      pageWidth: absoluteWidth,
-      pageHeight: absoluteHeight,
+      pageNumber: field.page,
+      pageX: field.x,
+      pageY: field.y,
+      pageWidth: field.width,
+      pageHeight: field.height,
     }
-    console.log(`[Documenso] addSignatureField: page=${field.page}, pos=(${field.x}%,${field.y}%) -> (${absoluteX.toFixed(1)},${absoluteY.toFixed(1)}), size=(${absoluteWidth.toFixed(1)}x${absoluteHeight.toFixed(1)})`)
+    console.log(`[Documenso] addSignatureField: recipientId=${recipientId}, page=${field.page}, pos=(${field.x},${field.y}), size=(${field.width}x${field.height}), type=${field.type || 'SIGNATURE'}`)
     console.log(`[Documenso] Full payload:`, JSON.stringify(payload))
 
     try {

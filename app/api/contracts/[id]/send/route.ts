@@ -8,6 +8,9 @@ import { canCreateContract, PLANS, formatPrice } from '@/lib/plans'
 import { chargeExtraContract, isStripeConfigured } from '@/lib/stripe'
 
 // POST /api/contracts/[id]/send - Send contract for signing via Documenso
+// For three-party contracts, this is called twice:
+//   1. First call: sendTo='seller' - sends to seller only
+//   2. After seller signs: sendTo='buyer' - sends to buyer/assignee
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -64,22 +67,6 @@ export async function POST(
     }, { status: 402 })
   }
 
-  // Check contract limits
-  const actualPlan = company?.actual_plan || 'free'
-  const contractsUsed = company?.contracts_used_this_period || 0
-  const limitCheck = canCreateContract(actualPlan, contractsUsed)
-
-  // If not allowed and no overage possible (free tier), block
-  if (!limitCheck.allowed && !limitCheck.isOverage) {
-    return NextResponse.json({
-      error: limitCheck.reason || 'Contract limit reached. Please upgrade your plan.',
-      requiresUpgrade: true,
-    }, { status: 403 })
-  }
-
-  // Track if this is an overage contract for billing
-  const isOverageContract = limitCheck.isOverage === true
-
   // Get contract with property
   const { data: contract, error: contractError } = await adminSupabase
     .from('contracts')
@@ -95,16 +82,12 @@ export async function POST(
     return NextResponse.json({ error: 'Contract not found' }, { status: 404 })
   }
 
-  if (contract.status !== 'draft') {
-    return NextResponse.json({
-      error: 'Contract has already been sent',
-    }, { status: 400 })
-  }
-
   // Get the body to determine which contract type to send and AI clauses
   const body = await request.json().catch(() => ({}))
   const sendType = body.type || 'purchase' // 'purchase' or 'assignment'
+  const sendTo = body.sendTo as 'seller' | 'buyer' | undefined // For three-party: which party to send to
   const requestedClauses = body.clauses as ClauseType[] | undefined
+
   // Allow overriding signer info for sending (use provided values or fall back to contract values)
   const sellerNameToSend = body.sellerName || contract.seller_name
   const sellerEmailToSend = body.sellerEmail || contract.seller_email
@@ -146,16 +129,65 @@ export async function POST(
   } | null
 
   // Get the template to check signature layout (for three-party validation)
-  let isThreeParty = false
+  let signatureLayoutFromDb: string | undefined
   if (customFields?.company_template_id) {
     const { data: templateData } = await adminSupabase
       .from('company_templates' as any)
       .select('signature_layout')
       .eq('id', customFields.company_template_id)
       .single()
-    const templateLayout = (templateData as any)?.signature_layout
-    isThreeParty = templateLayout === 'three-party'
+    signatureLayoutFromDb = (templateData as any)?.signature_layout
   }
+  const isThreeParty = signatureLayoutFromDb === 'three-party'
+
+  // Validate contract status based on what we're trying to do
+  if (isThreeParty) {
+    // Three-party has two stages: seller first, then buyer
+    if (sendTo === 'buyer') {
+      // Sending to buyer - contract must be in 'seller_signed' status
+      if (contract.status !== 'seller_signed') {
+        return NextResponse.json({
+          error: 'Cannot send to buyer until seller has signed. Current status: ' + contract.status,
+        }, { status: 400 })
+      }
+    } else {
+      // Sending to seller (first stage) - must be draft
+      if (contract.status !== 'draft') {
+        return NextResponse.json({
+          error: 'Contract has already been sent to seller',
+        }, { status: 400 })
+      }
+    }
+  } else {
+    // Non-three-party: standard single send
+    if (contract.status !== 'draft') {
+      return NextResponse.json({
+        error: 'Contract has already been sent',
+      }, { status: 400 })
+    }
+  }
+
+  // Check contract limits (only for first send, not for buyer stage)
+  const isFirstSend = contract.status === 'draft'
+  if (isFirstSend) {
+    const actualPlan = company?.actual_plan || 'free'
+    const contractsUsed = company?.contracts_used_this_period || 0
+    const limitCheck = canCreateContract(actualPlan, contractsUsed)
+
+    // If not allowed and no overage possible (free tier), block
+    if (!limitCheck.allowed && !limitCheck.isOverage) {
+      return NextResponse.json({
+        error: limitCheck.reason || 'Contract limit reached. Please upgrade your plan.',
+        requiresUpgrade: true,
+      }, { status: 403 })
+    }
+  }
+
+  // Track if this is an overage contract for billing
+  const actualPlan = company?.actual_plan || 'free'
+  const contractsUsed = company?.contracts_used_this_period || 0
+  const limitCheck = canCreateContract(actualPlan, contractsUsed)
+  const isOverageContract = isFirstSend && limitCheck.isOverage === true
 
   // Validate required buyer (company) signing fields - only use explicitly saved values
   const missingFields: string[] = []
@@ -185,9 +217,9 @@ export async function POST(
     const propertyState = customFields?.property_state || contract.property?.state || ''
     const propertyZip = customFields?.property_zip || contract.property?.zip || ''
 
-    // Generate AI clauses if requested
+    // Generate AI clauses if requested (only on first send)
     let aiClausesHtml = ''
-    if (requestedClauses && requestedClauses.length > 0) {
+    if (isFirstSend && requestedClauses && requestedClauses.length > 0) {
       aiClausesHtml = await aiClauseService.generateClauses(
         requestedClauses.map(type => ({ type }))
       )
@@ -218,6 +250,11 @@ export async function POST(
       buyer_name: assigneeNameToSend,
       buyer_email: assigneeEmailToSend,
       buyer_phone: assigneePhoneToSend || customFields?.buyer_phone,
+
+      // Also set assignee fields for three-party template
+      assignee_name: assigneeNameToSend,
+      assignee_email: assigneeEmailToSend,
+      assignee_phone: assigneePhoneToSend || customFields?.buyer_phone,
 
       // Prices
       purchase_price: contract.price || 0,
@@ -254,135 +291,96 @@ export async function POST(
     console.log(`[Send Contract] ===== STARTING CONTRACT SEND =====`)
     console.log(`[Send Contract] Company template ID: ${companyTemplateId || 'NONE'}`)
     console.log(`[Send Contract] Template type: ${templateType}`)
+    console.log(`[Send Contract] Three-party: ${isThreeParty}, sendTo: ${sendTo || 'default'}`)
     console.log(`[Send Contract] Seller: ${sellerNameToSend} <${sellerEmailToSend}>`)
     console.log(`[Send Contract] Assignee: ${assigneeNameToSend} <${assigneeEmailToSend}>`)
 
     const { pdfBuffer, signatureLayout } = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
     console.log(`[Send Contract] PDF generated: ${pdfBuffer.length} bytes`)
-    console.log(`[Send Contract] Signature layout from template: "${signatureLayout}" (type: ${typeof signatureLayout})`)
+    console.log(`[Send Contract] Signature layout from template: "${signatureLayout}"`)
 
     // Get page count for signature positioning
     const pageCount = await pdfGenerator.getPageCount(pdfBuffer)
     console.log(`[Send Contract] PDF has ${pageCount} pages`)
 
-    // Get signature field positions (including seller initials on each page)
-    const signaturePositions = await pdfGenerator.getSignaturePositions(templateType, contractData, pageCount, signatureLayout)
-    console.log(`[Send Contract] Got ${signaturePositions.length} signature positions:`)
-    signaturePositions.forEach((pos, i) => {
-      console.log(`[Send Contract]   Position ${i+1}: role=${pos.recipientRole}, type=${pos.fieldType}, page=${pos.page}, x=${pos.x}, y=${pos.y}`)
-    })
-
-    // For three-party templates, add both signers with signing order
-    // Seller signs first (signingOrder: 1), then assignee (signingOrder: 2)
-    // Documenso will only allow assignee to sign after seller completes
-    // Check signature layout from template, not sendType
+    // For THREE-PARTY contracts, we use a TWO-DOCUMENT approach:
+    // 1. First document: Send to seller with seller-only fields
+    // 2. Second document: Send to buyer with buyer-only fields (after seller signs)
     const isThreePartyTemplate = signatureLayout === 'three-party'
 
-    console.log(`[Send Contract] Three-party template: ${isThreePartyTemplate}`)
+    // Determine which layout to use for signature positions
+    // For three-party, we create single-party documents
+    let effectiveLayout: string
+    let recipientName: string
+    let recipientEmail: string
+    let documentTitle: string
 
-    // Validate we have the expected signature positions
-    const sellerPositions = signaturePositions.filter(p => p.recipientRole === 'seller')
-    const buyerPositions = signaturePositions.filter(p => p.recipientRole === 'buyer')
-    console.log(`[Send Contract] Seller positions: ${sellerPositions.length}, Buyer positions: ${buyerPositions.length}`)
-
-    if (sellerPositions.length === 0) {
-      console.error(`[Send Contract] ERROR: No seller signature positions found!`)
-      return NextResponse.json({
-        error: 'No seller signature fields found. Please check template configuration.',
-      }, { status: 500 })
+    if (isThreePartyTemplate) {
+      if (sendTo === 'buyer') {
+        // Second stage: sending to buyer only
+        effectiveLayout = 'buyer-only'
+        recipientName = assigneeNameToSend || 'Buyer'
+        recipientEmail = assigneeEmailToSend
+        documentTitle = `Assignment Contract (Buyer) - ${propertyAddress}`
+      } else {
+        // First stage: sending to seller only
+        effectiveLayout = 'seller-only'
+        recipientName = sellerNameToSend
+        recipientEmail = sellerEmailToSend
+        documentTitle = `Assignment Contract (Seller) - ${propertyAddress}`
+      }
+    } else {
+      // Non-three-party: use the template's layout as-is
+      effectiveLayout = signatureLayout || 'two-column'
+      recipientName = sellerNameToSend
+      recipientEmail = sellerEmailToSend
+      documentTitle = `${sendType === 'purchase' ? 'Purchase Agreement' : 'Assignment Contract'} - ${propertyAddress}`
     }
 
-    if (isThreePartyTemplate && buyerPositions.length === 0) {
-      console.error(`[Send Contract] ERROR: Three-party template but no buyer positions!`)
-      return NextResponse.json({
-        error: 'Three-party template requires buyer signature fields. Please check template configuration.',
-      }, { status: 500 })
-    }
+    console.log(`[Send Contract] Effective layout: ${effectiveLayout}`)
+    console.log(`[Send Contract] Recipient: ${recipientName} <${recipientEmail}>`)
 
-    // Validate page numbers - all fields must be on valid pages
-    const invalidPageFields = signaturePositions.filter(p => p.page < 1 || p.page > pageCount)
-    if (invalidPageFields.length > 0) {
-      console.error(`[Send Contract] ERROR: Fields on invalid pages:`, invalidPageFields)
-      return NextResponse.json({
-        error: `Signature fields on invalid pages (PDF has ${pageCount} pages but fields reference pages: ${invalidPageFields.map(f => f.page).join(', ')})`,
-      }, { status: 500 })
-    }
+    // Get signature field positions for the effective layout
+    const signaturePositions = await pdfGenerator.getSignaturePositions(templateType, contractData, pageCount, effectiveLayout)
+    console.log(`[Send Contract] Got ${signaturePositions.length} signature positions`)
 
-    // Prepare recipients based on template's signature layout
-    const recipients = isThreePartyTemplate && assigneeEmailToSend
-      ? [
-          // Three-party: both seller and assignee
-          {
-            name: sellerNameToSend,
-            email: sellerEmailToSend,
-            role: 'SIGNER' as const,
-            signingOrder: 1,
-          },
-          {
-            name: assigneeNameToSend || 'Buyer',
-            email: assigneeEmailToSend,
-            role: 'SIGNER' as const,
-            signingOrder: 2,
-          },
-        ]
-      : [
-          // Non-three-party: only seller
-          {
-            name: sellerNameToSend,
-            email: sellerEmailToSend,
-            role: 'SIGNER' as const,
-            signingOrder: 1,
-          },
-        ]
+    // For buyer-only, we need to map 'seller' role to the buyer (since seller-only layout creates 'seller' positions)
+    // Actually, let's create a proper buyer-only layout in getSignaturePositions
+    // For now, map all positions to the single recipient
+    const signatureFields = signaturePositions.map(pos => ({
+      page: pos.page,
+      x: pos.x,
+      y: pos.y,
+      width: pos.width,
+      height: pos.height,
+      recipientEmail: recipientEmail,
+      fieldType: pos.fieldType as 'signature' | 'initials' | undefined,
+    }))
 
-    // Map signature positions to recipient emails
-    console.log(`[Send Contract] Mapping ${signaturePositions.length} positions to recipients`)
-    console.log(`[Send Contract] Seller email: ${sellerEmailToSend}, Assignee email: ${assigneeEmailToSend}`)
+    console.log(`[Send Contract] Mapped ${signatureFields.length} fields to ${recipientEmail}`)
 
-    const signatureFields = signaturePositions
-      .map(pos => {
-        const recipientEmail = pos.recipientRole === 'seller'
-          ? sellerEmailToSend
-          : assigneeEmailToSend || ''
-        console.log(`[Send Contract] Position: role=${pos.recipientRole}, type=${pos.fieldType}, page=${pos.page} -> email=${recipientEmail}`)
-        return {
-          page: pos.page,
-          x: pos.x,
-          y: pos.y,
-          width: pos.width,
-          height: pos.height,
-          recipientEmail,
-          fieldType: pos.fieldType as 'signature' | 'initials' | undefined,
-        }
-      })
-      .filter(f => f.recipientEmail)
-
-    // Log field counts per recipient
-    const sellerFields = signatureFields.filter(f => f.recipientEmail === sellerEmailToSend)
-    const assigneeFields = signatureFields.filter(f => f.recipientEmail === assigneeEmailToSend)
-    console.log(`[Send Contract] ===== FINAL FIELDS SUMMARY =====`)
-    console.log(`[Send Contract] Total signatureFields: ${signatureFields.length}`)
-    console.log(`[Send Contract] Seller fields (${sellerFields.length}):`, JSON.stringify(sellerFields.map(f => ({ page: f.page, type: f.fieldType, x: f.x, y: f.y }))))
-    console.log(`[Send Contract] Assignee fields (${assigneeFields.length}):`, JSON.stringify(assigneeFields.map(f => ({ page: f.page, type: f.fieldType, x: f.x, y: f.y }))))
-
-    // CRITICAL: Fail if no fields after mapping
     if (signatureFields.length === 0) {
-      console.error(`[Send Contract] CRITICAL ERROR: No signature fields after mapping!`)
-      console.error(`[Send Contract] signaturePositions had ${signaturePositions.length} items`)
-      console.error(`[Send Contract] sellerEmailToSend: "${sellerEmailToSend}", assigneeEmailToSend: "${assigneeEmailToSend}"`)
       return NextResponse.json({
-        error: 'No signature fields could be mapped to recipients. Check that seller/assignee emails are correct.',
+        error: 'No signature fields could be created. Please check template configuration.',
       }, { status: 500 })
     }
+
+    // Single recipient for each document
+    const recipients = [{
+      name: recipientName,
+      email: recipientEmail,
+      role: 'SIGNER' as const,
+      signingOrder: 1,
+    }]
 
     // Create document in Documenso with signatures
-    // Format: contract::{uuid}::{type} - using :: as separator to avoid confusion with UUID dashes
-    const externalId = `contract::${id}::${sendType}`
+    // Format: contract::{uuid}::{type}::{party} for three-party
+    const externalIdSuffix = isThreePartyTemplate ? `::${sendTo || 'seller'}` : ''
+    const externalId = `contract::${id}::${sendType}${externalIdSuffix}`
     console.log(`[Send Contract] Creating document in Documenso with externalId: ${externalId}`)
-    console.log(`[Send Contract] Recipients:`, JSON.stringify(recipients, null, 2))
 
     const result = await documenso.createDocumentWithSignatures(pdfBuffer, {
-      title: `${sendType === 'purchase' ? 'Purchase Agreement' : 'Assignment Contract'} - ${propertyAddress}`,
+      title: documentTitle,
       externalId,
       recipients,
       signatureFields,
@@ -391,14 +389,48 @@ export async function POST(
 
     console.log(`[Send Contract] Document created and sent: ${result.documentId}`)
 
-    // Update contract status
+    // Determine new status
+    let newStatus: string
+    if (isThreePartyTemplate) {
+      if (sendTo === 'buyer') {
+        newStatus = 'buyer_pending' // Waiting for buyer to sign
+      } else {
+        newStatus = 'sent' // Waiting for seller to sign (first stage)
+      }
+    } else {
+      newStatus = 'sent'
+    }
+
+    // Update contract status and store document ID
+    // For three-party, we store both document IDs in custom_fields
+    const updateData: Record<string, unknown> = {
+      status: newStatus,
+    }
+
+    if (isThreePartyTemplate) {
+      if (sendTo === 'buyer') {
+        // Store buyer document ID
+        updateData.custom_fields = {
+          ...customFields,
+          documenso_buyer_document_id: String(result.documentId),
+        }
+      } else {
+        // First send - store seller document ID
+        updateData.sent_at = new Date().toISOString()
+        updateData.documenso_document_id = String(result.documentId)
+        updateData.custom_fields = {
+          ...customFields,
+          documenso_seller_document_id: String(result.documentId),
+        }
+      }
+    } else {
+      updateData.sent_at = new Date().toISOString()
+      updateData.documenso_document_id = String(result.documentId)
+    }
+
     const { data: updated, error: updateError } = await adminSupabase
       .from('contracts')
-      .update({
-        status: 'sent',
-        sent_at: new Date().toISOString(),
-        documenso_document_id: String(result.documentId),
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single()
@@ -412,42 +444,42 @@ export async function POST(
       .from('contract_status_history')
       .insert({
         contract_id: id,
-        status: 'sent',
+        status: newStatus,
         changed_by: user.id,
         metadata: {
-          action: 'sent_for_signing',
+          action: isThreePartyTemplate
+            ? (sendTo === 'buyer' ? 'sent_to_buyer' : 'sent_to_seller')
+            : 'sent_for_signing',
           documenso_document_id: result.documentId,
           send_type: sendType,
-          recipients: recipients.map(r => r.email),
+          recipient: recipientEmail,
           ai_clauses_used: requestedClauses || [],
-          signing_urls: result.recipients.map(r => ({
-            email: r.email,
-            url: r.signingUrl,
-          })),
+          signing_url: result.recipients[0]?.signingUrl,
           three_party: isThreePartyTemplate,
+          three_party_stage: isThreePartyTemplate ? (sendTo || 'seller') : undefined,
         },
       })
 
-    // Increment contracts used this period
-    await adminSupabase
-      .from('companies')
-      .update({
-        contracts_used_this_period: (company?.contracts_used_this_period || 0) + 1,
-      })
-      .eq('id', userData.company_id)
+    // Increment contracts used this period (only on first send)
+    if (isFirstSend) {
+      await adminSupabase
+        .from('companies')
+        .update({
+          contracts_used_this_period: (company?.contracts_used_this_period || 0) + 1,
+        })
+        .eq('id', userData.company_id)
 
-    // Charge for overage if applicable
-    let overageCharged = false
-    if (isOverageContract && company?.stripe_customer_id && isStripeConfigured()) {
-      const propertyAddr = customFields?.property_address || contract.property?.address || 'Unknown'
-      const chargeResult = await chargeExtraContract(
-        company.stripe_customer_id,
-        actualPlan,
-        `Extra contract: ${propertyAddr}`
-      )
-      overageCharged = !!chargeResult
-      if (chargeResult) {
-        console.log(`[Send Contract] Overage charged: ${chargeResult.id}`)
+      // Charge for overage if applicable
+      if (isOverageContract && company?.stripe_customer_id && isStripeConfigured()) {
+        const propertyAddr = customFields?.property_address || contract.property?.address || 'Unknown'
+        const chargeResult = await chargeExtraContract(
+          company.stripe_customer_id,
+          actualPlan,
+          `Extra contract: ${propertyAddr}`
+        )
+        if (chargeResult) {
+          console.log(`[Send Contract] Overage charged: ${chargeResult.id}`)
+        }
       }
     }
 
@@ -462,11 +494,15 @@ export async function POST(
         id: result.documentId,
         recipients: result.recipients,
       },
-      billing: {
+      billing: isFirstSend ? {
         isOverage: isOverageContract,
-        overageCharged,
+        overageCharged: isOverageContract,
         overageAmount: isOverageContract ? formatPrice(overagePrice) : null,
-      },
+      } : undefined,
+      threeParty: isThreePartyTemplate ? {
+        stage: sendTo || 'seller',
+        nextStage: sendTo === 'buyer' ? null : 'buyer',
+      } : undefined,
     })
   } catch (error) {
     console.error('Send contract error:', error)

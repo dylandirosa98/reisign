@@ -39,7 +39,8 @@ export async function POST(request: NextRequest) {
     console.log('Documenso webhook received:', event, payload)
 
     // Extract contract ID from externalId
-    // New format: "contract::{uuid}::{type}" (using :: as separator)
+    // Three-party format: "contract::{uuid}::{type}::{party}" (seller or buyer)
+    // Standard format: "contract::{uuid}::{type}"
     // Old format: "contract-{uuid}-{type}" (still supported for existing documents)
     const externalId = payload.externalId
     if (!externalId?.startsWith('contract')) {
@@ -49,12 +50,14 @@ export async function POST(request: NextRequest) {
 
     let contractId: string
     let contractType: string
+    let threePartyStage: string | undefined // 'seller' or 'buyer' for three-party contracts
 
     if (externalId.includes('::')) {
-      // New format: "contract::{uuid}::{type}"
+      // New format: "contract::{uuid}::{type}" or "contract::{uuid}::{type}::{party}"
       const parts = externalId.split('::')
       contractId = parts[1]
       contractType = parts[2] // 'purchase' or 'assignment'
+      threePartyStage = parts[3] // 'seller' or 'buyer' (optional, for three-party)
     } else {
       // Old format: "contract-{uuid}-{type}" or "contract-{uuid}-{type}-{timestamp}"
       // UUID is always 36 chars, so extract it precisely
@@ -73,14 +76,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true })
     }
 
-    console.log('Parsed contract ID:', contractId, 'Type:', contractType)
+    console.log('Parsed contract ID:', contractId, 'Type:', contractType, 'Three-party stage:', threePartyStage || 'none')
 
     const adminSupabase = createAdminClient()
 
-    // Find the contract
+    // Find the contract with custom_fields to check for three-party info
     const { data: contract, error: findError } = await adminSupabase
       .from('contracts')
-      .select('id, status, company_id, documenso_document_id, seller_email, buyer_email')
+      .select('id, status, company_id, documenso_document_id, seller_email, buyer_email, custom_fields')
       .eq('id', contractId)
       .single()
 
@@ -88,6 +91,14 @@ export async function POST(request: NextRequest) {
       console.log('Contract not found:', contractId)
       return NextResponse.json({ received: true })
     }
+
+    // Check if this is a three-party contract based on custom_fields
+    const customFields = contract.custom_fields as Record<string, unknown> | null
+    const hasSellerDocId = !!customFields?.documenso_seller_document_id
+    const hasBuyerDocId = !!customFields?.documenso_buyer_document_id
+    const isThreePartyContract = hasSellerDocId || threePartyStage === 'seller' || threePartyStage === 'buyer'
+
+    console.log('Is three-party contract:', isThreePartyContract, 'Stage from externalId:', threePartyStage)
 
     // Helper to determine party from recipient email
     const getPartyFromEmail = (email?: string): string => {
@@ -109,7 +120,7 @@ export async function POST(request: NextRequest) {
       case 'DOCUMENT_OPENED':
       case 'document.opened': {
         // Recipient opened the document
-        const viewerParty = getPartyFromEmail(recipientEmail)
+        const viewerParty = threePartyStage || getPartyFromEmail(recipientEmail)
         console.log(`Document viewed by ${viewerParty || 'unknown'} (${recipientEmail})`)
 
         // Update contract status to viewed only if still in sent status
@@ -124,6 +135,22 @@ export async function POST(request: NextRequest) {
             party: viewerParty,
             recipient_email: recipientEmail,
           }
+        } else if (contract.status === 'buyer_pending') {
+          // Buyer opened their document - record but don't change status
+          await adminSupabase
+            .from('contract_status_history')
+            .insert({
+              contract_id: contractId,
+              status: contract.status,
+              metadata: {
+                action: 'buyer_viewed',
+                party: 'buyer',
+                recipient_email: recipientEmail,
+                event,
+                contract_type: contractType,
+                three_party_stage: threePartyStage,
+              },
+            })
         } else {
           // Status already changed, just record the view event
           await adminSupabase
@@ -137,6 +164,7 @@ export async function POST(request: NextRequest) {
                 recipient_email: recipientEmail,
                 event,
                 contract_type: contractType,
+                three_party_stage: threePartyStage,
               },
             })
         }
@@ -146,7 +174,7 @@ export async function POST(request: NextRequest) {
       case 'DOCUMENT_SIGNED':
       case 'document.signed': {
         // Individual recipient signed - record the event
-        const signerParty = getPartyFromEmail(recipientEmail)
+        const signerParty = threePartyStage || getPartyFromEmail(recipientEmail)
         console.log(`Document signed by ${signerParty || 'unknown'} (${recipientEmail})`)
 
         // Record the signed event with party info
@@ -161,6 +189,7 @@ export async function POST(request: NextRequest) {
               recipient_email: recipientEmail,
               event,
               contract_type: contractType,
+              three_party_stage: threePartyStage,
             },
           })
         break
@@ -168,14 +197,44 @@ export async function POST(request: NextRequest) {
 
       case 'DOCUMENT_COMPLETED':
       case 'document.completed':
-        // All recipients have signed - document is complete
-        newStatus = 'completed'
-        updateData = {
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-        }
-        additionalMetadata = {
-          action: 'document_completed',
+        // Document completed - handle differently for three-party contracts
+        if (isThreePartyContract && threePartyStage === 'seller') {
+          // Seller's document completed - move to 'seller_signed' status
+          // User can now send the buyer document
+          newStatus = 'seller_signed'
+          updateData = {
+            status: 'seller_signed',
+          }
+          additionalMetadata = {
+            action: 'seller_document_completed',
+            party: 'seller',
+            three_party_stage: 'seller',
+            next_step: 'send_to_buyer',
+          }
+          console.log('Three-party: Seller signed, waiting for buyer document to be sent')
+        } else if (isThreePartyContract && threePartyStage === 'buyer') {
+          // Buyer's document completed - contract is fully complete
+          newStatus = 'completed'
+          updateData = {
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          }
+          additionalMetadata = {
+            action: 'buyer_document_completed',
+            party: 'buyer',
+            three_party_stage: 'buyer',
+          }
+          console.log('Three-party: Buyer signed, contract complete')
+        } else {
+          // Standard single-document contract completed
+          newStatus = 'completed'
+          updateData = {
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          }
+          additionalMetadata = {
+            action: 'document_completed',
+          }
         }
         break
 
@@ -188,8 +247,9 @@ export async function POST(request: NextRequest) {
         }
         additionalMetadata = {
           action: 'document_rejected',
-          party: getPartyFromEmail(recipientEmail),
+          party: threePartyStage || getPartyFromEmail(recipientEmail),
           recipient_email: recipientEmail,
+          three_party_stage: threePartyStage,
         }
         break
 
@@ -218,6 +278,7 @@ export async function POST(request: NextRequest) {
               event,
               contract_type: contractType,
               documenso_payload: payload,
+              three_party_stage: threePartyStage,
               ...additionalMetadata,
             },
           })

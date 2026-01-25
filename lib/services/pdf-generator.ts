@@ -826,9 +826,10 @@ class PDFGeneratorService {
       })))
 
     } else if (layout === 'seller-only') {
-      // SELLER-ONLY LAYOUT: Only seller signs (centered)
+      // SELLER-ONLY LAYOUT: Only seller signs
+      // Used for first stage of three-party contracts (seller document)
 
-      // Seller initials in footer (pages 1 to N-1)
+      // Seller initials in footer - LEFT side (pages 1 to N-1)
       for (let page = 1; page <= pagesWithInitials; page++) {
         positions.push({
           page: page,
@@ -841,18 +842,52 @@ class PDFGeneratorService {
         })
       }
 
-      // Seller signature - centered on last page
+      // Seller signature - top section on signature page (same position as three-party seller)
       positions.push({
         page: totalPages,
-        x: 28,
-        y: 31,
-        width: 35,
+        x: 10,
+        y: 15,
+        width: 30,
         height: 5,
         recipientRole: 'seller',
         fieldType: 'signature',
       })
 
       console.log(`[PDF Generator] Seller-only positions:`, positions.map(p => ({
+        page: p.page,
+        role: p.recipientRole,
+        type: p.fieldType
+      })))
+
+    } else if (layout === 'buyer-only') {
+      // BUYER-ONLY LAYOUT: Only buyer/assignee signs
+      // Used for second stage of three-party contracts (buyer document)
+
+      // Buyer initials in footer - RIGHT side (pages 1 to N-1)
+      for (let page = 1; page <= pagesWithInitials; page++) {
+        positions.push({
+          page: page,
+          x: 88,
+          y: 95,
+          width: 8,
+          height: 2.8,
+          recipientRole: 'buyer',
+          fieldType: 'initials',
+        })
+      }
+
+      // Buyer signature - bottom section on signature page (same position as three-party buyer)
+      positions.push({
+        page: totalPages,
+        x: 11,
+        y: 65,
+        width: 30,
+        height: 5,
+        recipientRole: 'buyer',
+        fieldType: 'signature',
+      })
+
+      console.log(`[PDF Generator] Buyer-only positions:`, positions.map(p => ({
         page: p.page,
         role: p.recipientRole,
         type: p.fieldType
