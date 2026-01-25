@@ -798,11 +798,11 @@ class PDFGeneratorService {
       }
 
       // Seller signature - first section on signature page
-      // Measured: x=5.9%, y=22.8%
+      // Measured: x=5.9%, y=18.6% (compact template redesign)
       positions.push({
         page: totalPages,
         x: 6,         // Left column
-        y: 23,        // First section (measured: 22.8%)
+        y: 19,        // First section (measured: 18.6%)
         width: 35,
         height: 5,
         recipientRole: 'seller',
@@ -810,11 +810,11 @@ class PDFGeneratorService {
       })
 
       // Assignee/Buyer signature - third section on signature page
-      // Measured: x=5.9%, y=83.7%
+      // Measured: x=5.9%, y=80.9% (compact template redesign)
       positions.push({
         page: totalPages,
         x: 6,         // Left column
-        y: 84,        // Third section (measured: 83.7%)
+        y: 81,        // Third section (measured: 80.9%)
         width: 35,
         height: 5,
         recipientRole: 'buyer',
