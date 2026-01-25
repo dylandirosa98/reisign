@@ -262,36 +262,39 @@ export async function POST(
     // Get signature field positions (including seller initials on each page)
     const signaturePositions = await pdfGenerator.getSignaturePositions(templateType, contractData, pageCount, signatureLayout)
 
-    // For three-party contracts, add both signers with signing order
+    // For three-party templates, add both signers with signing order
     // Seller signs first (signingOrder: 1), then assignee (signingOrder: 2)
     // Documenso will only allow assignee to sign after seller completes
-    const isThreePartyAssignment = sendType === 'assignment' && isThreeParty && assigneeEmailToSend
+    // Check signature layout from template, not sendType
+    const isThreePartyTemplate = signatureLayout === 'three-party'
 
-    console.log(`[Send Contract] Three-party assignment: ${isThreePartyAssignment}, isThreeParty: ${isThreeParty}`)
+    console.log(`[Send Contract] Three-party template: ${isThreePartyTemplate}, signatureLayout: ${signatureLayout}`)
 
-    // Prepare recipients - for three-party, add both with signing order
-    const recipients = sendType === 'purchase'
+    // Prepare recipients based on template's signature layout
+    const recipients = isThreePartyTemplate && assigneeEmailToSend
       ? [
+          // Three-party: both seller and assignee
           {
             name: sellerNameToSend,
             email: sellerEmailToSend,
             role: 'SIGNER' as const,
             signingOrder: 1,
           },
-        ]
-      : [
           {
-            name: sellerNameToSend,
-            email: sellerEmailToSend,
-            role: 'SIGNER' as const,
-            signingOrder: 1,
-          },
-          ...(assigneeEmailToSend ? [{
             name: assigneeNameToSend || 'Buyer',
             email: assigneeEmailToSend,
             role: 'SIGNER' as const,
             signingOrder: 2,
-          }] : []),
+          },
+        ]
+      : [
+          // Non-three-party: only seller
+          {
+            name: sellerNameToSend,
+            email: sellerEmailToSend,
+            role: 'SIGNER' as const,
+            signingOrder: 1,
+          },
         ]
 
     // Map signature positions to recipient emails
@@ -372,7 +375,7 @@ export async function POST(
             email: r.email,
             url: r.signingUrl,
           })),
-          three_party: isThreePartyAssignment,
+          three_party: isThreePartyTemplate,
         },
       })
 
