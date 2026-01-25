@@ -105,6 +105,9 @@ export async function POST(
   const body = await request.json().catch(() => ({}))
   const sendType = body.type || 'purchase' // 'purchase' or 'assignment'
   const requestedClauses = body.clauses as ClauseType[] | undefined
+  // Allow overriding email addresses for sending (use provided values or fall back to contract values)
+  const sellerEmailToSend = body.sellerEmail || contract.seller_email
+  const assigneeEmailToSend = body.assigneeEmail || contract.buyer_email
 
   const customFields = contract.custom_fields as {
     property_address?: string
@@ -240,12 +243,12 @@ export async function POST(
     // Get signature field positions (including seller initials on each page)
     const signaturePositions = await pdfGenerator.getSignaturePositions(templateType, contractData, pageCount, signatureLayout)
 
-    // Prepare recipients based on contract type
+    // Prepare recipients based on contract type (use editable send-to emails)
     const recipients = sendType === 'purchase'
       ? [
           {
             name: contract.seller_name,
-            email: contract.seller_email,
+            email: sellerEmailToSend,
             role: 'SIGNER' as const,
             signingOrder: 1,
           },
@@ -253,19 +256,19 @@ export async function POST(
       : [
           {
             name: contract.seller_name,
-            email: contract.seller_email,
+            email: sellerEmailToSend,
             role: 'SIGNER' as const,
             signingOrder: 1,
           },
-          ...(contract.buyer_email ? [{
+          ...(assigneeEmailToSend ? [{
             name: contract.buyer_name || 'Buyer',
-            email: contract.buyer_email,
+            email: assigneeEmailToSend,
             role: 'SIGNER' as const,
             signingOrder: 2,
           }] : []),
         ]
 
-    // Map signature positions to recipient emails
+    // Map signature positions to recipient emails (use editable send-to emails)
     const signatureFields = signaturePositions.map(pos => ({
       page: pos.page,
       x: pos.x,
@@ -273,8 +276,8 @@ export async function POST(
       width: pos.width,
       height: pos.height,
       recipientEmail: pos.recipientRole === 'seller'
-        ? contract.seller_email
-        : contract.buyer_email || '',
+        ? sellerEmailToSend
+        : assigneeEmailToSend || '',
       fieldType: pos.fieldType as 'signature' | 'initials' | undefined,
     })).filter(f => f.recipientEmail)
 

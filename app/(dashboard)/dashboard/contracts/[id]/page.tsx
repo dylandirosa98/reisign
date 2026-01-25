@@ -259,6 +259,10 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   } | null>(null)
   const [pendingSend, setPendingSend] = useState<{ type: 'purchase' | 'assignment' } | null>(null)
 
+  // Editable "send to" emails - can differ from contract values
+  const [sendToSellerEmail, setSendToSellerEmail] = useState('')
+  const [sendToAssigneeEmail, setSendToAssigneeEmail] = useState('')
+
   useEffect(() => {
     fetchContract()
     fetchUsageInfo()
@@ -274,6 +278,9 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       setContract(data.contract)
       setHistory(data.history || [])
       setTemplate(data.template || null)
+      // Initialize send-to emails from contract values
+      setSendToSellerEmail(data.contract.seller_email || '')
+      setSendToAssigneeEmail(data.contract.buyer_email || '')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load contract')
     } finally {
@@ -371,7 +378,12 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/contracts/${id}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type }),
+        body: JSON.stringify({
+          type,
+          // Use editable send-to emails (can differ from contract values)
+          sellerEmail: sendToSellerEmail,
+          assigneeEmail: sendToAssigneeEmail,
+        }),
       })
 
       if (!res.ok) {
@@ -751,56 +763,80 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                 /* Edit Mode */
                 <div className="space-y-6">
                   {/* Property Section */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
-                      <Home className="w-4 h-4 text-[var(--gray-400)]" />
-                      Property
-                    </h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="col-span-2">
-                        <Label className="text-xs text-[var(--gray-600)]">Address</Label>
-                        <Input
-                          value={formData.property_address}
-                          onChange={(e) => updateField('property_address', e.target.value)}
-                          placeholder="123 Main St"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">City</Label>
-                        <Input
-                          value={formData.property_city}
-                          onChange={(e) => updateField('property_city', e.target.value)}
-                          placeholder="City"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-xs text-[var(--gray-600)]">State</Label>
-                          <Input
-                            value={formData.property_state}
-                            onChange={(e) => updateField('property_state', e.target.value)}
-                            placeholder="FL"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs text-[var(--gray-600)]">ZIP</Label>
-                          <Input
-                            value={formData.property_zip}
-                            onChange={(e) => updateField('property_zip', e.target.value)}
-                            placeholder="12345"
-                          />
-                        </div>
-                      </div>
-                      <div className="col-span-2">
-                        <Label className="text-xs text-[var(--gray-600)]">APN/Parcel Number</Label>
-                        <Input
-                          value={formData.apn}
-                          onChange={(e) => updateField('apn', e.target.value)}
-                          placeholder="Optional"
-                        />
+                  {isGroupVisible(['property_address', 'property_city', 'property_state', 'property_zip', 'apn']) && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
+                        <Home className="w-4 h-4 text-[var(--gray-400)]" />
+                        Property
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {isFieldVisible('property_address') && (
+                          <div className="col-span-2">
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Address {isFieldRequired('property_address') && '*'}
+                            </Label>
+                            <Input
+                              value={formData.property_address}
+                              onChange={(e) => updateField('property_address', e.target.value)}
+                              placeholder="123 Main St"
+                            />
+                          </div>
+                        )}
+                        {isFieldVisible('property_city') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              City {isFieldRequired('property_city') && '*'}
+                            </Label>
+                            <Input
+                              value={formData.property_city}
+                              onChange={(e) => updateField('property_city', e.target.value)}
+                              placeholder="City"
+                            />
+                          </div>
+                        )}
+                        {(isFieldVisible('property_state') || isFieldVisible('property_zip')) && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {isFieldVisible('property_state') && (
+                              <div>
+                                <Label className="text-xs text-[var(--gray-600)]">
+                                  State {isFieldRequired('property_state') && '*'}
+                                </Label>
+                                <Input
+                                  value={formData.property_state}
+                                  onChange={(e) => updateField('property_state', e.target.value)}
+                                  placeholder="FL"
+                                />
+                              </div>
+                            )}
+                            {isFieldVisible('property_zip') && (
+                              <div>
+                                <Label className="text-xs text-[var(--gray-600)]">
+                                  ZIP {isFieldRequired('property_zip') && '*'}
+                                </Label>
+                                <Input
+                                  value={formData.property_zip}
+                                  onChange={(e) => updateField('property_zip', e.target.value)}
+                                  placeholder="12345"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {isFieldVisible('apn') && (
+                          <div className="col-span-2">
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              APN/Parcel Number {isFieldRequired('apn') && '*'}
+                            </Label>
+                            <Input
+                              value={formData.apn}
+                              onChange={(e) => updateField('apn', e.target.value)}
+                              placeholder="Optional"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Seller Section */}
                   {isGroupVisible(['seller_name', 'seller_email', 'seller_phone', 'seller_address']) && (
@@ -929,200 +965,255 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   )}
 
                   {/* Pricing Section */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-[var(--gray-400)]" />
-                      Pricing
-                    </h3>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Purchase Price *</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--gray-500)]">$</span>
-                          <Input
-                            type="text"
-                            value={formData.price}
-                            onChange={(e) => updateField('price', formatCurrency(e.target.value))}
-                            placeholder="250,000"
-                            className="pl-7"
-                            required
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Earnest Money</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--gray-500)]">$</span>
-                          <Input
-                            type="text"
-                            value={formData.earnest_money}
-                            onChange={(e) => updateField('earnest_money', formatCurrency(e.target.value))}
-                            placeholder="5,000"
-                            className="pl-7"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Assignment Fee</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--gray-500)]">$</span>
-                          <Input
-                            type="text"
-                            value={formData.assignment_fee}
-                            onChange={(e) => updateField('assignment_fee', formatCurrency(e.target.value))}
-                            placeholder="10,000"
-                            className="pl-7"
-                          />
-                        </div>
+                  {isGroupVisible(['purchase_price', 'price', 'earnest_money', 'assignment_fee']) && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
+                        <DollarSign className="w-4 h-4 text-[var(--gray-400)]" />
+                        Pricing
+                      </h3>
+                      <div className="grid grid-cols-3 gap-3">
+                        {(isFieldVisible('purchase_price') || isFieldVisible('price')) && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Purchase Price {(isFieldRequired('purchase_price') || isFieldRequired('price')) && '*'}
+                            </Label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--gray-500)]">$</span>
+                              <Input
+                                type="text"
+                                value={formData.price}
+                                onChange={(e) => updateField('price', formatCurrency(e.target.value))}
+                                placeholder="250,000"
+                                className="pl-7"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {isFieldVisible('earnest_money') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Earnest Money {isFieldRequired('earnest_money') && '*'}
+                            </Label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--gray-500)]">$</span>
+                              <Input
+                                type="text"
+                                value={formData.earnest_money}
+                                onChange={(e) => updateField('earnest_money', formatCurrency(e.target.value))}
+                                placeholder="5,000"
+                                className="pl-7"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {isFieldVisible('assignment_fee') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Assignment Fee {isFieldRequired('assignment_fee') && '*'}
+                            </Label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--gray-500)]">$</span>
+                              <Input
+                                type="text"
+                                value={formData.assignment_fee}
+                                onChange={(e) => updateField('assignment_fee', formatCurrency(e.target.value))}
+                                placeholder="10,000"
+                                className="pl-7"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Escrow Section */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Escrow/Title Company</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Company Name</Label>
-                        <Input
-                          value={formData.escrow_agent_name}
-                          onChange={(e) => updateField('escrow_agent_name', e.target.value)}
-                          placeholder="Title Company LLC"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Officer Name</Label>
-                        <Input
-                          value={formData.escrow_officer}
-                          onChange={(e) => updateField('escrow_officer', e.target.value)}
-                          placeholder="Jane Smith"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Email</Label>
-                        <Input
-                          type="email"
-                          value={formData.escrow_agent_email}
-                          onChange={(e) => updateField('escrow_agent_email', e.target.value)}
-                          placeholder="escrow@title.com"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Address</Label>
-                        <Input
-                          value={formData.escrow_agent_address}
-                          onChange={(e) => updateField('escrow_agent_address', e.target.value)}
-                          placeholder="123 Title St"
-                        />
+                  {isGroupVisible(['escrow_agent_name', 'escrow_officer', 'escrow_agent_email', 'escrow_agent_address']) && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Escrow/Title Company</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {isFieldVisible('escrow_agent_name') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Company Name {isFieldRequired('escrow_agent_name') && '*'}
+                            </Label>
+                            <Input
+                              value={formData.escrow_agent_name}
+                              onChange={(e) => updateField('escrow_agent_name', e.target.value)}
+                              placeholder="Title Company LLC"
+                            />
+                          </div>
+                        )}
+                        {isFieldVisible('escrow_officer') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Officer Name {isFieldRequired('escrow_officer') && '*'}
+                            </Label>
+                            <Input
+                              value={formData.escrow_officer}
+                              onChange={(e) => updateField('escrow_officer', e.target.value)}
+                              placeholder="Jane Smith"
+                            />
+                          </div>
+                        )}
+                        {isFieldVisible('escrow_agent_email') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Email {isFieldRequired('escrow_agent_email') && '*'}
+                            </Label>
+                            <Input
+                              type="email"
+                              value={formData.escrow_agent_email}
+                              onChange={(e) => updateField('escrow_agent_email', e.target.value)}
+                              placeholder="escrow@title.com"
+                            />
+                          </div>
+                        )}
+                        {isFieldVisible('escrow_agent_address') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Address {isFieldRequired('escrow_agent_address') && '*'}
+                            </Label>
+                            <Input
+                              value={formData.escrow_agent_address}
+                              onChange={(e) => updateField('escrow_agent_address', e.target.value)}
+                              placeholder="123 Title St"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Dates Section */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Important Dates</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Close of Escrow</Label>
-                        <Input
-                          type="date"
-                          value={formData.close_of_escrow}
-                          onChange={(e) => updateField('close_of_escrow', e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Inspection Period (Days)</Label>
-                        <Input
-                          type="number"
-                          value={formData.inspection_period}
-                          onChange={(e) => updateField('inspection_period', e.target.value)}
-                          placeholder="e.g., 10"
-                        />
+                  {isGroupVisible(['close_of_escrow', 'inspection_period']) && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Important Dates</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {isFieldVisible('close_of_escrow') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Close of Escrow {isFieldRequired('close_of_escrow') && '*'}
+                            </Label>
+                            <Input
+                              type="date"
+                              value={formData.close_of_escrow}
+                              onChange={(e) => updateField('close_of_escrow', e.target.value)}
+                            />
+                          </div>
+                        )}
+                        {isFieldVisible('inspection_period') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Inspection Period (Days) {isFieldRequired('inspection_period') && '*'}
+                            </Label>
+                            <Input
+                              type="number"
+                              value={formData.inspection_period}
+                              onChange={(e) => updateField('inspection_period', e.target.value)}
+                              placeholder="e.g., 10"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Section 1.10 - Closing Amounts */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Closing Amounts (Section 1.10)</h3>
-                    <p className="text-xs text-[var(--gray-500)] mb-3">Check one option for each, or leave unchecked</p>
-                    <div className="space-y-4">
-                      {/* Escrow Fees */}
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)] mb-2 block">Escrow fees and costs:</Label>
-                        <div className="flex gap-4">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formData.escrow_fees_split === 'split'}
-                              onChange={(e) => updateField('escrow_fees_split', e.target.checked ? 'split' : '')}
-                              className="w-4 h-4"
-                            />
-                            <span className="text-sm">50% Buyer / 50% Seller</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formData.escrow_fees_split === 'buyer'}
-                              onChange={(e) => updateField('escrow_fees_split', e.target.checked ? 'buyer' : '')}
-                              className="w-4 h-4"
-                            />
-                            <span className="text-sm">100% Buyer</span>
-                          </label>
-                        </div>
-                      </div>
+                  {isGroupVisible(['escrow_fees_split', 'title_policy_paid_by', 'hoa_fees_split']) && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Closing Amounts</h3>
+                      <p className="text-xs text-[var(--gray-500)] mb-3">Check one option for each, or leave unchecked</p>
+                      <div className="space-y-4">
+                        {/* Escrow Fees */}
+                        {isFieldVisible('escrow_fees_split') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)] mb-2 block">
+                              Escrow fees and costs: {isFieldRequired('escrow_fees_split') && '*'}
+                            </Label>
+                            <div className="flex gap-4">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.escrow_fees_split === 'split'}
+                                  onChange={(e) => updateField('escrow_fees_split', e.target.checked ? 'split' : '')}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm">50% Buyer / 50% Seller</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.escrow_fees_split === 'buyer'}
+                                  onChange={(e) => updateField('escrow_fees_split', e.target.checked ? 'buyer' : '')}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm">100% Buyer</span>
+                              </label>
+                            </div>
+                          </div>
+                        )}
 
-                      {/* Title Policy */}
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)] mb-2 block">Standard title policy paid by:</Label>
-                        <div className="flex gap-4">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formData.title_policy_paid_by === 'seller'}
-                              onChange={(e) => updateField('title_policy_paid_by', e.target.checked ? 'seller' : '')}
-                              className="w-4 h-4"
-                            />
-                            <span className="text-sm">Seller</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formData.title_policy_paid_by === 'buyer'}
-                              onChange={(e) => updateField('title_policy_paid_by', e.target.checked ? 'buyer' : '')}
-                              className="w-4 h-4"
-                            />
-                            <span className="text-sm">Buyer</span>
-                          </label>
-                        </div>
-                      </div>
+                        {/* Title Policy */}
+                        {isFieldVisible('title_policy_paid_by') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)] mb-2 block">
+                              Standard title policy paid by: {isFieldRequired('title_policy_paid_by') && '*'}
+                            </Label>
+                            <div className="flex gap-4">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.title_policy_paid_by === 'seller'}
+                                  onChange={(e) => updateField('title_policy_paid_by', e.target.checked ? 'seller' : '')}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm">Seller</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.title_policy_paid_by === 'buyer'}
+                                  onChange={(e) => updateField('title_policy_paid_by', e.target.checked ? 'buyer' : '')}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm">Buyer</span>
+                              </label>
+                            </div>
+                          </div>
+                        )}
 
-                      {/* HOA Fees */}
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)] mb-2 block">HOA fees (if applicable):</Label>
-                        <div className="flex gap-4">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formData.hoa_fees_split === 'split'}
-                              onChange={(e) => updateField('hoa_fees_split', e.target.checked ? 'split' : '')}
-                              className="w-4 h-4"
-                            />
-                            <span className="text-sm">50% Buyer / 50% Seller</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formData.hoa_fees_split === 'buyer'}
-                              onChange={(e) => updateField('hoa_fees_split', e.target.checked ? 'buyer' : '')}
-                              className="w-4 h-4"
-                            />
+                        {/* HOA Fees */}
+                        {isFieldVisible('hoa_fees_split') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)] mb-2 block">
+                              HOA fees (if applicable): {isFieldRequired('hoa_fees_split') && '*'}
+                            </Label>
+                            <div className="flex gap-4">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.hoa_fees_split === 'split'}
+                                  onChange={(e) => updateField('hoa_fees_split', e.target.checked ? 'split' : '')}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm">50% Buyer / 50% Seller</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.hoa_fees_split === 'buyer'}
+                                  onChange={(e) => updateField('hoa_fees_split', e.target.checked ? 'buyer' : '')}
+                                  className="w-4 h-4"
+                                />
                             <span className="text-sm">100% Buyer</span>
-                          </label>
-                        </div>
+                              </label>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Additional Terms */}
                   {isGroupVisible(['personal_property', 'additional_terms']) && (
@@ -1657,7 +1748,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               </div>
               <div className="p-4 space-y-4">
                 <p className="text-xs text-[var(--gray-600)]">
-                  The signing document will be sent to these email addresses via Documenso.
+                  Edit the email addresses below to customize where the signing document will be sent via Documenso.
                 </p>
 
                 {/* Seller Email */}
@@ -1665,9 +1756,13 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   <Label className="text-xs text-[var(--gray-600)]">
                     Seller Email {isThreeParty && <span className="text-[var(--primary-600)]">(Signs 1st)</span>}
                   </Label>
-                  <div className="mt-1 px-3 py-2 bg-[var(--gray-50)] border border-[var(--gray-200)] rounded text-sm">
-                    {contract.seller_email || <span className="text-[var(--gray-400)]">Not set</span>}
-                  </div>
+                  <Input
+                    type="email"
+                    value={sendToSellerEmail}
+                    onChange={(e) => setSendToSellerEmail(e.target.value)}
+                    placeholder="seller@email.com"
+                    className="mt-1"
+                  />
                 </div>
 
                 {/* Assignee Email - only for three-party */}
@@ -1676,15 +1771,19 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     <Label className="text-xs text-[var(--gray-600)]">
                       Assignee Email <span className="text-[var(--primary-600)]">(Signs 2nd)</span>
                     </Label>
-                    <div className="mt-1 px-3 py-2 bg-[var(--gray-50)] border border-[var(--gray-200)] rounded text-sm">
-                      {contract.buyer_email || <span className="text-[var(--gray-400)]">Not set</span>}
-                    </div>
+                    <Input
+                      type="email"
+                      value={sendToAssigneeEmail}
+                      onChange={(e) => setSendToAssigneeEmail(e.target.value)}
+                      placeholder="assignee@email.com"
+                      className="mt-1"
+                    />
                   </div>
                 )}
 
-                {(!contract.seller_email || (isThreeParty && !contract.buyer_email)) && (
+                {(!sendToSellerEmail || (isThreeParty && !sendToAssigneeEmail)) && (
                   <p className="text-xs text-[var(--warning-700)] bg-[var(--warning-100)] p-2 rounded">
-                    Click &quot;Edit&quot; above to add missing email addresses before sending.
+                    Please enter email addresses before sending.
                   </p>
                 )}
               </div>
