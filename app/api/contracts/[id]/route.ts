@@ -49,9 +49,27 @@ export async function GET(
     .eq('contract_id', id)
     .order('created_at', { ascending: false })
 
+  // Get the template used for this contract (if any)
+  let template = null
+  const customFields = contract.custom_fields as Record<string, unknown> | null
+  const companyTemplateId = customFields?.company_template_id as string | undefined
+
+  if (companyTemplateId) {
+    const { data: templateData } = await adminSupabase
+      .from('company_templates' as any)
+      .select('id, name, signature_layout, field_config, custom_fields')
+      .eq('id', companyTemplateId)
+      .single()
+
+    if (templateData) {
+      template = templateData
+    }
+  }
+
   return NextResponse.json({
     contract,
     history: history || [],
+    template,
   })
 }
 

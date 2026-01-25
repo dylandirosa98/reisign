@@ -948,6 +948,19 @@ The closing shall occur on [Date]..."
                         onChange={(e) => setHtmlContent(e.target.value)}
                         className="w-full h-[300px] px-3 py-2 font-mono text-xs border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)] bg-[var(--gray-50)]"
                       />
+
+                      {/* AI Clauses Documentation */}
+                      <div className="mt-3 p-3 bg-[var(--primary-50)] border border-[var(--primary-200)] rounded-lg">
+                        <h4 className="text-xs font-semibold text-[var(--primary-800)] mb-1">AI-Generated Clauses</h4>
+                        <p className="text-xs text-[var(--primary-700)] mb-2">
+                          Use <code className="bg-[var(--primary-100)] px-1 rounded">{'{{ai_clauses}}'}</code> to mark where AI-generated clauses should appear.
+                        </p>
+                        <ul className="text-xs text-[var(--primary-700)] space-y-1 ml-3 list-disc">
+                          <li>Clauses will be auto-numbered based on their position in the document</li>
+                          <li>Place this placeholder after the section where you want clauses to appear</li>
+                          <li>Users can generate and customize clauses when creating contracts</li>
+                        </ul>
+                      </div>
                     </div>
                   )}
 

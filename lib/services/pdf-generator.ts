@@ -95,9 +95,46 @@ class PDFGeneratorService {
   }
 
   /**
-   * Format AI clauses array into HTML for PDF
+   * Detect the section number that precedes the {{ai_clauses}} placeholder
+   * Returns the starting number for AI clauses (e.g., if after section 8.3, returns { major: 8, minor: 4 })
    */
-  private formatAiClauses(clauses: ContractData['ai_clauses']): string {
+  private detectClausePosition(template: string): { major: number; minor: number } {
+    // Find where {{ai_clauses}} appears in the template
+    const placeholderIndex = template.indexOf('{{ai_clauses}}')
+    if (placeholderIndex === -1) {
+      // Default to 12.6 if no placeholder found (backward compatibility)
+      return { major: 12, minor: 6 }
+    }
+
+    // Get the text before the placeholder
+    const textBefore = template.substring(0, placeholderIndex)
+
+    // Find all section numbers in the format X.Y (e.g., "8.3", "12.5")
+    const sectionPattern = /(\d{1,2})\.(\d{1,2})/g
+    const matches = [...textBefore.matchAll(sectionPattern)]
+
+    if (matches.length > 0) {
+      // Get the last section number before the placeholder
+      const lastMatch = matches[matches.length - 1]
+      const major = parseInt(lastMatch[1], 10)
+      const minor = parseInt(lastMatch[2], 10)
+      // AI clauses start at the next subsection
+      return { major, minor: minor + 1 }
+    }
+
+    // Default fallback
+    return { major: 12, minor: 6 }
+  }
+
+  /**
+   * Format AI clauses array into HTML for PDF
+   * If startingPosition is provided, uses that for numbering
+   * Otherwise detects position from template or defaults to 12.6
+   */
+  private formatAiClauses(
+    clauses: ContractData['ai_clauses'],
+    startingPosition?: { major: number; minor: number }
+  ): string {
     if (!clauses) return ''
 
     // If it's already a string, return as-is
@@ -105,11 +142,11 @@ class PDFGeneratorService {
 
     // If it's an array, convert to HTML
     if (Array.isArray(clauses) && clauses.length > 0) {
-      // Start numbering from 12.6 (continuing after 12.5 in the Miscellaneous section)
-      const startingNumber = 6
+      const { major, minor } = startingPosition || { major: 12, minor: 6 }
+
       const clauseHtml = clauses.map((clause, index) => {
         const content = clause.editedContent || clause.content
-        const clauseNumber = `12.${startingNumber + index}`
+        const clauseNumber = `${major}.${minor + index}`
         return `<p class="paragraph">
           <strong>${clauseNumber}</strong> <em>${clause.title}:</em> ${content}
         </p>`
@@ -328,8 +365,8 @@ class PDFGeneratorService {
       hoa_fees_split_check: data.hoa_fees_split === 'split' ? 'checked' : '',
       hoa_fees_buyer_check: data.hoa_fees_split === 'buyer' ? 'checked' : '',
 
-      // AI Clauses - convert array to HTML if needed
-      ai_clauses: this.formatAiClauses(data.ai_clauses),
+      // AI Clauses - convert array to HTML with auto-numbering based on position
+      ai_clauses: this.formatAiClauses(data.ai_clauses, this.detectClausePosition(template)),
 
       // Date
       contract_date: contractDate,

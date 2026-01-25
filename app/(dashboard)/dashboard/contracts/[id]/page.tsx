@@ -118,7 +118,6 @@ interface FormData {
   apn: string
   personal_property: string
   additional_terms: string
-  contract_type: string
   // Section 1.10 closing amounts
   escrow_fees_split: string
   title_policy_paid_by: string
@@ -137,6 +136,28 @@ interface StatusHistoryItem {
   status: string
   created_at: string
   metadata: Record<string, unknown>
+}
+
+interface FieldConfig {
+  visible: boolean
+  required: boolean
+  label?: string
+  placeholder?: string
+}
+
+interface Template {
+  id: string
+  name: string
+  signature_layout?: string
+  field_config?: Record<string, FieldConfig>
+  custom_fields?: Array<{
+    id: string
+    name: string
+    label: string
+    type: string
+    required: boolean
+    placeholder?: string
+  }>
 }
 
 // Format number with commas (e.g., 250000 -> 250,000)
@@ -174,6 +195,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const justSigned = searchParams.get('signed') === 'true'
 
   const [contract, setContract] = useState<Contract | null>(null)
+  const [template, setTemplate] = useState<Template | null>(null)
   const [history, setHistory] = useState<StatusHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -206,7 +228,6 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     apn: '',
     personal_property: '',
     additional_terms: '',
-    contract_type: 'purchase',
     escrow_fees_split: '',
     title_policy_paid_by: '',
     hoa_fees_split: '',
@@ -251,6 +272,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       const data = await res.json()
       setContract(data.contract)
       setHistory(data.history || [])
+      setTemplate(data.template || null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load contract')
     } finally {
@@ -283,6 +305,29 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       console.error('Failed to fetch usage info:', err)
     }
   }
+
+  // Field visibility helpers - based on template's field_config
+  const isFieldVisible = (fieldName: string): boolean => {
+    if (!template?.field_config) return true // Show all if no template
+    const config = template.field_config[fieldName]
+    return config?.visible !== false // Default to visible if not configured
+  }
+
+  const isFieldRequired = (fieldName: string): boolean => {
+    if (!template?.field_config) {
+      // Default required fields when no template
+      const defaultRequired = ['seller_name', 'seller_email', 'price', 'company_name', 'company_signer_name', 'company_email', 'company_phone', 'buyer_signature', 'buyer_initials']
+      return defaultRequired.includes(fieldName)
+    }
+    const config = template.field_config[fieldName]
+    return config?.required === true
+  }
+
+  const isGroupVisible = (fieldNames: string[]): boolean => {
+    return fieldNames.some(name => isFieldVisible(name))
+  }
+
+  const isThreeParty = template?.signature_layout === 'three-party'
 
   // Check if overage warning needed before sending
   const inititateSend = (type: 'purchase' | 'assignment') => {
@@ -395,7 +440,6 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       apn: contract.custom_fields?.apn || '',
       personal_property: contract.custom_fields?.personal_property || '',
       additional_terms: contract.custom_fields?.additional_terms || '',
-      contract_type: contract.custom_fields?.contract_type || 'purchase',
       escrow_fees_split: contract.custom_fields?.escrow_fees_split || '',
       title_policy_paid_by: contract.custom_fields?.title_policy_paid_by || '',
       hoa_fees_split: contract.custom_fields?.hoa_fees_split || '',
@@ -528,7 +572,6 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
             apn: formData.apn,
             personal_property: formData.personal_property,
             additional_terms: formData.additional_terms,
-            contract_type: formData.contract_type,
             escrow_fees_split: formData.escrow_fees_split,
             title_policy_paid_by: formData.title_policy_paid_by,
             hoa_fees_split: formData.hoa_fees_split,
@@ -591,7 +634,9 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const propertyCity = contract.custom_fields?.property_city || contract.property?.city || ''
   const propertyState = contract.custom_fields?.property_state || contract.property?.state || ''
   const propertyZip = contract.custom_fields?.property_zip || contract.property?.zip || ''
-  const contractType = contract.custom_fields?.contract_type || 'purchase'
+  // Determine contract type from template signature_layout
+  const signatureLayout = template?.signature_layout
+  const contractType = signatureLayout === 'three-party' ? 'assignment' : 'purchase'
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -747,86 +792,130 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   </div>
 
                   {/* Seller Section */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
-                      <User className="w-4 h-4 text-[var(--gray-400)]" />
-                      Seller (Property Owner)
-                    </h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Name *</Label>
-                        <Input
-                          value={formData.seller_name}
-                          onChange={(e) => updateField('seller_name', e.target.value)}
-                          placeholder="John Doe"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Email *</Label>
-                        <Input
-                          type="email"
-                          value={formData.seller_email}
-                          onChange={(e) => updateField('seller_email', e.target.value)}
-                          placeholder="seller@email.com"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Phone</Label>
-                        <Input
-                          value={formData.seller_phone}
-                          onChange={(e) => updateField('seller_phone', formatPhoneNumber(e.target.value))}
-                          placeholder="(555) 123-4567"
-                          maxLength={14}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Address</Label>
-                        <Input
-                          value={formData.seller_address}
-                          onChange={(e) => updateField('seller_address', e.target.value)}
-                          placeholder="Seller's mailing address"
-                        />
+                  {isGroupVisible(['seller_name', 'seller_email', 'seller_phone', 'seller_address']) && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
+                        <User className="w-4 h-4 text-[var(--gray-400)]" />
+                        Seller (Property Owner)
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {isFieldVisible('seller_name') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Name {isFieldRequired('seller_name') && '*'}
+                            </Label>
+                            <Input
+                              value={formData.seller_name}
+                              onChange={(e) => updateField('seller_name', e.target.value)}
+                              placeholder="John Doe"
+                            />
+                          </div>
+                        )}
+                        {isFieldVisible('seller_email') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Email {isFieldRequired('seller_email') && '*'}
+                            </Label>
+                            <Input
+                              type="email"
+                              value={formData.seller_email}
+                              onChange={(e) => updateField('seller_email', e.target.value)}
+                              placeholder="seller@email.com"
+                            />
+                            <p className="text-xs text-[var(--primary-600)] mt-1">
+                              Signing document will be sent here via Documenso
+                              {isThreeParty ? ' (Signs 1st)' : ''}
+                            </p>
+                          </div>
+                        )}
+                        {isFieldVisible('seller_phone') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Phone {isFieldRequired('seller_phone') && '*'}
+                            </Label>
+                            <Input
+                              value={formData.seller_phone}
+                              onChange={(e) => updateField('seller_phone', formatPhoneNumber(e.target.value))}
+                              placeholder="(555) 123-4567"
+                              maxLength={14}
+                            />
+                          </div>
+                        )}
+                        {isFieldVisible('seller_address') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Address {isFieldRequired('seller_address') && '*'}
+                            </Label>
+                            <Input
+                              value={formData.seller_address}
+                              onChange={(e) => updateField('seller_address', e.target.value)}
+                              placeholder="Seller's mailing address"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Buyer Section */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
-                      <User className="w-4 h-4 text-[var(--gray-400)]" />
-                      End Buyer (for Assignment)
-                    </h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Name</Label>
-                        <Input
-                          value={formData.buyer_name}
-                          onChange={(e) => updateField('buyer_name', e.target.value)}
-                          placeholder="End buyer name"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Email</Label>
-                        <Input
-                          type="email"
-                          value={formData.buyer_email}
-                          onChange={(e) => updateField('buyer_email', e.target.value)}
-                          placeholder="buyer@email.com"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-[var(--gray-600)]">Phone</Label>
-                        <Input
-                          value={formData.buyer_phone}
-                          onChange={(e) => updateField('buyer_phone', formatPhoneNumber(e.target.value))}
-                          placeholder="(555) 123-4567"
-                          maxLength={14}
-                        />
+                  {/* Buyer/Assignee Section */}
+                  {isGroupVisible(['buyer_name', 'buyer_email', 'buyer_phone']) && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
+                        <User className="w-4 h-4 text-[var(--gray-400)]" />
+                        {isThreeParty ? 'Assignee (End Buyer)' : 'End Buyer (for Assignment)'}
+                      </h3>
+                      <p className="text-xs text-[var(--gray-500)] mb-3">
+                        {isThreeParty
+                          ? 'Required for three-party assignment contracts'
+                          : 'Optional - only needed if assigning the contract'}
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {isFieldVisible('buyer_name') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Name {isFieldRequired('buyer_name') && '*'}
+                            </Label>
+                            <Input
+                              value={formData.buyer_name}
+                              onChange={(e) => updateField('buyer_name', e.target.value)}
+                              placeholder="End buyer name"
+                            />
+                          </div>
+                        )}
+                        {isFieldVisible('buyer_email') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Email {isFieldRequired('buyer_email') && '*'}
+                            </Label>
+                            <Input
+                              type="email"
+                              value={formData.buyer_email}
+                              onChange={(e) => updateField('buyer_email', e.target.value)}
+                              placeholder="buyer@email.com"
+                            />
+                            {isThreeParty && (
+                              <p className="text-xs text-[var(--primary-600)] mt-1">
+                                Signing document will be sent here via Documenso (Signs 2nd, after Seller)
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {isFieldVisible('buyer_phone') && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">
+                              Phone {isFieldRequired('buyer_phone') && '*'}
+                            </Label>
+                            <Input
+                              value={formData.buyer_phone}
+                              onChange={(e) => updateField('buyer_phone', formatPhoneNumber(e.target.value))}
+                              placeholder="(555) 123-4567"
+                              maxLength={14}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Pricing Section */}
                   <div>
@@ -1048,28 +1137,16 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                   </div>
 
-                  {/* Contract Type */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Contract Type</h3>
-                    <select
-                      value={formData.contract_type}
-                      onChange={(e) => updateField('contract_type', e.target.value)}
-                      className="w-full px-3 py-2 border border-[var(--gray-300)] rounded-md text-sm"
-                    >
-                      <option value="purchase">Purchase Agreement Only</option>
-                      <option value="assignment">Assignment Contract Only</option>
-                      <option value="both">Both (Purchase + Assignment)</option>
-                    </select>
-                  </div>
-
                   {/* Signature Page - Buyer/Company Details */}
                   <div className="border-t border-[var(--gray-200)] pt-6">
                     <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-1 flex items-center gap-2">
                       <PenTool className="w-4 h-4 text-[var(--gray-400)]" />
-                      Buyer Signature Page (Your Company)
+                      {isThreeParty ? 'Assignor Signature (Your Company)' : 'Buyer Signature Page (Your Company)'}
                     </h3>
                     <p className="text-xs text-[var(--gray-500)] mb-4">
-                      These fields appear on the signature page of the contract. All fields marked with * are required before sending.
+                      {isThreeParty
+                        ? 'Your company pre-signs as the Assignor (wholesaler). This signature will be embedded in the contract before sending to other parties.'
+                        : 'These fields appear on the signature page of the contract. All fields marked with * are required before sending.'}
                     </p>
                     <div className="grid grid-cols-2 gap-3 mb-4">
                       <div>
@@ -1553,6 +1630,48 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Send Contract - Email Recipients */}
+          {contract.status === 'draft' && (
+            <div className="bg-white border border-[var(--gray-200)] rounded">
+              <div className="px-4 py-3 border-b border-[var(--gray-200)]">
+                <h2 className="font-semibold text-[var(--gray-900)]">Send Contract</h2>
+              </div>
+              <div className="p-4 space-y-4">
+                <p className="text-xs text-[var(--gray-600)]">
+                  The signing document will be sent to these email addresses via Documenso.
+                </p>
+
+                {/* Seller Email */}
+                <div>
+                  <Label className="text-xs text-[var(--gray-600)]">
+                    Seller Email {isThreeParty && <span className="text-[var(--primary-600)]">(Signs 1st)</span>}
+                  </Label>
+                  <div className="mt-1 px-3 py-2 bg-[var(--gray-50)] border border-[var(--gray-200)] rounded text-sm">
+                    {contract.seller_email || <span className="text-[var(--gray-400)]">Not set</span>}
+                  </div>
+                </div>
+
+                {/* Assignee Email - only for three-party */}
+                {isThreeParty && (
+                  <div>
+                    <Label className="text-xs text-[var(--gray-600)]">
+                      Assignee Email <span className="text-[var(--primary-600)]">(Signs 2nd)</span>
+                    </Label>
+                    <div className="mt-1 px-3 py-2 bg-[var(--gray-50)] border border-[var(--gray-200)] rounded text-sm">
+                      {contract.buyer_email || <span className="text-[var(--gray-400)]">Not set</span>}
+                    </div>
+                  </div>
+                )}
+
+                {(!contract.seller_email || (isThreeParty && !contract.buyer_email)) && (
+                  <p className="text-xs text-[var(--warning-700)] bg-[var(--warning-100)] p-2 rounded">
+                    Click &quot;Edit&quot; above to add missing email addresses before sending.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="bg-white border border-[var(--gray-200)] rounded">
             <div className="px-4 py-3 border-b border-[var(--gray-200)]">
@@ -1561,72 +1680,36 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
             <div className="p-4 space-y-3">
               {contract.status === 'draft' && (
                 <>
-                  {/* Preview Buttons */}
-                  {(contractType === 'purchase' || contractType === 'both') && (
-                    <Button
-                      onClick={() => handlePreview('purchase')}
-                      disabled={previewLoading}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      {previewLoading ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Eye className="w-4 h-4 mr-2" />
-                      )}
-                      Preview Purchase Agreement
-                    </Button>
-                  )}
-
-                  {(contractType === 'assignment' || contractType === 'both') && (
-                    <Button
-                      onClick={() => handlePreview('assignment')}
-                      disabled={previewLoading}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      {previewLoading ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Eye className="w-4 h-4 mr-2" />
-                      )}
-                      Preview Assignment Contract
-                    </Button>
-                  )}
+                  {/* Preview Button */}
+                  <Button
+                    onClick={() => handlePreview(contractType)}
+                    disabled={previewLoading}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {previewLoading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Eye className="w-4 h-4 mr-2" />
+                    )}
+                    Preview {contractType === 'assignment' ? 'Assignment Contract' : 'Purchase Agreement'}
+                  </Button>
 
                   <hr className="my-2 border-[var(--gray-200)]" />
 
-                  {/* Send Buttons */}
-                  {(contractType === 'purchase' || contractType === 'both') && (
-                    <Button
-                      onClick={() => inititateSend('purchase')}
-                      disabled={sending}
-                      className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
-                    >
-                      {sending ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Send className="w-4 h-4 mr-2" />
-                      )}
-                      Send Purchase Agreement
-                    </Button>
-                  )}
-
-                  {(contractType === 'assignment' || contractType === 'both') && (
-                    <Button
-                      onClick={() => inititateSend('assignment')}
-                      disabled={sending}
-                      variant="outline"
-                      className="w-full border-[var(--primary-700)] text-[var(--primary-900)]"
-                    >
-                      {sending ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Send className="w-4 h-4 mr-2" />
-                      )}
-                      Send Assignment Contract
-                    </Button>
-                  )}
+                  {/* Send Button */}
+                  <Button
+                    onClick={() => inititateSend(contractType)}
+                    disabled={sending}
+                    className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
+                  >
+                    {sending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4 mr-2" />
+                    )}
+                    Send {contractType === 'assignment' ? 'Assignment Contract' : 'Purchase Agreement'}
+                  </Button>
 
                   <hr className="my-2 border-[var(--gray-200)]" />
 
