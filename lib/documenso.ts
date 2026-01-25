@@ -329,6 +329,11 @@ class DocumensoClient {
     options: {
       title: string
       externalId?: string
+      meta?: {
+        signingOrder?: boolean
+        subject?: string
+        message?: string
+      }
     }
   ): Promise<CreateDocumentResponse> {
     const url = `${this.baseUrl}/api/v2/document/create`
@@ -340,6 +345,7 @@ class DocumensoClient {
     const payload = JSON.stringify({
       title: options.title,
       externalId: options.externalId,
+      meta: options.meta,
     })
     formData.append('payload', payload)
 
@@ -493,10 +499,18 @@ class DocumensoClient {
       signingUrl: string
     }>
   }> {
-    // Step 1: Create the document
+    // Check if we need sequential signing (multiple recipients with signing order)
+    const hasSigningOrder = options.recipients.some(r => r.signingOrder !== undefined && r.signingOrder > 1)
+
+    // Step 1: Create the document with signingOrder enabled if needed
     const document = await this.createDocument(pdfBuffer, {
       title: options.title,
       externalId: options.externalId,
+      meta: hasSigningOrder ? {
+        signingOrder: true,
+        subject: options.meta?.subject,
+        message: options.meta?.message,
+      } : options.meta,
     })
 
     console.log(`[Documenso] Document created with ID: ${document.id}`)

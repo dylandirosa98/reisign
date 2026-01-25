@@ -407,8 +407,32 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
   const isThreeParty = template?.signature_layout === 'three-party'
 
+  // Validate email format
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+
+  // Check if we can send (emails are required)
+  const canSend = () => {
+    if (!sendToSellerEmail || !isValidEmail(sendToSellerEmail)) {
+      return false
+    }
+    if (isThreeParty && (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail))) {
+      return false
+    }
+    return true
+  }
+
   // Check if overage warning needed before sending
   const inititateSend = (type: 'purchase' | 'assignment') => {
+    // Validate emails first
+    if (!sendToSellerEmail || !isValidEmail(sendToSellerEmail)) {
+      setError('Please enter a valid seller email address before sending.')
+      return
+    }
+    if (isThreeParty && (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail))) {
+      setError('For three-party contracts, both seller and assignee email addresses are required before sending.')
+      return
+    }
+
     // Only show warning if:
     // 1. This is an overage (over contract limit)
     // 2. Plan allows overages (overagePrice > 0)
@@ -1883,10 +1907,18 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   </div>
                 )}
 
-                {(!sendToSellerEmail || (isThreeParty && !sendToAssigneeEmail)) && (
-                  <p className="text-xs text-[var(--warning-700)] bg-[var(--warning-100)] p-2 rounded">
-                    Please enter email addresses before sending.
-                  </p>
+                {!canSend() && (
+                  <div className="text-xs text-[var(--warning-700)] bg-[var(--warning-100)] p-2 rounded">
+                    <p className="font-medium">Required before sending:</p>
+                    <ul className="mt-1 list-disc list-inside">
+                      {(!sendToSellerEmail || !isValidEmail(sendToSellerEmail)) && (
+                        <li>Valid seller email address</li>
+                      )}
+                      {isThreeParty && (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)) && (
+                        <li>Valid assignee email address</li>
+                      )}
+                    </ul>
+                  </div>
                 )}
               </div>
             </div>
@@ -1920,8 +1952,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   {/* Send Button */}
                   <Button
                     onClick={() => inititateSend(contractType)}
-                    disabled={sending}
-                    className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
+                    disabled={sending || !canSend()}
+                    className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {sending ? (
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />

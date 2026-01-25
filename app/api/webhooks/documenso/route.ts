@@ -107,23 +107,10 @@ export async function POST(request: NextRequest) {
 
     switch (event) {
       case 'DOCUMENT_OPENED':
-      case 'document.opened':
-        // Recipient opened the document - always record in history
+      case 'document.opened': {
+        // Recipient opened the document
         const viewerParty = getPartyFromEmail(recipientEmail)
-        await adminSupabase
-          .from('contract_status_history')
-          .insert({
-            contract_id: contractId,
-            status: contract.status || 'sent',
-            metadata: {
-              action: 'recipient_viewed',
-              party: viewerParty,
-              recipient_email: recipientEmail,
-              event,
-              contract_type: contractType,
-            },
-          })
-        console.log(`Recorded view from ${viewerParty || 'unknown'} (${recipientEmail})`)
+        console.log(`Document viewed by ${viewerParty || 'unknown'} (${recipientEmail})`)
 
         // Update contract status to viewed only if still in sent status
         if (contract.status === 'sent') {
@@ -133,19 +120,36 @@ export async function POST(request: NextRequest) {
             viewed_at: new Date().toISOString(),
           }
           additionalMetadata = {
+            action: 'recipient_viewed',
             party: viewerParty,
             recipient_email: recipientEmail,
           }
+        } else {
+          // Status already changed, just record the view event
+          await adminSupabase
+            .from('contract_status_history')
+            .insert({
+              contract_id: contractId,
+              status: contract.status || 'sent',
+              metadata: {
+                action: 'recipient_viewed',
+                party: viewerParty,
+                recipient_email: recipientEmail,
+                event,
+                contract_type: contractType,
+              },
+            })
         }
         break
+      }
 
       case 'DOCUMENT_SIGNED':
-      case 'document.signed':
+      case 'document.signed': {
         // Individual recipient signed - record the event
-        console.log('Document signed by recipient:', recipientEmail)
+        const signerParty = getPartyFromEmail(recipientEmail)
+        console.log(`Document signed by ${signerParty || 'unknown'} (${recipientEmail})`)
 
         // Record the signed event with party info
-        const signerParty = getPartyFromEmail(recipientEmail)
         await adminSupabase
           .from('contract_status_history')
           .insert({
@@ -159,8 +163,8 @@ export async function POST(request: NextRequest) {
               contract_type: contractType,
             },
           })
-        console.log(`Recorded signature from ${signerParty || 'unknown'} (${recipientEmail})`)
         break
+      }
 
       case 'DOCUMENT_COMPLETED':
       case 'document.completed':
@@ -170,6 +174,9 @@ export async function POST(request: NextRequest) {
           status: 'completed',
           completed_at: new Date().toISOString(),
         }
+        additionalMetadata = {
+          action: 'document_completed',
+        }
         break
 
       case 'DOCUMENT_REJECTED':
@@ -178,6 +185,11 @@ export async function POST(request: NextRequest) {
         newStatus = 'cancelled'
         updateData = {
           status: 'cancelled',
+        }
+        additionalMetadata = {
+          action: 'document_rejected',
+          party: getPartyFromEmail(recipientEmail),
+          recipient_email: recipientEmail,
         }
         break
 
