@@ -149,12 +149,13 @@ interface Template {
   id: string
   name: string
   signature_layout?: string
-  field_config?: Record<string, FieldConfig>
+  field_config?: {
+    standardFields?: Record<string, FieldConfig>
+  }
   custom_fields?: Array<{
-    id: string
-    name: string
+    key: string
     label: string
-    type: string
+    fieldType: string
     required: boolean
     placeholder?: string
   }>
@@ -306,20 +307,20 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     }
   }
 
-  // Field visibility helpers - based on template's field_config
+  // Field visibility helpers - based on template's field_config.standardFields
   const isFieldVisible = (fieldName: string): boolean => {
-    if (!template?.field_config) return true // Show all if no template
-    const config = template.field_config[fieldName]
+    if (!template?.field_config?.standardFields) return true // Show all if no template config
+    const config = template.field_config.standardFields[fieldName]
     return config?.visible !== false // Default to visible if not configured
   }
 
   const isFieldRequired = (fieldName: string): boolean => {
-    if (!template?.field_config) {
-      // Default required fields when no template
+    if (!template?.field_config?.standardFields) {
+      // Default required fields when no template config
       const defaultRequired = ['seller_name', 'seller_email', 'price', 'company_name', 'company_signer_name', 'company_email', 'company_phone', 'buyer_signature', 'buyer_initials']
       return defaultRequired.includes(fieldName)
     }
-    const config = template.field_config[fieldName]
+    const config = template.field_config.standardFields[fieldName]
     return config?.required === true
   }
 
