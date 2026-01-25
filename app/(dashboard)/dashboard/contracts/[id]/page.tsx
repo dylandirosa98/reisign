@@ -430,12 +430,18 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     if (!sendToSellerEmail || !isValidEmail(sendToSellerEmail)) {
       return false
     }
-    // For three-party, assignee name and email also required
+    if (!sendToSellerPhone.trim()) {
+      return false
+    }
+    // For three-party, all assignee info also required
     if (isThreeParty) {
       if (!sendToAssigneeName.trim()) {
         return false
       }
       if (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)) {
+        return false
+      }
+      if (!sendToAssigneePhone.trim()) {
         return false
       }
     }
@@ -444,7 +450,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
   // Check if overage warning needed before sending
   const inititateSend = (type: 'purchase' | 'assignment') => {
-    // Validate names and emails first
+    // Validate all seller info first
     if (!sendToSellerName.trim()) {
       setError('Please enter the seller name before sending.')
       return
@@ -453,13 +459,22 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       setError('Please enter a valid seller email address before sending.')
       return
     }
+    if (!sendToSellerPhone.trim()) {
+      setError('Please enter the seller phone number before sending.')
+      return
+    }
+    // For three-party, also require all assignee/buyer info
     if (isThreeParty) {
       if (!sendToAssigneeName.trim()) {
-        setError('For three-party contracts, assignee name is required before sending.')
+        setError('Please enter the buyer/assignee name before sending.')
         return
       }
       if (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)) {
-        setError('For three-party contracts, a valid assignee email address is required before sending.')
+        setError('Please enter a valid buyer/assignee email address before sending.')
+        return
+      }
+      if (!sendToAssigneePhone.trim()) {
+        setError('Please enter the buyer/assignee phone number before sending.')
         return
       }
     }
@@ -557,7 +572,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     }
   }
 
-  // Save buyer/assignee info (used when editing before sending to buyer)
+  // Save buyer email (only changes where the signing request is sent, not the document)
   const handleSaveBuyerInfo = async () => {
     if (!contract) return
 
@@ -569,24 +584,19 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          buyer_name: sendToAssigneeName,
           buyer_email: sendToAssigneeEmail,
-          custom_fields: {
-            ...contract.custom_fields,
-            buyer_phone: sendToAssigneePhone,
-          },
         }),
       })
 
       if (!res.ok) {
         const data = await res.json()
-        throw new Error(data.error || 'Failed to save buyer info')
+        throw new Error(data.error || 'Failed to save email')
       }
 
       // Refresh contract data
       await fetchContract()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save buyer info')
+      setError(err instanceof Error ? err.message : 'Failed to save email')
     } finally {
       setSavingBuyerInfo(false)
     }
@@ -2226,20 +2236,17 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     </p>
                   </div>
 
-                  {/* Buyer Info - Editable */}
+                  {/* Buyer Info - Only email is editable */}
                   <div className="mb-4 space-y-3">
-                    <h4 className="text-sm font-medium text-[var(--gray-700)]">Buyer/Assignee Information</h4>
-                    <div>
-                      <Label className="text-xs text-[var(--gray-600)]">Name *</Label>
-                      <Input
-                        value={sendToAssigneeName}
-                        onChange={(e) => setSendToAssigneeName(e.target.value)}
-                        placeholder="Buyer/Assignee name"
-                        className="mt-1"
-                      />
+                    <h4 className="text-sm font-medium text-[var(--gray-700)]">Send Document To</h4>
+                    <p className="text-xs text-[var(--gray-500)]">
+                      Change the email below if needed. This only affects where the signing request is sent, not the contract document itself.
+                    </p>
+                    <div className="p-2 bg-[var(--gray-50)] rounded">
+                      <p className="text-sm font-medium text-[var(--gray-700)]">{sendToAssigneeName || 'Buyer'}</p>
                     </div>
                     <div>
-                      <Label className="text-xs text-[var(--gray-600)]">Email *</Label>
+                      <Label className="text-xs text-[var(--gray-600)]">Email Address *</Label>
                       <Input
                         type="email"
                         value={sendToAssigneeEmail}
@@ -2253,7 +2260,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                     <Button
                       onClick={handleSaveBuyerInfo}
-                      disabled={savingBuyerInfo || !sendToAssigneeName.trim() || !sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)}
+                      disabled={savingBuyerInfo || !sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)}
                       variant="outline"
                       size="sm"
                       className="w-full"
@@ -2263,7 +2270,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                       ) : (
                         <Save className="w-4 h-4 mr-2" />
                       )}
-                      Save Buyer Info
+                      Save Email
                     </Button>
                   </div>
 

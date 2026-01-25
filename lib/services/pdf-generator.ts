@@ -876,11 +876,11 @@ class PDFGeneratorService {
         })
       }
 
-      // Buyer signature - bottom section on signature page (same position as three-party buyer)
+      // Buyer signature - bottom section on signature page (moved up a bit)
       positions.push({
         page: totalPages,
         x: 11,
-        y: 65,
+        y: 58,
         width: 30,
         height: 5,
         recipientRole: 'buyer',
