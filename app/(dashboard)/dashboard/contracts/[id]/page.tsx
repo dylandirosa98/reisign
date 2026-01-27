@@ -1787,10 +1787,15 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                 </div>
                                 {signatureMode === 'draw' ? (
                                   <div className="space-y-3">
-                                    <div className="border-2 border-[var(--gray-300)] rounded-md bg-white">
+                                    <div className="border-2 border-[var(--gray-300)] rounded-md bg-white overflow-hidden">
                                       <SignatureCanvas
                                         ref={signatureRef}
-                                        canvasProps={{ className: 'w-full rounded-md cursor-crosshair', style: { width: '100%', height: '200px' } }}
+                                        canvasProps={{
+                                          width: 500,
+                                          height: 200,
+                                          className: 'cursor-crosshair',
+                                          style: { width: '100%', height: '200px' }
+                                        }}
                                         backgroundColor="white"
                                       />
                                     </div>
@@ -1859,10 +1864,15 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                   </div>
                                   {initialsMode === 'draw' ? (
                                     <div className="space-y-3">
-                                      <div className="border-2 border-[var(--gray-300)] rounded-md bg-white inline-block">
+                                      <div className="border-2 border-[var(--gray-300)] rounded-md bg-white inline-block overflow-hidden">
                                         <SignatureCanvas
                                           ref={initialsRef}
-                                          canvasProps={{ className: 'rounded-md cursor-crosshair', style: { width: '200px', height: '100px' } }}
+                                          canvasProps={{
+                                            width: 200,
+                                            height: 100,
+                                            className: 'cursor-crosshair',
+                                            style: { width: '200px', height: '100px' }
+                                          }}
                                           backgroundColor="white"
                                         />
                                       </div>
