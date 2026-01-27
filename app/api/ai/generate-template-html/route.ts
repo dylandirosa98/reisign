@@ -140,6 +140,7 @@ IMPORTANT RULES:
 6. DO NOT include any signature page - that will be added automatically
 7. DO NOT include "[SIGNATURES ON FOLLOWING PAGE]" - that will be added automatically
 8. Return ONLY the HTML code, no explanation
+9. ALWAYS add a $ symbol before price/money placeholders (e.g., ${{purchase_price}}, ${{earnest_money}}, ${{assignment_fee}}) - the form only accepts numbers so the $ must be in the template
 
 REQUIRED CSS (use this exact CSS in the <style> tag):
 ${templateCss}
