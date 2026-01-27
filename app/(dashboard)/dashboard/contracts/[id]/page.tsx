@@ -1785,11 +1785,13 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                               </div>
                               {signatureMode === 'draw' ? (
                                 <div className="space-y-2">
-                                  <div className="border border-[var(--gray-300)] rounded-md bg-white">
+                                  <div className="border border-[var(--gray-300)] rounded-md bg-white w-full">
                                     <SignatureCanvas
                                       ref={signatureRef}
                                       canvasProps={{
-                                        className: 'w-full h-36 rounded-md',
+                                        width: 800,
+                                        height: 200,
+                                        className: 'w-full rounded-md',
                                         style: { width: '100%', height: '144px' }
                                       }}
                                       backgroundColor="white"
@@ -2172,11 +2174,13 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
                       {signatureMode === 'draw' ? (
                         <div className="space-y-2">
-                          <div className="border border-[var(--gray-300)] rounded-md bg-white">
+                          <div className="border border-[var(--gray-300)] rounded-md bg-white w-full">
                             <SignatureCanvas
                               ref={signatureRef}
                               canvasProps={{
-                                className: 'w-full h-36 rounded-md',
+                                width: 800,
+                                height: 200,
+                                className: 'w-full rounded-md',
                                 style: { width: '100%', height: '144px' }
                               }}
                               backgroundColor="white"
