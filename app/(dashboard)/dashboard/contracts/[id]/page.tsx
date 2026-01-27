@@ -1786,33 +1786,33 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                   </button>
                                 </div>
                                 {signatureMode === 'draw' ? (
-                                  <div className="space-y-2">
-                                    <div className="border border-[var(--gray-300)] rounded-md bg-white">
+                                  <div className="space-y-3">
+                                    <div className="border-2 border-[var(--gray-300)] rounded-md bg-white">
                                       <SignatureCanvas
                                         ref={signatureRef}
-                                        canvasProps={{ className: 'w-full rounded-md', style: { width: '100%', height: '150px' } }}
+                                        canvasProps={{ className: 'w-full rounded-md cursor-crosshair', style: { width: '100%', height: '200px' } }}
                                         backgroundColor="white"
                                       />
                                     </div>
                                     <div className="flex gap-2">
-                                      <Button type="button" variant="outline" size="sm" onClick={() => signatureRef.current?.clear()} className="text-xs">
-                                        <RotateCcw className="w-3 h-3 mr-1" /> Clear
+                                      <Button type="button" variant="outline" size="sm" onClick={() => signatureRef.current?.clear()}>
+                                        <RotateCcw className="w-4 h-4 mr-1" /> Clear
                                       </Button>
-                                      <Button type="button" size="sm" onClick={saveDrawnSignature} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
-                                        <CheckCircle className="w-3 h-3 mr-1" /> Save
+                                      <Button type="button" size="sm" onClick={saveDrawnSignature} className="bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white border-0">
+                                        <CheckCircle className="w-4 h-4 mr-1" /> Save Signature
                                       </Button>
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="space-y-2">
-                                    <Input value={typedSignature} onChange={(e) => setTypedSignature(e.target.value)} placeholder="Type your name" />
+                                  <div className="space-y-3">
+                                    <Input value={typedSignature} onChange={(e) => setTypedSignature(e.target.value)} placeholder="Type your full name" className="text-lg" />
                                     {typedSignature && (
-                                      <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white flex items-center justify-center min-h-[150px]">
-                                        <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '36px' }}>{typedSignature}</span>
+                                      <div className="border-2 border-[var(--gray-300)] rounded-md p-6 bg-white flex items-center justify-center min-h-[200px]">
+                                        <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '48px' }}>{typedSignature}</span>
                                       </div>
                                     )}
-                                    <Button type="button" size="sm" onClick={saveTypedSignature} disabled={!typedSignature.trim()} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
-                                      <CheckCircle className="w-3 h-3 mr-1" /> Save
+                                    <Button type="button" size="sm" onClick={saveTypedSignature} disabled={!typedSignature.trim()} className="bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white border-0 disabled:bg-[var(--gray-300)] disabled:text-[var(--gray-500)]">
+                                      <CheckCircle className="w-4 h-4 mr-1" /> Save Signature
                                     </Button>
                                   </div>
                                 )}
@@ -1858,34 +1858,34 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                     </button>
                                   </div>
                                   {initialsMode === 'draw' ? (
-                                    <div className="space-y-2">
-                                      <div className="border border-[var(--gray-300)] rounded-md bg-white inline-block">
+                                    <div className="space-y-3">
+                                      <div className="border-2 border-[var(--gray-300)] rounded-md bg-white inline-block">
                                         <SignatureCanvas
                                           ref={initialsRef}
-                                          canvasProps={{ className: 'rounded-md', style: { width: '150px', height: '80px' } }}
+                                          canvasProps={{ className: 'rounded-md cursor-crosshair', style: { width: '200px', height: '100px' } }}
                                           backgroundColor="white"
                                         />
                                       </div>
                                       <div className="flex gap-2">
-                                        <Button type="button" variant="outline" size="sm" onClick={() => initialsRef.current?.clear()} className="text-xs">
+                                        <Button type="button" variant="outline" size="sm" onClick={() => initialsRef.current?.clear()}>
                                           Clear
                                         </Button>
-                                        <Button type="button" size="sm" onClick={saveDrawnInitials} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
-                                          Save
+                                        <Button type="button" size="sm" onClick={saveDrawnInitials} className="bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white border-0">
+                                          Save Initials
                                         </Button>
                                       </div>
                                     </div>
                                   ) : (
-                                    <div className="space-y-2">
-                                      <Input value={typedInitials} onChange={(e) => setTypedInitials(e.target.value.slice(0, 4))} placeholder="JD" className="w-24" maxLength={4} />
+                                    <div className="space-y-3">
+                                      <Input value={typedInitials} onChange={(e) => setTypedInitials(e.target.value.slice(0, 4))} placeholder="JD" className="w-28 text-lg" maxLength={4} />
                                       {typedInitials && (
-                                        <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white inline-block min-h-[80px] flex items-center justify-center">
-                                          <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '36px' }}>{typedInitials.toUpperCase()}</span>
+                                        <div className="border-2 border-[var(--gray-300)] rounded-md p-4 bg-white inline-block min-h-[100px] min-w-[200px] flex items-center justify-center">
+                                          <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '48px' }}>{typedInitials.toUpperCase()}</span>
                                         </div>
                                       )}
                                       <div>
-                                        <Button type="button" size="sm" onClick={saveTypedInitials} disabled={!typedInitials.trim()} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
-                                          Save
+                                        <Button type="button" size="sm" onClick={saveTypedInitials} disabled={!typedInitials.trim()} className="bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white border-0 disabled:bg-[var(--gray-300)] disabled:text-[var(--gray-500)]">
+                                          Save Initials
                                         </Button>
                                       </div>
                                     </div>
