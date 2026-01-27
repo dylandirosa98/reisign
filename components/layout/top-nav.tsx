@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -64,9 +65,15 @@ export function TopNav({ user }: TopNavProps) {
   return (
     <header className="h-16 bg-white border-b border-[var(--gray-200)] flex items-center px-6">
       {/* Logo */}
-      <Link href="/dashboard" className="flex items-center space-x-2 mr-8">
-        <FileText className="h-7 w-7 text-[var(--primary-900)]" />
-        <span className="text-lg font-bold text-[var(--gray-900)]">REI Sign</span>
+      <Link href="/dashboard" className="flex items-center mr-8">
+        <Image
+          src="https://ik.imagekit.io/de9yylqdb/Untitled%20design%20(3).jpg"
+          alt="REI Sign"
+          width={140}
+          height={40}
+          className="h-10 w-auto"
+          priority
+        />
       </Link>
 
       {/* Navigation Links */}
