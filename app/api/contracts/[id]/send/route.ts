@@ -144,6 +144,9 @@ export async function POST(
   const isThreeParty = signatureLayoutFromDb === 'three-party'
 
   // Validate contract status based on what we're trying to do
+  // Allow both 'draft' and 'ready' status for initial send (ready = wholesaler has signed)
+  const canSendInitially = contract.status === 'draft' || contract.status === 'ready'
+
   if (isThreeParty) {
     // Three-party has two stages: seller first, then buyer
     if (sendTo === 'buyer') {
@@ -157,24 +160,24 @@ export async function POST(
         }, { status: 400 })
       }
     } else {
-      // Sending to seller (first stage) - must be draft
-      if (contract.status !== 'draft') {
+      // Sending to seller (first stage) - must be draft or ready
+      if (!canSendInitially) {
         return NextResponse.json({
-          error: 'Contract has already been sent to seller',
+          error: 'Contract has already been sent to seller. Current status: ' + contract.status,
         }, { status: 400 })
       }
     }
   } else {
-    // Non-three-party: standard single send
-    if (contract.status !== 'draft') {
+    // Non-three-party: standard single send - must be draft or ready
+    if (!canSendInitially) {
       return NextResponse.json({
-        error: 'Contract has already been sent',
+        error: 'Contract has already been sent. Current status: ' + contract.status,
       }, { status: 400 })
     }
   }
 
   // Check contract limits (only for first send, not for buyer stage)
-  const isFirstSend = contract.status === 'draft'
+  const isFirstSend = canSendInitially
   if (isFirstSend) {
     const actualPlan = company?.actual_plan || 'free'
     const contractsUsed = company?.contracts_used_this_period || 0
