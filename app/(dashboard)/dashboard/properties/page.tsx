@@ -42,6 +42,7 @@ export default async function PropertiesPage() {
       contracts (
         id,
         status,
+        template_id,
         custom_fields
       )
     `)
@@ -54,9 +55,19 @@ export default async function PropertiesPage() {
     .select('id, name')
     .eq('company_id', companyId)
 
+  // Fetch global templates
+  const { data: globalTemplates } = await adminSupabase
+    .from('templates')
+    .select('id, name')
+
   const templateMap = new Map<string, string>()
   if (companyTemplates) {
     (companyTemplates as unknown as Array<{ id: string; name: string }>).forEach(t => {
+      templateMap.set(t.id, t.name)
+    })
+  }
+  if (globalTemplates) {
+    globalTemplates.forEach(t => {
       templateMap.set(t.id, t.name)
     })
   }
@@ -64,6 +75,7 @@ export default async function PropertiesPage() {
   type Contract = {
     id: string
     status: string | null
+    template_id: string | null
     custom_fields: {
       company_template_id?: string
     } | null
@@ -86,12 +98,22 @@ export default async function PropertiesPage() {
   const propertiesWithContracts = typedProperties?.map(property => {
     const contracts = property.contracts || []
     const contractsWithTemplates = contracts.map(contract => {
-      const templateId = contract.custom_fields?.company_template_id
-      const templateName = templateId ? templateMap.get(templateId) : null
+      // Check company template first, then global template
+      const companyTemplateId = contract.custom_fields?.company_template_id
+      const globalTemplateId = contract.template_id
+
+      let templateName: string | null = null
+      if (companyTemplateId) {
+        templateName = templateMap.get(companyTemplateId) || null
+      }
+      if (!templateName && globalTemplateId) {
+        templateName = templateMap.get(globalTemplateId) || null
+      }
+
       return {
         id: contract.id,
         status: contract.status,
-        templateName: templateName || 'Unknown Template',
+        templateName: templateName || 'General Purchase Agreement',
       }
     })
 
