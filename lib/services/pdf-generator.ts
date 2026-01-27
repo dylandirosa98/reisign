@@ -914,7 +914,7 @@ class PDFGeneratorService {
       positions.push({
         page: totalPages,
         x: 9,
-        y: 27,
+        y: 26.5,
         width: 35,
         height: 5,
         recipientRole: 'seller',
