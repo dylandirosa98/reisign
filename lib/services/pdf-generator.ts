@@ -302,6 +302,10 @@ class PDFGeneratorService {
       ? `${data.company_address}, ${data.company_city || ''}, ${data.company_state || ''} ${data.company_zip || ''}`
       : ''
 
+    // Log signer data for debugging
+    console.log(`[PDF Generator] Signer data: Seller=${data.seller_name}/${data.seller_email}/${data.seller_phone}/${data.seller_address}`)
+    console.log(`[PDF Generator] Signer data: Assignee=${data.assignee_name}/${data.assignee_email}/${data.assignee_phone}/${data.assignee_address}`)
+
     // Create replacement map
     const replacements: Record<string, string> = {
       // Property
