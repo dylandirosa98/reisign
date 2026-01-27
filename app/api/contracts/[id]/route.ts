@@ -118,6 +118,16 @@ export async function PATCH(
   }
 
   const body = await request.json()
+  console.log(`[PATCH /api/contracts/${id}] Received body:`, JSON.stringify({
+    seller_name: body.seller_name,
+    seller_email: body.seller_email,
+    buyer_name: body.buyer_name,
+    buyer_email: body.buyer_email,
+    custom_fields_seller_phone: body.custom_fields?.seller_phone,
+    custom_fields_seller_address: body.custom_fields?.seller_address,
+    custom_fields_buyer_phone: body.custom_fields?.buyer_phone,
+    custom_fields_assignee_address: body.custom_fields?.assignee_address,
+  }))
   const allowedFields = [
     'buyer_name',
     'buyer_email',
