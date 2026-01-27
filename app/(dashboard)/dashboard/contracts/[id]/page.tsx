@@ -41,6 +41,7 @@ interface CustomFields {
   buyer_phone?: string
   seller_phone?: string
   seller_address?: string
+  assignee_address?: string
   assignment_fee?: number
   contract_type?: string
   property_address?: string
