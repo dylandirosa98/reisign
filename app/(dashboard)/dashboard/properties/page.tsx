@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { Button } from '@/components/ui/button'
 import { Plus, Building2, ChevronRight } from 'lucide-react'
 import { ContractCountBadge } from './contract-count-badge'
+import { PropertyStatusSelect } from './property-status-select'
 
 export default async function PropertiesPage() {
   const supabase = await createClient()
@@ -27,7 +28,7 @@ export default async function PropertiesPage() {
     return <div>No company found</div>
   }
 
-  // Fetch properties with their contract counts by status
+  // Fetch properties with their contracts
   const { data: properties } = await adminSupabase
     .from('properties')
     .select(`
@@ -36,18 +37,36 @@ export default async function PropertiesPage() {
       city,
       state,
       zip,
+      status,
       created_at,
       contracts (
         id,
-        status
+        status,
+        custom_fields
       )
     `)
     .eq('company_id', companyId)
     .order('created_at', { ascending: false })
 
+  // Fetch all company templates to map IDs to names
+  const { data: companyTemplates } = await adminSupabase
+    .from('company_templates' as any)
+    .select('id, name')
+    .eq('company_id', companyId)
+
+  const templateMap = new Map<string, string>()
+  if (companyTemplates) {
+    (companyTemplates as Array<{ id: string; name: string }>).forEach(t => {
+      templateMap.set(t.id, t.name)
+    })
+  }
+
   type Contract = {
     id: string
     status: string | null
+    custom_fields: {
+      company_template_id?: string
+    } | null
   }
 
   type Property = {
@@ -56,34 +75,31 @@ export default async function PropertiesPage() {
     city: string | null
     state: string | null
     zip: string | null
+    status: string | null
     created_at: string | null
     contracts: Contract[]
   }
 
   const typedProperties = properties as Property[] | null
 
-  // Calculate contract counts by status for each property
-  const propertiesWithCounts = typedProperties?.map(property => {
+  // Process properties to include contract info with template names
+  const propertiesWithContracts = typedProperties?.map(property => {
     const contracts = property.contracts || []
-    const statusCounts = {
-      draft: 0,
-      sent: 0,
-      viewed: 0,
-      completed: 0,
-      cancelled: 0
-    }
-
-    contracts.forEach(contract => {
-      const status = contract.status || 'draft'
-      if (status in statusCounts) {
-        statusCounts[status as keyof typeof statusCounts]++
+    const contractsWithTemplates = contracts.map(contract => {
+      const templateId = contract.custom_fields?.company_template_id
+      const templateName = templateId ? templateMap.get(templateId) : null
+      return {
+        id: contract.id,
+        status: contract.status,
+        templateName: templateName || 'Unknown Template',
       }
     })
 
     return {
       ...property,
+      status: (property.status || 'none') as 'none' | 'in_escrow' | 'terminated' | 'pending' | 'closed',
       totalContracts: contracts.length,
-      statusCounts
+      contractsWithTemplates,
     }
   })
 
@@ -101,7 +117,7 @@ export default async function PropertiesPage() {
       </div>
 
       <div className="bg-white border border-[var(--gray-200)] rounded">
-        {propertiesWithCounts && propertiesWithCounts.length > 0 ? (
+        {propertiesWithContracts && propertiesWithContracts.length > 0 ? (
           <table className="w-full">
             <thead className="bg-[var(--gray-50)] border-b border-[var(--gray-200)]">
               <tr>
@@ -109,12 +125,13 @@ export default async function PropertiesPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-[var(--gray-700)] uppercase tracking-wide">City</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-[var(--gray-700)] uppercase tracking-wide">State</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-[var(--gray-700)] uppercase tracking-wide">ZIP</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-[var(--gray-700)] uppercase tracking-wide">Contracts</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-[var(--gray-700)] uppercase tracking-wide">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-[var(--gray-700)] uppercase tracking-wide">Documents</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--gray-200)]">
-              {propertiesWithCounts.map((property) => (
+              {propertiesWithContracts.map((property) => (
                 <tr key={property.id} className="hover:bg-[var(--gray-50)] group">
                   <td className="px-4 py-3">
                     <Link
@@ -128,9 +145,15 @@ export default async function PropertiesPage() {
                   <td className="px-4 py-3 text-sm text-[var(--gray-700)]">{property.state || '-'}</td>
                   <td className="px-4 py-3 text-sm text-[var(--gray-700)]">{property.zip || '-'}</td>
                   <td className="px-4 py-3">
+                    <PropertyStatusSelect
+                      propertyId={property.id}
+                      currentStatus={property.status}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
                     <ContractCountBadge
                       total={property.totalContracts}
-                      statusCounts={property.statusCounts}
+                      contracts={property.contractsWithTemplates}
                     />
                   </td>
                   <td className="px-4 py-3">

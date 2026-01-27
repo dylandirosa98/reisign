@@ -3,28 +3,28 @@
 import { useState, useRef, useEffect } from 'react'
 import { FileText } from 'lucide-react'
 
-interface StatusCounts {
-  draft: number
-  sent: number
-  viewed: number
-  completed: number
-  cancelled: number
+interface ContractInfo {
+  id: string
+  status: string | null
+  templateName: string | null
 }
 
 interface ContractCountBadgeProps {
   total: number
-  statusCounts: StatusCounts
+  contracts: ContractInfo[]
 }
 
-const statusConfig = {
+const statusConfig: Record<string, { label: string; color: string }> = {
   draft: { label: 'Draft', color: 'bg-[var(--gray-100)] text-[var(--gray-700)]' },
   sent: { label: 'Sent', color: 'bg-[var(--info-100)] text-[var(--info-700)]' },
   viewed: { label: 'Viewed', color: 'bg-[var(--warning-100)] text-[var(--warning-700)]' },
   completed: { label: 'Completed', color: 'bg-[var(--success-100)] text-[var(--success-700)]' },
   cancelled: { label: 'Cancelled', color: 'bg-[var(--error-100)] text-[var(--error-700)]' },
+  seller_signed: { label: 'Seller Signed', color: 'bg-[var(--info-100)] text-[var(--info-700)]' },
+  buyer_pending: { label: 'Buyer Pending', color: 'bg-[var(--warning-100)] text-[var(--warning-700)]' },
 }
 
-export function ContractCountBadge({ total, statusCounts }: ContractCountBadgeProps) {
+export function ContractCountBadge({ total, contracts }: ContractCountBadgeProps) {
   const [isOpen, setIsOpen] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -69,28 +69,28 @@ export function ContractCountBadge({ total, statusCounts }: ContractCountBadgePr
       {isOpen && (
         <div
           ref={popoverRef}
-          className="absolute z-50 mt-1 left-0 bg-white border border-[var(--gray-200)] rounded-lg shadow-lg p-3 min-w-[180px]"
+          className="absolute z-50 mt-1 left-0 bg-white border border-[var(--gray-200)] rounded-lg shadow-lg p-3 min-w-[250px]"
         >
           <div className="text-xs font-medium text-[var(--gray-500)] uppercase tracking-wide mb-2">
-            Contracts by Status
+            Documents
           </div>
-          <div className="space-y-1.5">
-            {(Object.entries(statusCounts) as [keyof StatusCounts, number][]).map(([status, count]) => {
-              if (count === 0) return null
-              const config = statusConfig[status]
+          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+            {contracts.map((contract) => {
+              const status = contract.status || 'draft'
+              const config = statusConfig[status] || statusConfig.draft
+              const templateName = contract.templateName || 'Untitled Template'
+
               return (
-                <div key={status} className="flex items-center justify-between">
-                  <span className={`text-xs px-2 py-0.5 rounded ${config.color}`}>
+                <div key={contract.id} className="flex items-center justify-between gap-2">
+                  <span className="text-sm text-[var(--gray-900)] truncate flex-1" title={templateName}>
+                    {templateName}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap ${config.color}`}>
                     {config.label}
                   </span>
-                  <span className="text-sm font-medium text-[var(--gray-900)]">{count}</span>
                 </div>
               )
             })}
-          </div>
-          <div className="mt-2 pt-2 border-t border-[var(--gray-200)] flex items-center justify-between">
-            <span className="text-xs text-[var(--gray-600)]">Total</span>
-            <span className="text-sm font-bold text-[var(--gray-900)]">{total}</span>
           </div>
         </div>
       )}
