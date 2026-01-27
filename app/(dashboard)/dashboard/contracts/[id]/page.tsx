@@ -437,7 +437,10 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     return fieldNames.some(name => isFieldVisible(name))
   }
 
-  const isThreeParty = template?.signature_layout === 'three-party'
+  // Check if this is a three-party contract (check template layout or contract_type in custom_fields)
+  const isThreeParty = template?.signature_layout === 'three-party' ||
+    contract?.custom_fields?.contract_type === 'three-party' ||
+    contract?.custom_fields?.contract_type === 'assignment'
 
   // Validate email format
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -889,32 +892,44 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     setSavingSignerInfo(true)
     setError(null)
 
+    const payload = {
+      seller_name: sendToSellerName.trim(),
+      seller_email: sendToSellerEmail.trim(),
+      buyer_name: isThreeParty ? sendToAssigneeName.trim() : contract?.buyer_name,
+      buyer_email: isThreeParty ? sendToAssigneeEmail.trim() : contract?.buyer_email,
+      custom_fields: {
+        ...contract?.custom_fields,
+        seller_phone: sendToSellerPhone.trim(),
+        seller_address: sendToSellerAddress.trim(),
+        buyer_phone: isThreeParty ? sendToAssigneePhone.trim() : contract?.custom_fields?.buyer_phone,
+        assignee_address: isThreeParty ? sendToAssigneeAddress.trim() : contract?.custom_fields?.assignee_address,
+      },
+    }
+
+    console.log('[Save Signer Info] Saving payload:', payload)
+
     try {
       const res = await fetch(`/api/contracts/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          seller_name: sendToSellerName.trim(),
-          seller_email: sendToSellerEmail.trim(),
-          buyer_name: isThreeParty ? sendToAssigneeName.trim() : contract?.buyer_name,
-          buyer_email: isThreeParty ? sendToAssigneeEmail.trim() : contract?.buyer_email,
-          custom_fields: {
-            ...contract?.custom_fields,
-            seller_phone: sendToSellerPhone.trim(),
-            seller_address: sendToSellerAddress.trim(),
-            buyer_phone: isThreeParty ? sendToAssigneePhone.trim() : contract?.custom_fields?.buyer_phone,
-            assignee_address: isThreeParty ? sendToAssigneeAddress.trim() : contract?.custom_fields?.assignee_address,
-          },
-        }),
+        body: JSON.stringify(payload),
       })
+
+      console.log('[Save Signer Info] Response status:', res.status)
 
       if (!res.ok) {
         const data = await res.json()
+        console.log('[Save Signer Info] Error response:', data)
         throw new Error(data.error || 'Failed to save signer information')
       }
 
+      const result = await res.json()
+      console.log('[Save Signer Info] Success:', result)
+
       await fetchContract()
+      alert('Signer information saved successfully!')
     } catch (err) {
+      console.error('[Save Signer Info] Error:', err)
       setError(err instanceof Error ? err.message : 'Failed to save signer information')
     } finally {
       setSavingSignerInfo(false)
