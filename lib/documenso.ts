@@ -98,7 +98,7 @@ interface SignatureFieldPosition {
   width: number
   height: number
   recipientEmail: string // To match with recipient
-  fieldType?: 'signature' | 'initials' // Type of field
+  fieldType?: 'signature' | 'initials' | 'date' // Type of field
 }
 
 
@@ -550,6 +550,7 @@ class DocumensoClient {
 
   /**
    * Add a date field to a document for a specific recipient
+   * The date field auto-fills with the signing date when the signer completes signing
    */
   async addDateField(
     documentId: number,
@@ -562,18 +563,29 @@ class DocumensoClient {
       height: number
     }
   ): Promise<AddFieldResponse> {
-    return this.request(`/documents/${documentId}/fields`, {
-      method: 'POST',
-      body: JSON.stringify({
-        recipientId,
-        type: 'DATE',
-        pageNumber: field.page,
-        pageX: field.x,
-        pageY: field.y,
-        pageWidth: field.width,
-        pageHeight: field.height,
-      }),
-    })
+    const payload = {
+      recipientId,
+      type: 'DATE',
+      pageNumber: field.page,
+      pageX: field.x,
+      pageY: field.y,
+      pageWidth: field.width,
+      pageHeight: field.height,
+    }
+    console.log(`[Documenso] addDateField: recipientId=${recipientId}, page=${field.page}, pos=(${field.x},${field.y}), size=(${field.width}x${field.height})`)
+    console.log(`[Documenso] Full payload:`, JSON.stringify(payload))
+
+    try {
+      const result = await this.request<AddFieldResponse>(`/documents/${documentId}/fields`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+      console.log(`[Documenso] addDateField success:`, result)
+      return result
+    } catch (error) {
+      console.error(`[Documenso] addDateField FAILED for page ${field.page}:`, error)
+      throw error
+    }
   }
 
   /**
@@ -628,7 +640,7 @@ class DocumensoClient {
       recipientMap.set(r.email.toLowerCase(), r.id)
     }
 
-    // Step 3: Add signature/initials fields
+    // Step 3: Add signature/initials/date fields
     console.log(`[Documenso] ===== STEP 3: Adding signature fields =====`)
     console.log(`[Documenso] Total fields to add: ${options.signatureFields.length}`)
     console.log(`[Documenso] Recipient map:`, JSON.stringify(Object.fromEntries(recipientMap)))
@@ -650,23 +662,44 @@ class DocumensoClient {
       console.log(`[Documenso] Processing field: email="${field.recipientEmail}" (lowercase: "${emailLower}"), recipientId=${recipientId}`)
 
       if (recipientId) {
-        const fieldType = field.fieldType === 'initials' ? 'INITIALS' : 'SIGNATURE'
-        console.log(`[Documenso] Adding ${fieldType} field: page=${field.page}, x=${field.x}, y=${field.y}, width=${field.width}, height=${field.height}`)
-        try {
-          await this.addSignatureField(document.id, recipientId, {
-            page: field.page,
-            x: field.x,
-            y: field.y,
-            width: field.width,
-            height: field.height,
-            type: fieldType,
-          })
-          console.log(`[Documenso] SUCCESS: Added ${fieldType} field for ${field.recipientEmail} on page ${field.page}`)
-          fieldsAdded++
-        } catch (fieldError) {
-          console.error(`[Documenso] FAILED to add ${fieldType} field on page ${field.page} for ${field.recipientEmail}:`, fieldError)
-          fieldsFailed++
-          // Continue with other fields instead of failing completely
+        // Handle date fields separately from signature/initials
+        if (field.fieldType === 'date') {
+          console.log(`[Documenso] Adding DATE field: page=${field.page}, x=${field.x}, y=${field.y}, width=${field.width}, height=${field.height}`)
+          try {
+            await this.addDateField(document.id, recipientId, {
+              page: field.page,
+              x: field.x,
+              y: field.y,
+              width: field.width,
+              height: field.height,
+            })
+            console.log(`[Documenso] SUCCESS: Added DATE field for ${field.recipientEmail} on page ${field.page}`)
+            fieldsAdded++
+          } catch (fieldError) {
+            console.error(`[Documenso] FAILED to add DATE field on page ${field.page} for ${field.recipientEmail}:`, fieldError)
+            fieldsFailed++
+            // Continue with other fields instead of failing completely
+          }
+        } else {
+          // Signature or initials field
+          const fieldType = field.fieldType === 'initials' ? 'INITIALS' : 'SIGNATURE'
+          console.log(`[Documenso] Adding ${fieldType} field: page=${field.page}, x=${field.x}, y=${field.y}, width=${field.width}, height=${field.height}`)
+          try {
+            await this.addSignatureField(document.id, recipientId, {
+              page: field.page,
+              x: field.x,
+              y: field.y,
+              width: field.width,
+              height: field.height,
+              type: fieldType,
+            })
+            console.log(`[Documenso] SUCCESS: Added ${fieldType} field for ${field.recipientEmail} on page ${field.page}`)
+            fieldsAdded++
+          } catch (fieldError) {
+            console.error(`[Documenso] FAILED to add ${fieldType} field on page ${field.page} for ${field.recipientEmail}:`, fieldError)
+            fieldsFailed++
+            // Continue with other fields instead of failing completely
+          }
         }
       } else {
         console.warn(`[Documenso] SKIPPED: No recipientId found for "${field.recipientEmail}" - available emails: ${Array.from(recipientMap.keys()).join(', ')}`)

@@ -737,6 +737,7 @@ class PDFGeneratorService {
    * Get signature field positions from generated PDF
    * Returns coordinates for where signature fields should be placed
    * Initials are in the footer (pages 1 to N-1), signature on the last page
+   * Also returns DATE fields that auto-fill when the signer signs
    *
    * IMPORTANT: Documenso uses PERCENTAGE coordinates (0-100), not points!
    * - positionX, positionY, width, height are all percentages of page dimensions
@@ -806,6 +807,18 @@ class PDFGeneratorService {
         fieldType: 'signature',
       })
 
+      // Seller date field - below signature (DATE: row is 2 rows below signature)
+      // In three-party template: Signature -> Printed Name -> DATE
+      positions.push({
+        page: totalPages,
+        x: 10,
+        y: 23,
+        width: 25,
+        height: 2.5,
+        recipientRole: 'seller',
+        fieldType: 'date',
+      })
+
       // Assignee/Buyer signature - bottom section on signature page
       positions.push({
         page: totalPages,
@@ -815,6 +828,17 @@ class PDFGeneratorService {
         height: 5,
         recipientRole: 'buyer',
         fieldType: 'signature',
+      })
+
+      // Assignee/Buyer date field - below signature
+      positions.push({
+        page: totalPages,
+        x: 11,
+        y: 73,
+        width: 25,
+        height: 2.5,
+        recipientRole: 'buyer',
+        fieldType: 'date',
       })
 
       console.log(`[PDF Generator] Three-party positions:`, positions.map(p => ({
@@ -841,6 +865,17 @@ class PDFGeneratorService {
           fieldType: 'initials',
         })
       }
+
+      // Seller date field - ABOVE signature ("APPROVED AND ACCEPTED BY SELLER ON:" line)
+      positions.push({
+        page: totalPages,
+        x: 26,
+        y: 19,
+        width: 42,
+        height: 2.5,
+        recipientRole: 'seller',
+        fieldType: 'date',
+      })
 
       // Seller signature - centered layout (container is 50% width, centered at 25% from left)
       // After header (~12%) and date row (~8%), signature box starts around 22-25%
@@ -888,6 +923,17 @@ class PDFGeneratorService {
         fieldType: 'signature',
       })
 
+      // Buyer date field - below signature (DATE: row is 2 rows below signature)
+      positions.push({
+        page: totalPages,
+        x: 11,
+        y: 66,
+        width: 25,
+        height: 2.5,
+        recipientRole: 'buyer',
+        fieldType: 'date',
+      })
+
       console.log(`[PDF Generator] Buyer-only positions:`, positions.map(p => ({
         page: p.page,
         role: p.recipientRole,
@@ -909,6 +955,18 @@ class PDFGeneratorService {
           fieldType: 'initials',
         })
       }
+
+      // Seller date field - ABOVE signature ("APPROVED AND ACCEPTED BY SELLER ON:" line)
+      // X coordinate aligned with signature, Y is ~5% above
+      positions.push({
+        page: totalPages,
+        x: 9,
+        y: 21.5,
+        width: 35,
+        height: 2.5,
+        recipientRole: 'seller',
+        fieldType: 'date',
+      })
 
       // Seller signature - left column on last page
       positions.push({

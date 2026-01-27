@@ -405,7 +405,7 @@ export async function POST(
       width: pos.width,
       height: pos.height,
       recipientEmail: recipientEmail,
-      fieldType: pos.fieldType as 'signature' | 'initials' | undefined,
+      fieldType: pos.fieldType as 'signature' | 'initials' | 'date' | undefined,
     }))
 
     console.log(`[Send Contract] Mapped ${signatureFields.length} fields to ${recipientEmail}`)
