@@ -287,6 +287,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const [notifyingManager, setNotifyingManager] = useState(false)
   const [savingSignature, setSavingSignature] = useState(false)
   const [isResigning, setIsResigning] = useState(false)
+  const [savingSignerInfo, setSavingSignerInfo] = useState(false)
 
   useEffect(() => {
     fetchContract()
@@ -875,6 +876,40 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
   const updateField = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleSaveSignerInfo = async () => {
+    setSavingSignerInfo(true)
+    setError(null)
+
+    try {
+      const res = await fetch(`/api/contracts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          seller_name: sendToSellerName.trim(),
+          seller_email: sendToSellerEmail.trim(),
+          buyer_name: isThreeParty ? sendToAssigneeName.trim() : contract?.buyer_name,
+          buyer_email: isThreeParty ? sendToAssigneeEmail.trim() : contract?.buyer_email,
+          custom_fields: {
+            ...contract?.custom_fields,
+            seller_phone: sendToSellerPhone.trim(),
+            buyer_phone: isThreeParty ? sendToAssigneePhone.trim() : contract?.custom_fields?.buyer_phone,
+          },
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to save signer information')
+      }
+
+      await fetchContract()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save signer information')
+    } finally {
+      setSavingSignerInfo(false)
+    }
   }
 
   if (loading) {
@@ -2364,6 +2399,28 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                   </div>
                 )}
+
+                {/* Save Signer Info Button */}
+                <div className="pt-2 border-t border-[var(--gray-200)]">
+                  <button
+                    onClick={handleSaveSignerInfo}
+                    disabled={savingSignerInfo}
+                    style={{ backgroundColor: savingSignerInfo ? '#d1d5db' : '#16a34a', color: savingSignerInfo ? '#6b7280' : 'white' }}
+                    className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md disabled:cursor-not-allowed"
+                  >
+                    {savingSignerInfo ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Signer Info
+                      </>
+                    )}
+                  </button>
+                </div>
 
                 {!canSend() && (
                   <div className="text-xs text-[var(--warning-700)] bg-[var(--warning-100)] p-2 rounded">
