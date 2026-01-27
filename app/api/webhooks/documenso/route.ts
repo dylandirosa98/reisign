@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendSignedContractEmail } from '@/lib/services/email'
 import { documenso } from '@/lib/documenso'
+import { addSigningDateToPdf } from '@/lib/services/pdf-generator'
 
 // Webhook secret for verification (configure in Documenso)
 const WEBHOOK_SECRET = process.env.DOCUMENSO_WEBHOOK_SECRET
@@ -305,15 +306,22 @@ export async function POST(request: NextRequest) {
         if (isThreePartyContract && threePartyStage === 'seller') {
           // Seller's document completed - move to 'seller_signed' status
           // User can now send the buyer document
+          const sellerSignedAt = payload.recipients?.[0]?.signedAt || new Date().toISOString()
           newStatus = 'seller_signed'
           updateData = {
             status: 'seller_signed',
+            // Store seller signed date in custom_fields for later use
+            custom_fields: {
+              ...customFields,
+              seller_signed_at: sellerSignedAt,
+            },
           }
           additionalMetadata = {
             action: 'seller_document_completed',
             party: 'seller',
             three_party_stage: 'seller',
             next_step: 'send_to_buyer',
+            seller_signed_at: sellerSignedAt,
           }
           console.log('Three-party: Seller signed, waiting for buyer document to be sent')
         } else if (isThreePartyContract && threePartyStage === 'buyer') {
@@ -459,6 +467,8 @@ export async function POST(request: NextRequest) {
                   documenso_buyer_document_id?: string
                   documenso_seller_document_id?: string
                   property_address?: string
+                  company_template_id?: string
+                  seller_signed_at?: string
                 } | null
 
                 // For three-party, use buyer doc (has both signatures), otherwise use main doc
@@ -470,8 +480,35 @@ export async function POST(request: NextRequest) {
                   try {
                     pdfBuffer = await documenso.downloadSignedDocumentBuffer(docIdForEmail)
                     console.log(`[Webhook] Downloaded signed PDF for email: ${pdfBuffer.length} bytes`)
+
+                    // Determine signature layout and add signing dates
+                    let signatureLayout = 'two-column' // default
+                    if (customFieldsEmail?.company_template_id) {
+                      const { data: templateData } = await adminSupabase
+                        .from('company_templates' as any)
+                        .select('signature_layout')
+                        .eq('id', customFieldsEmail.company_template_id)
+                        .single()
+                      if (templateData) {
+                        signatureLayout = (templateData as any).signature_layout || 'two-column'
+                      }
+                    }
+
+                    // Get signing dates
+                    const completedAt = fullContract.completed_at || new Date().toISOString()
+                    const sellerSignedAt = customFieldsEmail?.seller_signed_at || completedAt
+                    const buyerSignedAt = completedAt
+
+                    // Add dates to the PDF
+                    console.log(`[Webhook] Adding signing dates to PDF: layout=${signatureLayout}, seller=${sellerSignedAt}, buyer=${buyerSignedAt}`)
+                    pdfBuffer = await addSigningDateToPdf(pdfBuffer, {
+                      signatureLayout,
+                      sellerSignedAt,
+                      buyerSignedAt: isThreePartyContract ? buyerSignedAt : undefined,
+                    })
+                    console.log(`[Webhook] Added signing dates to PDF: ${pdfBuffer.length} bytes`)
                   } catch (downloadErr) {
-                    console.error('[Webhook] Failed to download signed PDF for email:', downloadErr)
+                    console.error('[Webhook] Failed to download/modify signed PDF for email:', downloadErr)
                   }
                 }
 

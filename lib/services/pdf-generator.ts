@@ -2,7 +2,7 @@ import puppeteer from 'puppeteer-core'
 import chromium from '@sparticuz/chromium-min'
 import fs from 'fs/promises'
 import path from 'path'
-import { PDFDocument, rgb } from 'pdf-lib'
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 // Check if running in production (Vercel) or local development
@@ -930,6 +930,95 @@ class PDFGeneratorService {
 
     return positions
   }
+}
+
+/**
+ * Add signing date(s) to a signed PDF
+ * Places the date on the "APPROVED AND ACCEPTED BY X ON:" line
+ */
+export async function addSigningDateToPdf(
+  pdfBuffer: Buffer,
+  options: {
+    signatureLayout: string
+    sellerSignedAt?: string
+    buyerSignedAt?: string
+  }
+): Promise<Buffer> {
+  const { signatureLayout, sellerSignedAt, buyerSignedAt } = options
+
+  const pdfDoc = await PDFDocument.load(pdfBuffer)
+  const pages = pdfDoc.getPages()
+  const lastPage = pages[pages.length - 1]
+  const { width, height } = lastPage.getSize()
+
+  // Embed font
+  const font = await pdfDoc.embedFont(StandardFonts.TimesRoman)
+  const fontSize = 10
+
+  // Format date nicely
+  const formatDate = (dateStr: string): string => {
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    } catch {
+      return dateStr
+    }
+  }
+
+  // Position calculations - convert percentage to points
+  // PDF coordinates: origin at bottom-left, y increases upward
+  // Our percentage system: origin at top-left, y increases downward
+  const percentToX = (pct: number) => (pct / 100) * width
+  const percentToY = (pct: number) => height - ((pct / 100) * height)
+
+  // Date positions based on signature layout (one row above signature)
+  // These are approximate positions for the date line
+  if (signatureLayout === 'two-column') {
+    // Seller date - left column, above signature (signature at y: 26.5, date at ~20)
+    if (sellerSignedAt) {
+      const dateText = formatDate(sellerSignedAt)
+      const x = percentToX(10) // Left margin
+      const y = percentToY(21) // Above signature
+      lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
+    }
+  } else if (signatureLayout === 'seller-only') {
+    // Seller date - centered, above signature (signature at y: 24, date at ~18)
+    if (sellerSignedAt) {
+      const dateText = formatDate(sellerSignedAt)
+      const x = percentToX(27) // Centered (container starts at 25%)
+      const y = percentToY(19)
+      lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
+    }
+  } else if (signatureLayout === 'three-party') {
+    // Seller date - top section (signature at y: 15, date at ~10)
+    if (sellerSignedAt) {
+      const dateText = formatDate(sellerSignedAt)
+      const x = percentToX(55) // Right column of seller section (DATE field)
+      const y = percentToY(19)
+      lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
+    }
+    // Buyer/Assignee date - bottom section (signature at y: 65, date at ~72)
+    if (buyerSignedAt) {
+      const dateText = formatDate(buyerSignedAt)
+      const x = percentToX(55)
+      const y = percentToY(72)
+      lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
+    }
+  } else if (signatureLayout === 'buyer-only') {
+    // Buyer date - above signature (signature at y: 58, date at ~52)
+    if (buyerSignedAt) {
+      const dateText = formatDate(buyerSignedAt)
+      const x = percentToX(55)
+      const y = percentToY(53)
+      lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
+    }
+  }
+
+  const modifiedPdfBytes = await pdfDoc.save()
+  return Buffer.from(modifiedPdfBytes)
 }
 
 export const pdfGenerator = new PDFGeneratorService()
