@@ -1785,14 +1785,12 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                               </div>
                               {signatureMode === 'draw' ? (
                                 <div className="space-y-2">
-                                  <div className="border border-[var(--gray-300)] rounded-md bg-white w-full">
+                                  <div className="border border-[var(--gray-300)] rounded-md bg-white">
                                     <SignatureCanvas
                                       ref={signatureRef}
                                       canvasProps={{
-                                        width: 800,
-                                        height: 200,
-                                        className: 'w-full rounded-md',
-                                        style: { width: '100%', height: '144px' }
+                                        className: 'w-full h-24 rounded-md',
+                                        style: { width: '100%', height: '96px' }
                                       }}
                                       backgroundColor="white"
                                     />
@@ -1815,7 +1813,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                 <div className="space-y-2">
                                   <Input value={typedSignature} onChange={(e) => setTypedSignature(e.target.value)} placeholder="Type your full name" />
                                   {typedSignature && (
-                                    <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white flex items-center justify-center min-h-[144px]">
+                                    <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white flex items-center justify-center min-h-[96px]">
                                       <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '36px' }}>{typedSignature}</span>
                                     </div>
                                   )}
@@ -2174,14 +2172,12 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
                       {signatureMode === 'draw' ? (
                         <div className="space-y-2">
-                          <div className="border border-[var(--gray-300)] rounded-md bg-white w-full">
+                          <div className="border border-[var(--gray-300)] rounded-md bg-white">
                             <SignatureCanvas
                               ref={signatureRef}
                               canvasProps={{
-                                width: 800,
-                                height: 200,
-                                className: 'w-full rounded-md',
-                                style: { width: '100%', height: '144px' }
+                                className: 'w-full h-24 rounded-md',
+                                style: { width: '100%', height: '96px' }
                               }}
                               backgroundColor="white"
                             />
@@ -2217,7 +2213,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                             className="text-base"
                           />
                           {typedSignature && (
-                            <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white min-h-[144px] flex items-center justify-center">
+                            <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white min-h-[96px] flex items-center justify-center">
                               <span
                                 style={{
                                   fontFamily: '"Dancing Script", "Brush Script MT", cursive',
