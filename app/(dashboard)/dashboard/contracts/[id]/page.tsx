@@ -1786,39 +1786,48 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                   </button>
                                 </div>
                                 {signatureMode === 'draw' ? (
-                                  <div className="space-y-3">
-                                    <div className="border-2 border-[var(--gray-300)] rounded-md bg-white overflow-hidden">
+                                  <div className="space-y-2">
+                                    <div className="border border-[var(--gray-300)] rounded-md bg-white">
                                       <SignatureCanvas
                                         ref={signatureRef}
                                         canvasProps={{
-                                          width: 500,
-                                          height: 200,
-                                          className: 'cursor-crosshair',
-                                          style: { width: '100%', height: '200px' }
+                                          className: 'w-full h-32 rounded-md',
+                                          style: { width: '100%', height: '128px' }
                                         }}
                                         backgroundColor="white"
                                       />
                                     </div>
                                     <div className="flex gap-2">
                                       <Button type="button" variant="outline" size="sm" onClick={() => signatureRef.current?.clear()}>
-                                        <RotateCcw className="w-4 h-4 mr-1" /> Clear
+                                        <RotateCcw className="w-3 h-3 mr-1" /> Clear
                                       </Button>
-                                      <Button type="button" size="sm" onClick={saveDrawnSignature} className="!bg-[var(--success-600)] hover:!bg-[var(--success-700)] text-white">
-                                        <CheckCircle className="w-4 h-4 mr-1" /> Save Signature
-                                      </Button>
+                                      <button
+                                        type="button"
+                                        onClick={saveDrawnSignature}
+                                        style={{ backgroundColor: '#16a34a', color: 'white' }}
+                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:opacity-90"
+                                      >
+                                        <CheckCircle className="w-3 h-3 mr-1" /> Save Signature
+                                      </button>
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="space-y-3">
-                                    <Input value={typedSignature} onChange={(e) => setTypedSignature(e.target.value)} placeholder="Type your full name" className="text-lg" />
+                                  <div className="space-y-2">
+                                    <Input value={typedSignature} onChange={(e) => setTypedSignature(e.target.value)} placeholder="Type your full name" />
                                     {typedSignature && (
-                                      <div className="border-2 border-[var(--gray-300)] rounded-md p-6 bg-white flex items-center justify-center min-h-[200px]">
-                                        <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '48px' }}>{typedSignature}</span>
+                                      <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white flex items-center justify-center min-h-[128px]">
+                                        <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '36px' }}>{typedSignature}</span>
                                       </div>
                                     )}
-                                    <Button type="button" size="sm" onClick={saveTypedSignature} disabled={!typedSignature.trim()} className="!bg-[var(--success-600)] hover:!bg-[var(--success-700)] text-white disabled:!bg-[var(--gray-300)] disabled:!text-[var(--gray-500)]">
-                                      <CheckCircle className="w-4 h-4 mr-1" /> Save Signature
-                                    </Button>
+                                    <button
+                                      type="button"
+                                      onClick={saveTypedSignature}
+                                      disabled={!typedSignature.trim()}
+                                      style={{ backgroundColor: typedSignature.trim() ? '#16a34a' : '#d1d5db', color: typedSignature.trim() ? 'white' : '#6b7280' }}
+                                      className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:opacity-90 disabled:cursor-not-allowed"
+                                    >
+                                      <CheckCircle className="w-3 h-3 mr-1" /> Save Signature
+                                    </button>
                                   </div>
                                 )}
                               </div>
@@ -1863,15 +1872,13 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                     </button>
                                   </div>
                                   {initialsMode === 'draw' ? (
-                                    <div className="space-y-3">
-                                      <div className="border-2 border-[var(--gray-300)] rounded-md bg-white inline-block overflow-hidden">
+                                    <div className="space-y-2">
+                                      <div className="border border-[var(--gray-300)] rounded-md bg-white inline-block">
                                         <SignatureCanvas
                                           ref={initialsRef}
                                           canvasProps={{
-                                            width: 200,
-                                            height: 100,
-                                            className: 'cursor-crosshair',
-                                            style: { width: '200px', height: '100px' }
+                                            className: 'rounded-md',
+                                            style: { width: '120px', height: '60px' }
                                           }}
                                           backgroundColor="white"
                                         />
@@ -1880,23 +1887,34 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                         <Button type="button" variant="outline" size="sm" onClick={() => initialsRef.current?.clear()}>
                                           Clear
                                         </Button>
-                                        <Button type="button" size="sm" onClick={saveDrawnInitials} className="!bg-[var(--success-600)] hover:!bg-[var(--success-700)] text-white">
+                                        <button
+                                          type="button"
+                                          onClick={saveDrawnInitials}
+                                          style={{ backgroundColor: '#16a34a', color: 'white' }}
+                                          className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:opacity-90"
+                                        >
                                           Save Initials
-                                        </Button>
+                                        </button>
                                       </div>
                                     </div>
                                   ) : (
-                                    <div className="space-y-3">
-                                      <Input value={typedInitials} onChange={(e) => setTypedInitials(e.target.value.slice(0, 4))} placeholder="JD" className="w-28 text-lg" maxLength={4} />
+                                    <div className="space-y-2">
+                                      <Input value={typedInitials} onChange={(e) => setTypedInitials(e.target.value.slice(0, 4))} placeholder="JD" className="w-20" maxLength={4} />
                                       {typedInitials && (
-                                        <div className="border-2 border-[var(--gray-300)] rounded-md p-4 bg-white inline-block min-h-[100px] min-w-[200px] flex items-center justify-center">
-                                          <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '48px' }}>{typedInitials.toUpperCase()}</span>
+                                        <div className="border border-[var(--gray-300)] rounded-md p-3 bg-white inline-block">
+                                          <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '32px' }}>{typedInitials.toUpperCase()}</span>
                                         </div>
                                       )}
                                       <div>
-                                        <Button type="button" size="sm" onClick={saveTypedInitials} disabled={!typedInitials.trim()} className="!bg-[var(--success-600)] hover:!bg-[var(--success-700)] text-white disabled:!bg-[var(--gray-300)] disabled:!text-[var(--gray-500)]">
+                                        <button
+                                          type="button"
+                                          onClick={saveTypedInitials}
+                                          disabled={!typedInitials.trim()}
+                                          style={{ backgroundColor: typedInitials.trim() ? '#16a34a' : '#d1d5db', color: typedInitials.trim() ? 'white' : '#6b7280' }}
+                                          className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:opacity-90 disabled:cursor-not-allowed"
+                                        >
                                           Save Initials
-                                        </Button>
+                                        </button>
                                       </div>
                                     </div>
                                   )}
