@@ -373,12 +373,12 @@ class PDFGeneratorService {
 
       // Buyer signature - generate img tag if signature exists, empty string otherwise
       buyer_signature_img: data.buyer_signature && data.buyer_signature.trim()
-        ? `<img src="${data.buyer_signature}" style="height: 30px; width: auto; object-fit: contain;" />`
+        ? `<img src="${data.buyer_signature}" style="height: 40px; width: auto; object-fit: contain;" />`
         : '',
 
       // Buyer initials - generate img tag if initials exist, empty string otherwise
       buyer_initials_img: data.buyer_initials && data.buyer_initials.trim()
-        ? `<img src="${data.buyer_initials}" style="height: 20px; width: auto; object-fit: contain;" />`
+        ? `<img src="${data.buyer_initials}" style="height: 26px; width: auto; object-fit: contain;" />`
         : '',
     }
 
