@@ -127,8 +127,8 @@ export async function PATCH(
     'custom_fields',
   ]
 
-  // Only allow updates if contract is in draft status
-  if (existingContract.status !== 'draft') {
+  // Only allow updates if contract is in draft or ready status
+  if (existingContract.status !== 'draft' && existingContract.status !== 'ready') {
     return NextResponse.json({
       error: 'Cannot modify a contract that has been sent',
     }, { status: 400 })
@@ -144,6 +144,13 @@ export async function PATCH(
 
   if (Object.keys(updateData).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
+  }
+
+  // Check if wholesaler signature is being added - if so, move from draft to ready
+  const customFields = body.custom_fields as Record<string, unknown> | undefined
+  const hasSignature = customFields?.buyer_signature && customFields?.buyer_initials
+  if (existingContract.status === 'draft' && hasSignature) {
+    updateData.status = 'ready'
   }
 
   const { data: updated, error } = await adminSupabase

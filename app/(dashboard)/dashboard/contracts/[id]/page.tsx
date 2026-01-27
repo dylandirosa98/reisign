@@ -185,6 +185,7 @@ const formatPhoneNumber = (value: string): string => {
 
 const statusConfig: Record<string, { label: string; icon: typeof Clock; color: string; bgColor: string }> = {
   draft: { label: 'Draft', icon: FileText, color: 'var(--gray-700)', bgColor: 'var(--gray-100)' },
+  ready: { label: 'Ready to Send', icon: CheckCircle, color: 'var(--primary-700)', bgColor: 'var(--primary-100)' },
   sent: { label: 'Sent', icon: Send, color: 'var(--info-700)', bgColor: 'var(--info-100)' },
   viewed: { label: 'Viewed', icon: Eye, color: 'var(--warning-700)', bgColor: 'var(--warning-100)' },
   seller_signed: { label: 'Seller Signed', icon: CheckCircle, color: 'var(--success-700)', bgColor: 'var(--success-100)' },
@@ -2153,7 +2154,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Send Contract - Signer Information */}
-          {contract.status === 'draft' && (
+          {(contract.status === 'draft' || contract.status === 'ready') && (
             <div className="bg-white border border-[var(--gray-200)] rounded">
               <div className="px-4 py-3 border-b border-[var(--gray-200)]">
                 <h2 className="font-semibold text-[var(--gray-900)]">Send Contract</h2>
