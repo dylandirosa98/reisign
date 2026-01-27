@@ -934,7 +934,13 @@ class PDFGeneratorService {
 
 /**
  * Add signing date(s) to a signed PDF
- * Places the date on the "APPROVED AND ACCEPTED BY X ON:" line
+ * Places the date on the appropriate date line based on signature layout
+ *
+ * Template structures:
+ * - Two-column: Date ABOVE signature ("APPROVED AND ACCEPTED BY SELLER ON:" line)
+ * - Seller-only: Date ABOVE signature ("APPROVED AND ACCEPTED BY SELLER ON:" line)
+ * - Three-party: Date BELOW signature (separate "DATE:" row under signature)
+ * - Buyer-only: Date BELOW signature (separate "DATE:" row under signature)
  */
 export async function addSigningDateToPdf(
   pdfBuffer: Buffer,
@@ -974,45 +980,51 @@ export async function addSigningDateToPdf(
   const percentToX = (pct: number) => (pct / 100) * width
   const percentToY = (pct: number) => height - ((pct / 100) * height)
 
-  // Date positions based on signature layout (one row above signature)
-  // These are approximate positions for the date line
+  // Date positions based on signature layout
+  // Positions are calibrated to the signature-line element in each template
   if (signatureLayout === 'two-column') {
-    // Seller date - left column, above signature (signature at y: 26.5, date at ~20)
+    // Two-column: Date is ABOVE signature
+    // Signature at y: 26.5%, date line is ~5% above at y: 21.5%
+    // Left column starts at ~8% from left edge
     if (sellerSignedAt) {
       const dateText = formatDate(sellerSignedAt)
-      const x = percentToX(10) // Left margin
-      const y = percentToY(21) // Above signature
+      const x = percentToX(9)
+      const y = percentToY(22)
       lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
     }
   } else if (signatureLayout === 'seller-only') {
-    // Seller date - centered, above signature (signature at y: 24, date at ~18)
+    // Seller-only: Date is ABOVE signature, centered container
+    // Container at 50% width centered (starts at 25%), signature at y: 24%
+    // Date line is ~5% above at y: 19%
     if (sellerSignedAt) {
       const dateText = formatDate(sellerSignedAt)
-      const x = percentToX(27) // Centered (container starts at 25%)
-      const y = percentToY(19)
+      const x = percentToX(27)
+      const y = percentToY(20)
       lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
     }
   } else if (signatureLayout === 'three-party') {
-    // Seller date - top section (signature at y: 15, date at ~10)
+    // Three-party: Date is BELOW signature (in left column, third row)
+    // Seller section: signature at y: 15%, date is 2 rows below at ~23%
+    // Assignee section: signature at y: 65%, date is 2 rows below at ~73%
     if (sellerSignedAt) {
       const dateText = formatDate(sellerSignedAt)
-      const x = percentToX(55) // Right column of seller section (DATE field)
-      const y = percentToY(19)
+      const x = percentToX(9)  // Left column
+      const y = percentToY(24) // Below signature + printed name
       lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
     }
-    // Buyer/Assignee date - bottom section (signature at y: 65, date at ~72)
     if (buyerSignedAt) {
       const dateText = formatDate(buyerSignedAt)
-      const x = percentToX(55)
-      const y = percentToY(72)
+      const x = percentToX(9)  // Left column
+      const y = percentToY(74) // Below signature + printed name in assignee section
       lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
     }
   } else if (signatureLayout === 'buyer-only') {
-    // Buyer date - above signature (signature at y: 58, date at ~52)
+    // Buyer-only: Date is BELOW signature (similar to three-party assignee section)
+    // Signature at y: 58%, date is 2 rows below at ~66%
     if (buyerSignedAt) {
       const dateText = formatDate(buyerSignedAt)
-      const x = percentToX(55)
-      const y = percentToY(53)
+      const x = percentToX(9)  // Left column
+      const y = percentToY(67)
       lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
     }
   }
