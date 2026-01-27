@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { token } = body
+    const { token, full_name } = body
 
     if (!token) {
       return NextResponse.json({ error: 'Token is required' }, { status: 400 })
@@ -78,12 +78,14 @@ export async function POST(request: Request) {
     const isOverageSeat = planCheck.overagePrice !== undefined
 
     // Update the user record to link to company
+    // Use full_name from request body if provided, otherwise fall back to user_metadata
+    const userName = full_name || user.user_metadata?.full_name || null
     const { error: userError } = await adminSupabase
       .from('users')
       .update({
         company_id: company.id,
         role: invite.role || 'user',
-        full_name: user.user_metadata?.full_name || null,
+        full_name: userName,
         is_active: true,
       })
       .eq('id', user.id)

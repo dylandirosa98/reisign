@@ -135,14 +135,54 @@ function SignupForm() {
       return
     }
 
+    // For invited users, sign them in directly (user already exists from inviteUserByEmail)
+    if (inviteToken && inviteData) {
+      // Try signing in - the user was created by inviteUserByEmail
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (signInError) {
+        // If sign in fails, the user might not have set their password yet via Supabase's page
+        // Or they entered wrong password
+        setError(signInError.message === 'Invalid login credentials'
+          ? 'Invalid password. Please check the email you received and set your password first, then try again.'
+          : signInError.message)
+        setLoading(false)
+        return
+      }
+
+      // Accept the invite (also updates the user's name)
+      const acceptResponse = await fetch('/api/team/invite/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: inviteToken, full_name: fullName }),
+      })
+
+      if (!acceptResponse.ok) {
+        const acceptData = await acceptResponse.json()
+        // If already accepted, that's fine - just redirect
+        if (acceptData.error !== 'This invite has already been used') {
+          setError(acceptData.error || 'Failed to accept invite')
+          setLoading(false)
+          return
+        }
+      }
+
+      // Redirect to dashboard
+      window.location.href = '/dashboard'
+      return
+    }
+
+    // Regular signup (non-invite)
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName,
-          company_name: inviteToken ? undefined : companyName,
-          invite_token: inviteToken || undefined,
+          company_name: companyName,
         },
         emailRedirectTo: `${window.location.origin}/api/auth/callback`,
       },
