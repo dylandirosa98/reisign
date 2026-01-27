@@ -202,6 +202,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const [contract, setContract] = useState<Contract | null>(null)
   const [template, setTemplate] = useState<Template | null>(null)
   const [history, setHistory] = useState<StatusHistoryItem[]>([])
+  const [isManager, setIsManager] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
@@ -299,6 +300,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       setContract(data.contract)
       setHistory(data.history || [])
       setTemplate(data.template || null)
+      setIsManager(data.isManager || false)
       // Initialize send-to info from contract values
       setSendToSellerName(data.contract.seller_name || '')
       setSendToSellerEmail(data.contract.seller_email || '')
@@ -1951,6 +1953,201 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               )}
             </div>
           </div>
+
+          {/* Manager-Only Signature Section */}
+          {isManager && contract.status !== 'draft' && contract.status !== 'completed' && contract.status !== 'cancelled' && !contract.custom_fields?.buyer_signature && (
+            <div className="bg-white border border-[var(--warning-300)] rounded">
+              <div className="px-4 py-3 border-b border-[var(--warning-300)] bg-[var(--warning-50)]">
+                <h2 className="font-semibold text-[var(--warning-800)] flex items-center gap-2">
+                  <PenTool className="w-4 h-4" />
+                  Wholesaler Signature Required
+                </h2>
+                <p className="text-xs text-[var(--warning-700)] mt-1">
+                  This contract was sent without your company&apos;s signature. As a manager, you can sign it now.
+                </p>
+              </div>
+              <div className="p-4 space-y-4">
+                {/* Company Info */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-[var(--gray-600)]">Company Name</Label>
+                    <Input
+                      value={formData.company_name}
+                      onChange={(e) => updateField('company_name', e.target.value)}
+                      placeholder="Enter your company name"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-[var(--gray-600)]">Signer Name</Label>
+                    <Input
+                      value={formData.company_signer_name}
+                      onChange={(e) => updateField('company_signer_name', e.target.value)}
+                      placeholder="Person signing the contract"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-[var(--gray-600)]">Company Email</Label>
+                    <Input
+                      type="email"
+                      value={formData.company_email}
+                      onChange={(e) => updateField('company_email', e.target.value)}
+                      placeholder="your@email.com"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-[var(--gray-600)]">Company Phone</Label>
+                    <Input
+                      value={formData.company_phone}
+                      onChange={(e) => updateField('company_phone', formatPhoneNumber(e.target.value))}
+                      placeholder="(555) 123-4567"
+                      maxLength={14}
+                    />
+                  </div>
+                </div>
+
+                {/* Signature */}
+                <div>
+                  <Label className="text-xs text-[var(--gray-600)] mb-2 block">Signature</Label>
+                  {formData.buyer_signature ? (
+                    <div className="space-y-2">
+                      <div className="border border-[var(--gray-300)] rounded-md p-2 bg-white">
+                        <img
+                          src={formData.buyer_signature}
+                          alt="Signature"
+                          className="max-h-20 mx-auto"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={clearSignature}
+                        className="text-xs"
+                      >
+                        <RotateCcw className="w-3 h-3 mr-1" />
+                        Clear & Re-sign
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setSignatureMode('draw')}
+                          className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                            signatureMode === 'draw'
+                              ? 'bg-[var(--primary-900)] text-white'
+                              : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
+                          }`}
+                        >
+                          <PenTool className="w-3 h-3 inline mr-1" />
+                          Draw
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSignatureMode('type')}
+                          className={`flex-1 px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
+                            signatureMode === 'type'
+                              ? 'bg-[var(--primary-900)] text-white'
+                              : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
+                          }`}
+                        >
+                          Type
+                        </button>
+                      </div>
+
+                      {signatureMode === 'draw' ? (
+                        <div className="space-y-2">
+                          <div className="border border-[var(--gray-300)] rounded-md bg-white">
+                            <SignatureCanvas
+                              ref={signatureRef}
+                              canvasProps={{
+                                className: 'w-full h-24 rounded-md',
+                                style: { width: '100%', height: '96px' }
+                              }}
+                              backgroundColor="white"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => signatureRef.current?.clear()}
+                              className="text-xs"
+                            >
+                              <RotateCcw className="w-3 h-3 mr-1" />
+                              Clear
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={saveDrawnSignature}
+                              className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Save Signature
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Input
+                            value={typedSignature}
+                            onChange={(e) => setTypedSignature(e.target.value)}
+                            placeholder="Type your name"
+                            className="text-base"
+                          />
+                          {typedSignature && (
+                            <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white min-h-[96px] flex items-center justify-center">
+                              <span
+                                style={{
+                                  fontFamily: '"Dancing Script", "Brush Script MT", cursive',
+                                  fontSize: '36px',
+                                  color: '#000'
+                                }}
+                              >
+                                {typedSignature}
+                              </span>
+                            </div>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={saveTypedSignature}
+                            disabled={!typedSignature.trim()}
+                            className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
+                          >
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Save Signature
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Save Button */}
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || !formData.buyer_signature}
+                  className="w-full bg-[var(--success-600)] hover:bg-[var(--success-700)] text-white"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Signature
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -12,15 +12,11 @@ import {
   Home,
   User,
   DollarSign,
-  PenTool,
-  CheckCircle,
-  RotateCcw,
   AlertCircle,
   Save,
   FileText,
   ChevronDown,
 } from 'lucide-react'
-import SignatureCanvas from 'react-signature-canvas'
 import {
   CompanyTemplate,
   CustomField,
@@ -193,12 +189,6 @@ export default function NewContractPage() {
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [signatureMode, setSignatureMode] = useState<'draw' | 'type'>('draw')
-  const [typedSignature, setTypedSignature] = useState('')
-  const [initialsMode, setInitialsMode] = useState<'draw' | 'type'>('draw')
-  const [typedInitials, setTypedInitials] = useState('')
-  const signatureRef = useRef<SignatureCanvas>(null)
-  const initialsRef = useRef<SignatureCanvas>(null)
 
   // Template state
   const [selectedTemplate, setSelectedTemplate] = useState<CompanyTemplate | null>(null)
@@ -280,74 +270,6 @@ export default function NewContractPage() {
 
   const updateField = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-  }
-
-  const clearSignature = () => {
-    signatureRef.current?.clear()
-    setTypedSignature('')
-    updateField('buyer_signature', '')
-  }
-
-  const saveDrawnSignature = () => {
-    if (signatureRef.current && !signatureRef.current.isEmpty()) {
-      const dataUrl = signatureRef.current.toDataURL('image/png')
-      updateField('buyer_signature', dataUrl)
-    }
-  }
-
-  const saveTypedSignature = () => {
-    if (!typedSignature.trim()) return
-
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    canvas.width = 400
-    canvas.height = 100
-
-    ctx.fillStyle = 'white'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-    ctx.fillStyle = 'black'
-    ctx.font = '48px "Dancing Script", "Brush Script MT", cursive'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-
-    ctx.fillText(typedSignature, canvas.width / 2, canvas.height / 2)
-
-    const dataUrl = canvas.toDataURL('image/png')
-    updateField('buyer_signature', dataUrl)
-  }
-
-  const clearInitials = () => {
-    initialsRef.current?.clear()
-    setTypedInitials('')
-    updateField('buyer_initials', '')
-  }
-
-  const saveDrawnInitials = () => {
-    if (initialsRef.current && !initialsRef.current.isEmpty()) {
-      const dataUrl = initialsRef.current.toDataURL('image/png')
-      updateField('buyer_initials', dataUrl)
-    }
-  }
-
-  const saveTypedInitials = () => {
-    if (!typedInitials.trim()) return
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    canvas.width = 100
-    canvas.height = 50
-    ctx.fillStyle = 'white'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.fillStyle = 'black'
-    ctx.font = '32px "Dancing Script", "Brush Script MT", cursive'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(typedInitials.toUpperCase(), canvas.width / 2, canvas.height / 2)
-    const dataUrl = canvas.toDataURL('image/png')
-    updateField('buyer_initials', dataUrl)
   }
 
   const validateForm = (): string | null => {
@@ -582,7 +504,16 @@ export default function NewContractPage() {
         </div>
       )}
 
-      {/* Form */}
+      {/* Form - Only show if template is selected */}
+      {!selectedTemplate && !loadingTemplates ? (
+        <div className="bg-white border border-[var(--gray-200)] rounded p-8 text-center">
+          <FileText className="w-12 h-12 text-[var(--gray-400)] mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-[var(--gray-900)] mb-2">Select a Template</h3>
+          <p className="text-sm text-[var(--gray-600)] mb-4">
+            Please select a template above to start creating your contract.
+          </p>
+        </div>
+      ) : (
       <div className="bg-white border border-[var(--gray-200)] rounded">
         <div className="px-4 py-3 border-b border-[var(--gray-200)]">
           <h2 className="font-semibold text-[var(--gray-900)]">Contract Details</h2>
@@ -1090,308 +1021,6 @@ export default function NewContractPage() {
               </div>
             )}
 
-            {/* Signature Page - Buyer/Company Details */}
-            <div className="border-t border-[var(--gray-200)] pt-6">
-              <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-1 flex items-center gap-2">
-                <PenTool className="w-4 h-4 text-[var(--gray-400)]" />
-                {selectedTemplate?.signature_layout === 'three-party' ? 'Assignor Signature (Your Company)' : 'Buyer Signature Page (Your Company)'}
-              </h3>
-              <p className="text-xs text-[var(--gray-500)] mb-4">
-                {selectedTemplate?.signature_layout === 'three-party'
-                  ? 'Your company pre-signs as the Assignor (wholesaler). This signature will be embedded in the contract before sending to other parties.'
-                  : 'These fields appear on the signature page of the contract. All fields marked with * are required before sending.'}
-              </p>
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div>
-                  <Label className="text-xs text-[var(--gray-600)]">Company Name *</Label>
-                  <Input
-                    value={formData.company_name}
-                    onChange={(e) => updateField('company_name', e.target.value)}
-                    placeholder="Enter your company name"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-[var(--gray-600)]">Signer Name *</Label>
-                  <Input
-                    value={formData.company_signer_name}
-                    onChange={(e) => updateField('company_signer_name', e.target.value)}
-                    placeholder="Person signing the contract"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-[var(--gray-600)]">Company Email *</Label>
-                  <Input
-                    type="email"
-                    value={formData.company_email}
-                    onChange={(e) => updateField('company_email', e.target.value)}
-                    placeholder="your@email.com"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-[var(--gray-600)]">Company Phone *</Label>
-                  <Input
-                    value={formData.company_phone}
-                    onChange={(e) => updateField('company_phone', formatPhoneNumber(e.target.value))}
-                    placeholder="(555) 123-4567"
-                    maxLength={14}
-                  />
-                </div>
-              </div>
-
-              {/* Buyer Signature */}
-              <div>
-                <Label className="text-xs text-[var(--gray-600)] mb-2 block">Buyer Signature *</Label>
-                {formData.buyer_signature ? (
-                  <div className="space-y-2">
-                    <div className="border border-[var(--gray-300)] rounded-md p-2 bg-white">
-                      <img
-                        src={formData.buyer_signature}
-                        alt="Signature"
-                        className="max-h-20 mx-auto"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={clearSignature}
-                      className="text-xs"
-                    >
-                      <RotateCcw className="w-3 h-3 mr-1" />
-                      Clear & Re-sign
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {/* Signature Mode Toggle */}
-                    <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setSignatureMode('draw')}
-                        className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                          signatureMode === 'draw'
-                            ? 'bg-[var(--primary-900)] text-white'
-                            : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
-                        }`}
-                      >
-                        <PenTool className="w-3 h-3 inline mr-1" />
-                        Draw
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSignatureMode('type')}
-                        className={`flex-1 px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
-                          signatureMode === 'type'
-                            ? 'bg-[var(--primary-900)] text-white'
-                            : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
-                        }`}
-                      >
-                        Type
-                      </button>
-                    </div>
-
-                    {signatureMode === 'draw' ? (
-                      <div className="space-y-2">
-                        <div className="border border-[var(--gray-300)] rounded-md bg-white">
-                          <SignatureCanvas
-                            ref={signatureRef}
-                            canvasProps={{
-                              className: 'w-full h-24 rounded-md',
-                              style: { width: '100%', height: '96px' }
-                            }}
-                            backgroundColor="white"
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => signatureRef.current?.clear()}
-                            className="text-xs"
-                          >
-                            <RotateCcw className="w-3 h-3 mr-1" />
-                            Clear
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={saveDrawnSignature}
-                            className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
-                          >
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Save Signature
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Input
-                          value={typedSignature}
-                          onChange={(e) => setTypedSignature(e.target.value)}
-                          placeholder="Type your name"
-                          className="text-base"
-                        />
-                        {typedSignature && (
-                          <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white min-h-[96px] flex items-center justify-center">
-                            <span
-                              style={{
-                                fontFamily: '"Dancing Script", "Brush Script MT", cursive',
-                                fontSize: '36px',
-                                color: '#000'
-                              }}
-                            >
-                              {typedSignature}
-                            </span>
-                          </div>
-                        )}
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={saveTypedSignature}
-                          disabled={!typedSignature.trim()}
-                          className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
-                        >
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Save Signature
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Buyer Initials - Only for non-three-party templates */}
-              {/* For three-party, wholesaler only pre-signs (no initials needed - Seller/Assignee initial via Documenso) */}
-              {selectedTemplate?.signature_layout !== 'three-party' && (
-              <div>
-                <Label className="text-xs text-[var(--gray-600)] mb-2 block">Buyer Initials</Label>
-                {formData.buyer_initials ? (
-                  <div className="space-y-2">
-                    <div className="border border-[var(--gray-300)] rounded-md p-2 bg-white inline-block">
-                      <img
-                        src={formData.buyer_initials}
-                        alt="Initials"
-                        className="h-12"
-                      />
-                    </div>
-                    <div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={clearInitials}
-                        className="text-xs"
-                      >
-                        <RotateCcw className="w-3 h-3 mr-1" />
-                        Clear & Re-initial
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {/* Initials Mode Toggle */}
-                    <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden w-48">
-                      <button
-                        type="button"
-                        onClick={() => setInitialsMode('draw')}
-                        className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                          initialsMode === 'draw'
-                            ? 'bg-[var(--primary-900)] text-white'
-                            : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
-                        }`}
-                      >
-                        <PenTool className="w-3 h-3 inline mr-1" />
-                        Draw
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setInitialsMode('type')}
-                        className={`flex-1 px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
-                          initialsMode === 'type'
-                            ? 'bg-[var(--primary-900)] text-white'
-                            : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
-                        }`}
-                      >
-                        Type
-                      </button>
-                    </div>
-
-                    {initialsMode === 'draw' ? (
-                      <div className="space-y-2">
-                        <div className="border border-[var(--gray-300)] rounded-md bg-white inline-block">
-                          <SignatureCanvas
-                            ref={initialsRef}
-                            canvasProps={{
-                              className: 'rounded-md',
-                              style: { width: '100px', height: '50px' }
-                            }}
-                            backgroundColor="white"
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => initialsRef.current?.clear()}
-                            className="text-xs"
-                          >
-                            <RotateCcw className="w-3 h-3 mr-1" />
-                            Clear
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={saveDrawnInitials}
-                            className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
-                          >
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Save Initials
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Input
-                          value={typedInitials}
-                          onChange={(e) => setTypedInitials(e.target.value.slice(0, 4))}
-                          placeholder="e.g. JD"
-                          className="text-base w-24"
-                          maxLength={4}
-                        />
-                        {typedInitials && (
-                          <div className="border border-[var(--gray-300)] rounded-md p-2 bg-white inline-block min-w-[100px] min-h-[50px] flex items-center justify-center">
-                            <span
-                              style={{
-                                fontFamily: '"Dancing Script", "Brush Script MT", cursive',
-                                fontSize: '28px',
-                                color: '#000'
-                              }}
-                            >
-                              {typedInitials.toUpperCase()}
-                            </span>
-                          </div>
-                        )}
-                        <div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={saveTypedInitials}
-                            disabled={!typedInitials.trim()}
-                            className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
-                          >
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Save Initials
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              )}
-            </div>
           </div>
 
           {/* Custom Fields from Template */}
@@ -1466,6 +1095,7 @@ export default function NewContractPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }

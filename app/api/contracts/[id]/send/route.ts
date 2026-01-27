@@ -195,20 +195,11 @@ export async function POST(
   const limitCheck = canCreateContract(actualPlan, contractsUsed)
   const isOverageContract = isFirstSend && limitCheck.isOverage === true
 
-  // Validate required buyer (company) signing fields - only use explicitly saved values
-  const missingFields: string[] = []
-  if (!customFields?.company_name) missingFields.push('Company Name')
-  if (!customFields?.company_signer_name) missingFields.push('Signer Name')
-  if (!customFields?.company_email) missingFields.push('Company Email')
-  if (!customFields?.company_phone) missingFields.push('Company Phone')
-  if (!customFields?.buyer_signature) missingFields.push('Buyer Signature')
-  // Buyer initials only required for non-three-party templates (wholesaler doesn't need initials for three-party)
-  if (!isThreeParty && !customFields?.buyer_initials) missingFields.push('Buyer Initials')
-
-  if (missingFields.length > 0) {
-    return NextResponse.json({
-      error: `Missing required buyer signing fields: ${missingFields.join(', ')}. Please complete all buyer information before sending.`,
-    }, { status: 400 })
+  // Wholesaler signature is now optional - contracts can be sent without it
+  // The signature will be added by a manager later
+  // Only log if signature is missing for debugging
+  if (!customFields?.buyer_signature) {
+    console.log(`[Send Contract] Contract ${id} being sent without wholesaler signature - signature will be added by manager later`)
   }
 
   try {

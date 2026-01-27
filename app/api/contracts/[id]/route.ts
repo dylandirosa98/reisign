@@ -16,16 +16,21 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Get user's company
+  // Get user's company and role
   const { data: userData } = await adminSupabase
     .from('users')
-    .select('company_id')
+    .select('company_id, role')
     .eq('id', user.id)
     .single()
 
-  if (!userData?.company_id) {
+  const typedUserData = userData as { company_id: string | null; role: string | null } | null
+
+  if (!typedUserData?.company_id) {
     return NextResponse.json({ error: 'No company found' }, { status: 400 })
   }
+
+  const userRole = typedUserData.role
+  const isManager = userRole === 'manager' || userRole === 'admin'
 
   // Get contract with property
   const { data: contract, error } = await adminSupabase
@@ -35,7 +40,7 @@ export async function GET(
       property:properties(id, address, city, state, zip)
     `)
     .eq('id', id)
-    .eq('company_id', userData.company_id)
+    .eq('company_id', typedUserData.company_id)
     .single()
 
   if (error || !contract) {
@@ -70,6 +75,8 @@ export async function GET(
     contract,
     history: history || [],
     template,
+    userRole,
+    isManager,
   })
 }
 
