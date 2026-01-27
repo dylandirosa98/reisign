@@ -801,47 +801,45 @@ class PDFGeneratorService {
         })
       }
 
-      // Seller signature - Section 1 (top section after intro paragraph)
-      // Template structure: Intro (~5%) -> Section 1 header (~8%) -> Signature box
+      // Seller signature - top section on signature page
       positions.push({
         page: totalPages,
-        x: 5,
-        y: 7,
+        x: 10,
+        y: 15,
         width: 30,
-        height: 4,
+        height: 5,
         recipientRole: 'seller',
         fieldType: 'signature',
       })
 
-      // Seller date field - below signature and printed name in Section 1
-      // Order: Signature -> Printed Name -> DATE
+      // Seller date field - below signature (DATE: row is 2 rows below signature)
+      // In three-party template: Signature -> Printed Name -> DATE
       positions.push({
         page: totalPages,
-        x: 5,
-        y: 24,
+        x: 11.3,
+        y: 22.25,
         width: 25,
         height: 2.5,
         recipientRole: 'seller',
         fieldType: 'date',
       })
 
-      // Assignee/Buyer signature - Section 3 (bottom section after Assignor section)
-      // Sections are roughly equal height, so Assignee section starts around 66%
+      // Assignee/Buyer signature - bottom section on signature page
       positions.push({
         page: totalPages,
-        x: 8,
-        y: 70,
+        x: 11,
+        y: 65,
         width: 30,
-        height: 4,
+        height: 5,
         recipientRole: 'buyer',
         fieldType: 'signature',
       })
 
-      // Assignee/Buyer date field - below signature and printed name in Section 3
+      // Assignee/Buyer date field - below signature
       positions.push({
         page: totalPages,
-        x: 8,
-        y: 78,
+        x: 12.3,
+        y: 72.25,
         width: 25,
         height: 2.5,
         recipientRole: 'buyer',
@@ -1069,12 +1067,12 @@ export async function addSigningDateToPdf(
     }
   } else if (signatureLayout === 'three-party') {
     // Three-party: Date is BELOW signature (in left column, third row)
-    // Seller section: signature at y: 7%, date at y: 24%
-    // Assignee section: signature at y: 70%, date at y: 78%
+    // Seller section: signature at y: 15%, date is 2 rows below at ~23%
+    // Assignee section: signature at y: 65%, date is 2 rows below at ~73%
     if (sellerSignedAt) {
       const dateText = formatDate(sellerSignedAt)
-      const x = percentToX(5)  // Left column
-      const y = percentToY(25) // Below signature + printed name
+      const x = percentToX(9)  // Left column
+      const y = percentToY(24) // Below signature + printed name
       lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
     }
     if (buyerSignedAt) {

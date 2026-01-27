@@ -366,15 +366,15 @@ export async function POST(
     let documentTitle: string
 
     if (isThreePartyTemplate) {
+      // Use three-party layout for signature positions
+      effectiveLayout = 'three-party'
       if (sendTo === 'buyer') {
         // Second stage: sending to buyer only
-        effectiveLayout = 'buyer-only'
         recipientName = assigneeNameToSend || 'Buyer'
         recipientEmail = assigneeEmailToSend
         documentTitle = `Assignment Contract (Buyer) - ${propertyAddress}`
       } else {
         // First stage: sending to seller only
-        effectiveLayout = 'seller-only'
         recipientName = sellerNameToSend
         recipientEmail = sellerEmailToSend
         documentTitle = `Assignment Contract (Seller) - ${propertyAddress}`
@@ -394,10 +394,16 @@ export async function POST(
     const signaturePositions = await pdfGenerator.getSignaturePositions(templateType, contractData, pageCount, effectiveLayout)
     console.log(`[Send Contract] Got ${signaturePositions.length} signature positions`)
 
-    // For buyer-only, we need to map 'seller' role to the buyer (since seller-only layout creates 'seller' positions)
-    // Actually, let's create a proper buyer-only layout in getSignaturePositions
-    // For now, map all positions to the single recipient
-    const signatureFields = signaturePositions.map(pos => ({
+    // For three-party layout, filter positions based on who we're sending to
+    // Seller gets 'seller' role positions, buyer gets 'buyer' role positions
+    const targetRole = (isThreePartyTemplate && sendTo === 'buyer') ? 'buyer' : 'seller'
+    const filteredPositions = isThreePartyTemplate
+      ? signaturePositions.filter(pos => pos.recipientRole === targetRole)
+      : signaturePositions
+
+    console.log(`[Send Contract] Filtered to ${filteredPositions.length} positions for role: ${targetRole}`)
+
+    const signatureFields = filteredPositions.map(pos => ({
       page: pos.page,
       x: pos.x,
       y: pos.y,
