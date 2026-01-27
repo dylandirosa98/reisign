@@ -135,20 +135,30 @@ function SignupForm() {
       return
     }
 
-    // For invited users, sign them in directly (user already exists from inviteUserByEmail)
+    // For invited users, set their password and sign them in directly
     if (inviteToken && inviteData) {
-      // Try signing in - the user was created by inviteUserByEmail
+      // First, set the user's password via admin API
+      const setupResponse = await fetch('/api/team/invite/setup-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: inviteToken, password }),
+      })
+
+      if (!setupResponse.ok) {
+        const setupData = await setupResponse.json()
+        setError(setupData.error || 'Failed to set up your account')
+        setLoading(false)
+        return
+      }
+
+      // Now sign them in with the password they just set
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (signInError) {
-        // If sign in fails, the user might not have set their password yet via Supabase's page
-        // Or they entered wrong password
-        setError(signInError.message === 'Invalid login credentials'
-          ? 'Invalid password. Please check the email you received and set your password first, then try again.'
-          : signInError.message)
+        setError(signInError.message)
         setLoading(false)
         return
       }
