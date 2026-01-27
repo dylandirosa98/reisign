@@ -221,56 +221,53 @@ export default function NewContractPage() {
     fetchTemplates()
   }, [templateId])
 
-  // Get field configuration from template or use defaults
-  const getFieldConfig = (fieldKey: StandardFieldKey) => {
-    if (!selectedTemplate) {
-      // No template selected - use defaults (all visible)
-      return DEFAULT_FIELD_CONFIG.standardFields[fieldKey] || { visible: true, required: false }
-    }
-    // Check template's field_config, fallback to default
-    const templateConfig = selectedTemplate.field_config?.standardFields?.[fieldKey]
-    if (templateConfig) {
-      return templateConfig
-    }
-    // If template has field_config but this field isn't specified, check if placeholder is used
-    // This provides backwards compatibility with templates that don't have explicit field_config
-    if (selectedTemplate.field_config) {
-      return DEFAULT_FIELD_CONFIG.standardFields[fieldKey] || { visible: true, required: false }
-    }
-    // Legacy behavior: check if placeholder is used
-    const isUsed = selectedTemplate.used_placeholders?.includes(fieldKey) ?? true
-    return { visible: isUsed, required: false }
-  }
-
   // Core required fields that are ALWAYS visible (needed for contract creation API)
   const ALWAYS_VISIBLE_FIELDS: StandardFieldKey[] = [
     'property_address', 'property_city', 'property_state', 'property_zip',
     'seller_name', 'seller_email', 'purchase_price',
   ]
 
-  // Check if a field should be visible based on template configuration
-  const isFieldVisible = (fieldKey: StandardFieldKey): boolean => {
+  // Field visibility helpers - match the edit form logic exactly
+  // Based on template's field_config.standardFields
+  const isFieldVisible = (fieldName: string): boolean => {
     if (!selectedTemplate) return false
 
-    // Core required fields are always visible
-    if (ALWAYS_VISIBLE_FIELDS.includes(fieldKey)) {
+    // Core required fields are always visible regardless of template config
+    if (ALWAYS_VISIBLE_FIELDS.includes(fieldName as StandardFieldKey)) {
       return true
     }
 
-    // Check template's field_config
-    return getFieldConfig(fieldKey).visible
+    // If no template field_config, show all fields (same as edit form)
+    if (!selectedTemplate.field_config?.standardFields) {
+      return true
+    }
+
+    // Check template config - default to visible if not configured (same as edit form)
+    const config = selectedTemplate.field_config.standardFields[fieldName as StandardFieldKey]
+    return config?.visible !== false
   }
 
   // Check if a field is required
-  const isFieldRequired = (fieldKey: StandardFieldKey): boolean => {
-    const config = getFieldConfig(fieldKey)
-    return config.visible && config.required
+  const isFieldRequired = (fieldName: string): boolean => {
+    if (!selectedTemplate) return false
+
+    if (!selectedTemplate.field_config?.standardFields) {
+      // Default required fields when no template config (same as edit form)
+      const defaultRequired = ['seller_name', 'seller_email', 'price', 'company_name', 'company_signer_name', 'company_email', 'company_phone', 'buyer_signature', 'buyer_initials']
+      return defaultRequired.includes(fieldName)
+    }
+
+    const config = selectedTemplate.field_config.standardFields[fieldName as StandardFieldKey]
+    return config?.required === true
   }
 
   // Check if any field in a group is visible
   const isGroupVisible = (fieldKeys: StandardFieldKey[]): boolean => {
     return fieldKeys.some(key => isFieldVisible(key))
   }
+
+  // Check if template is three-party (for UI hints)
+  const isThreeParty = selectedTemplate?.signature_layout === 'three-party'
 
   const updateField = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
