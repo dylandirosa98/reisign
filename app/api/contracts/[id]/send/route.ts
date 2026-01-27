@@ -107,6 +107,7 @@ export async function POST(
     seller_phone?: string
     seller_address?: string
     buyer_phone?: string
+    assignee_address?: string
     contract_type?: string
     earnest_money?: number
     escrow_agent_name?: string
