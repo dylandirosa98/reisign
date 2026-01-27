@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendSignedContractEmail } from '@/lib/services/email'
 import { documenso } from '@/lib/documenso'
-import { addSigningDateToPdf } from '@/lib/services/pdf-generator'
 
 // Webhook secret for verification (configure in Documenso)
 const WEBHOOK_SECRET = process.env.DOCUMENSO_WEBHOOK_SECRET
@@ -489,35 +488,8 @@ export async function POST(request: NextRequest) {
                   try {
                     pdfBuffer = await documenso.downloadSignedDocumentBuffer(docIdForEmail)
                     console.log(`[Webhook] Downloaded signed PDF for email: ${pdfBuffer.length} bytes`)
-
-                    // Determine signature layout and add signing dates
-                    let signatureLayout = 'two-column' // default
-                    if (customFieldsEmail?.company_template_id) {
-                      const { data: templateData } = await adminSupabase
-                        .from('company_templates' as any)
-                        .select('signature_layout')
-                        .eq('id', customFieldsEmail.company_template_id)
-                        .single()
-                      if (templateData) {
-                        signatureLayout = (templateData as any).signature_layout || 'two-column'
-                      }
-                    }
-
-                    // Get signing dates
-                    const completedAt = fullContract.completed_at || new Date().toISOString()
-                    const sellerSignedAt = customFieldsEmail?.seller_signed_at || completedAt
-                    const buyerSignedAt = completedAt
-
-                    // Add dates to the PDF
-                    console.log(`[Webhook] Adding signing dates to PDF: layout=${signatureLayout}, seller=${sellerSignedAt}, buyer=${buyerSignedAt}`)
-                    pdfBuffer = await addSigningDateToPdf(pdfBuffer, {
-                      signatureLayout,
-                      sellerSignedAt,
-                      buyerSignedAt: isThreePartyContract ? buyerSignedAt : undefined,
-                    })
-                    console.log(`[Webhook] Added signing dates to PDF: ${pdfBuffer.length} bytes`)
                   } catch (downloadErr) {
-                    console.error('[Webhook] Failed to download/modify signed PDF for email:', downloadErr)
+                    console.error('[Webhook] Failed to download signed PDF for email:', downloadErr)
                   }
                 }
 

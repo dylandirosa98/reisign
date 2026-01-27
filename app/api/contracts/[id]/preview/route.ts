@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { pdfGenerator, ContractData, TemplateType, addSigningDateToPdf } from '@/lib/services/pdf-generator'
+import { pdfGenerator, ContractData, TemplateType } from '@/lib/services/pdf-generator'
 import { aiClauseService, ClauseType } from '@/lib/services/ai-clauses'
 import { documenso } from '@/lib/documenso'
 
@@ -103,34 +103,7 @@ export async function GET(
         console.log(`[Preview] Downloading main document: ${contract.documenso_document_id}`)
       }
 
-      let pdfBuffer = await documenso.downloadSignedDocumentBuffer(documentIdToDownload)
-
-      // Determine signature layout to add signing dates
-      let signatureLayout = 'two-column' // default
-      if (customFieldsForDoc?.company_template_id) {
-        const { data: templateData } = await adminSupabase
-          .from('company_templates' as any)
-          .select('signature_layout')
-          .eq('id', customFieldsForDoc.company_template_id)
-          .single()
-        if (templateData) {
-          signatureLayout = (templateData as any).signature_layout || 'two-column'
-        }
-      }
-
-      // Get signing dates and add them to the PDF
-      const sellerSignedAt = customFieldsForDoc?.seller_signed_at || contract.completed_at
-      const buyerSignedAt = contract.completed_at
-
-      // Only add dates if the contract has been signed (has completed_at or seller_signed_at)
-      if (sellerSignedAt || buyerSignedAt) {
-        console.log(`[Preview] Adding signing dates: layout=${signatureLayout}, seller=${sellerSignedAt}, buyer=${buyerSignedAt}`)
-        pdfBuffer = await addSigningDateToPdf(pdfBuffer, {
-          signatureLayout,
-          sellerSignedAt: sellerSignedAt || undefined,
-          buyerSignedAt: buyerDocId ? buyerSignedAt || undefined : undefined, // Only add buyer date for three-party
-        })
-      }
+      const pdfBuffer = await documenso.downloadSignedDocumentBuffer(documentIdToDownload)
 
       const propertyAddress = customFieldsForDoc?.property_address ||
                               contract.property?.address || 'contract'
