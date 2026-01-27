@@ -446,17 +446,26 @@ export async function POST(request: NextRequest) {
               // Collect all email recipients
               const emailRecipients: string[] = []
 
+              // Helper to check if email is valid (not a test/dev email)
+              const isValidEmail = (email: string): boolean => {
+                // Filter out .local domains (test/dev emails)
+                if (email.endsWith('.local')) return false
+                // Filter out localhost emails
+                if (email.includes('@localhost')) return false
+                return true
+              }
+
               // Add managers
               if (managers) {
                 managers.forEach(m => {
-                  if (m.email && !emailRecipients.includes(m.email)) {
+                  if (m.email && !emailRecipients.includes(m.email) && isValidEmail(m.email)) {
                     emailRecipients.push(m.email)
                   }
                 })
               }
 
               // Add sender if not a manager
-              if (senderEmail && !emailRecipients.includes(senderEmail)) {
+              if (senderEmail && !emailRecipients.includes(senderEmail) && isValidEmail(senderEmail)) {
                 emailRecipients.push(senderEmail)
               }
 

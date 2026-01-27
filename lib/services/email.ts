@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-const FROM_EMAIL = process.env.EMAIL_FROM || 'REI Sign <info@pythonwebsolutions.com>'
+const FROM_EMAIL = process.env.EMAIL_FROM || 'REI Sign <noreply@reisign.com>'
 
 interface SendSignedContractEmailParams {
   to: string[]
