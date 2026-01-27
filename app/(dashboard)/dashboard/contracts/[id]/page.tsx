@@ -456,9 +456,14 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       assigneeName: sendToAssigneeName,
       assigneeEmail: sendToAssigneeEmail,
     })
-    // Wholesaler signature required (contract must be in 'ready' status or have signature)
-    if (!contract?.custom_fields?.buyer_signature || !contract?.custom_fields?.buyer_initials) {
-      console.log('[canSend] BLOCKED: Missing signature or initials')
+    // Wholesaler signature required
+    if (!contract?.custom_fields?.buyer_signature) {
+      console.log('[canSend] BLOCKED: Missing signature')
+      return false
+    }
+    // Initials only required for two-party/two-column contracts (not three-party)
+    if (!isThreeParty && !contract?.custom_fields?.buyer_initials) {
+      console.log('[canSend] BLOCKED: Missing initials (required for two-party)')
       return false
     }
     // Seller name and email required
@@ -488,8 +493,13 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   // Check if overage warning needed before sending
   const inititateSend = (type: 'purchase' | 'assignment') => {
     // Validate wholesaler signature first
-    if (!contract?.custom_fields?.buyer_signature || !contract?.custom_fields?.buyer_initials) {
-      setError('Wholesaler signature and initials are required before sending.')
+    if (!contract?.custom_fields?.buyer_signature) {
+      setError('Wholesaler signature is required before sending.')
+      return
+    }
+    // Initials only required for two-party/two-column contracts
+    if (!isThreeParty && !contract?.custom_fields?.buyer_initials) {
+      setError('Wholesaler initials are required before sending.')
       return
     }
     // Validate all seller info
@@ -2469,8 +2479,11 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   <div className="text-xs text-[var(--warning-700)] bg-[var(--warning-100)] p-2 rounded">
                     <p className="font-medium">Required before sending:</p>
                     <ul className="mt-1 list-disc list-inside">
-                      {(!contract.custom_fields?.buyer_signature || !contract.custom_fields?.buyer_initials) && (
-                        <li>Wholesaler signature and initials</li>
+                      {!contract.custom_fields?.buyer_signature && (
+                        <li>Wholesaler signature</li>
+                      )}
+                      {!isThreeParty && !contract.custom_fields?.buyer_initials && (
+                        <li>Wholesaler initials</li>
                       )}
                       {!sendToSellerName.trim() && (
                         <li>Seller name</li>
