@@ -92,9 +92,11 @@ export async function POST(
   const sellerNameToSend = body.sellerName || contract.seller_name
   const sellerEmailToSend = body.sellerEmail || contract.seller_email
   const sellerPhoneToSend = body.sellerPhone || (contract.custom_fields as Record<string, unknown>)?.seller_phone || ''
+  const sellerAddressToSend = body.sellerAddress || (contract.custom_fields as Record<string, unknown>)?.seller_address || ''
   const assigneeNameToSend = body.assigneeName || contract.buyer_name
   const assigneeEmailToSend = body.assigneeEmail || contract.buyer_email
   const assigneePhoneToSend = body.assigneePhone || (contract.custom_fields as Record<string, unknown>)?.buyer_phone || ''
+  const assigneeAddressToSend = body.assigneeAddress || (contract.custom_fields as Record<string, unknown>)?.assignee_address || ''
 
   const customFields = contract.custom_fields as {
     property_address?: string
@@ -238,7 +240,7 @@ export async function POST(
       seller_name: sellerNameToSend || '',
       seller_email: sellerEmailToSend || '',
       seller_phone: sellerPhoneToSend || customFields?.seller_phone,
-      seller_address: customFields?.seller_address,
+      seller_address: sellerAddressToSend || customFields?.seller_address,
 
       // Company (Buyer on Purchase Agreement) - only use explicitly saved values
       company_name: customFields?.company_name || '',
@@ -255,6 +257,7 @@ export async function POST(
       assignee_name: assigneeNameToSend,
       assignee_email: assigneeEmailToSend,
       assignee_phone: assigneePhoneToSend || customFields?.buyer_phone,
+      assignee_address: assigneeAddressToSend || customFields?.assignee_address,
 
       // Prices
       purchase_price: contract.price || 0,

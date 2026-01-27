@@ -268,9 +268,11 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const [sendToSellerName, setSendToSellerName] = useState('')
   const [sendToSellerEmail, setSendToSellerEmail] = useState('')
   const [sendToSellerPhone, setSendToSellerPhone] = useState('')
+  const [sendToSellerAddress, setSendToSellerAddress] = useState('')
   const [sendToAssigneeName, setSendToAssigneeName] = useState('')
   const [sendToAssigneeEmail, setSendToAssigneeEmail] = useState('')
   const [sendToAssigneePhone, setSendToAssigneePhone] = useState('')
+  const [sendToAssigneeAddress, setSendToAssigneeAddress] = useState('')
 
   // Recipient signing status from Documenso
   const [recipientStatuses, setRecipientStatuses] = useState<Array<{
@@ -309,9 +311,11 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       setSendToSellerName(data.contract.seller_name || '')
       setSendToSellerEmail(data.contract.seller_email || '')
       setSendToSellerPhone(data.contract.custom_fields?.seller_phone || '')
+      setSendToSellerAddress(data.contract.custom_fields?.seller_address || '')
       setSendToAssigneeName(data.contract.buyer_name || '')
       setSendToAssigneeEmail(data.contract.buyer_email || '')
       setSendToAssigneePhone(data.contract.custom_fields?.buyer_phone || '')
+      setSendToAssigneeAddress(data.contract.custom_fields?.assignee_address || '')
       // Initialize signature fields for the standalone signature section
       setFormData(prev => ({
         ...prev,
@@ -540,9 +544,11 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
           sellerName: sendToSellerName,
           sellerEmail: sendToSellerEmail,
           sellerPhone: sendToSellerPhone,
+          sellerAddress: sendToSellerAddress,
           assigneeName: sendToAssigneeName,
           assigneeEmail: sendToAssigneeEmail,
           assigneePhone: sendToAssigneePhone,
+          assigneeAddress: sendToAssigneeAddress,
         }),
       })
 
@@ -894,7 +900,9 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
           custom_fields: {
             ...contract?.custom_fields,
             seller_phone: sendToSellerPhone.trim(),
+            seller_address: sendToSellerAddress.trim(),
             buyer_phone: isThreeParty ? sendToAssigneePhone.trim() : contract?.custom_fields?.buyer_phone,
+            assignee_address: isThreeParty ? sendToAssigneeAddress.trim() : contract?.custom_fields?.assignee_address,
           },
         }),
       })
@@ -2356,6 +2364,15 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                         className="mt-1"
                       />
                     </div>
+                    <div>
+                      <Label className="text-xs text-[var(--gray-600)]">Address</Label>
+                      <Input
+                        value={sendToSellerAddress}
+                        onChange={(e) => setSendToSellerAddress(e.target.value)}
+                        placeholder="123 Main St, City, State ZIP"
+                        className="mt-1"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -2393,6 +2410,15 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                           onChange={(e) => setSendToAssigneePhone(formatPhoneNumber(e.target.value))}
                           placeholder="(555) 123-4567"
                           maxLength={14}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-[var(--gray-600)]">Address</Label>
+                        <Input
+                          value={sendToAssigneeAddress}
+                          onChange={(e) => setSendToAssigneeAddress(e.target.value)}
+                          placeholder="123 Main St, City, State ZIP"
                           className="mt-1"
                         />
                       </div>
