@@ -37,9 +37,10 @@ export async function PATCH(
   }
 
   // Update property status (only if it belongs to user's company)
+  // Cast to any because status column was added after types were generated
   const { data, error } = await adminSupabase
     .from('properties')
-    .update({ status })
+    .update({ status } as any)
     .eq('id', id)
     .eq('company_id', userData.company_id)
     .select()
