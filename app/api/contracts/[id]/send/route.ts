@@ -296,8 +296,9 @@ export async function POST(
     console.log(`[Send Contract] Company template ID: ${companyTemplateId || 'NONE'}`)
     console.log(`[Send Contract] Template type: ${templateType}`)
     console.log(`[Send Contract] Three-party: ${isThreeParty}, sendTo: ${sendTo || 'default'}`)
-    console.log(`[Send Contract] Seller: ${sellerNameToSend} <${sellerEmailToSend}>`)
-    console.log(`[Send Contract] Assignee: ${assigneeNameToSend} <${assigneeEmailToSend}>`)
+    console.log(`[Send Contract] Seller: ${sellerNameToSend} <${sellerEmailToSend}> | Phone: ${sellerPhoneToSend} | Address: ${sellerAddressToSend}`)
+    console.log(`[Send Contract] Assignee: ${assigneeNameToSend} <${assigneeEmailToSend}> | Phone: ${assigneePhoneToSend} | Address: ${assigneeAddressToSend}`)
+    console.log(`[Send Contract] Body received:`, JSON.stringify({ sellerName: body.sellerName, sellerEmail: body.sellerEmail, sellerPhone: body.sellerPhone, sellerAddress: body.sellerAddress, assigneeName: body.assigneeName, assigneeEmail: body.assigneeEmail, assigneePhone: body.assigneePhone, assigneeAddress: body.assigneeAddress }))
 
     let pdfBuffer: Buffer
     let signatureLayout: string | undefined
