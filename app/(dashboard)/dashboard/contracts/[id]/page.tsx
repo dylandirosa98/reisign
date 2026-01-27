@@ -447,26 +447,41 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
   // Check if we can send (names, emails, and signature are required)
   const canSend = () => {
+    console.log('[canSend] Checking requirements:', {
+      hasSignature: !!contract?.custom_fields?.buyer_signature,
+      hasInitials: !!contract?.custom_fields?.buyer_initials,
+      sellerName: sendToSellerName,
+      sellerEmail: sendToSellerEmail,
+      isThreeParty,
+      assigneeName: sendToAssigneeName,
+      assigneeEmail: sendToAssigneeEmail,
+    })
     // Wholesaler signature required (contract must be in 'ready' status or have signature)
     if (!contract?.custom_fields?.buyer_signature || !contract?.custom_fields?.buyer_initials) {
+      console.log('[canSend] BLOCKED: Missing signature or initials')
       return false
     }
     // Seller name and email required
     if (!sendToSellerName.trim()) {
+      console.log('[canSend] BLOCKED: Missing seller name')
       return false
     }
     if (!sendToSellerEmail || !isValidEmail(sendToSellerEmail)) {
+      console.log('[canSend] BLOCKED: Invalid seller email')
       return false
     }
     // For three-party, all assignee info also required
     if (isThreeParty) {
       if (!sendToAssigneeName.trim()) {
+        console.log('[canSend] BLOCKED: Missing assignee name')
         return false
       }
       if (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)) {
+        console.log('[canSend] BLOCKED: Invalid assignee email')
         return false
       }
     }
+    console.log('[canSend] All requirements met!')
     return true
   }
 
