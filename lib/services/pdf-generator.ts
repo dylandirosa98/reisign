@@ -811,8 +811,8 @@ class PDFGeneratorService {
       // In three-party template: Signature -> Printed Name -> DATE
       positions.push({
         page: totalPages,
-        x: 12.3,
-        y: 21.25,
+        x: 11.3,
+        y: 22.25,
         width: 25,
         height: 2.5,
         recipientRole: 'seller',
@@ -833,8 +833,8 @@ class PDFGeneratorService {
       // Assignee/Buyer date field - below signature
       positions.push({
         page: totalPages,
-        x: 13.3,
-        y: 71.25,
+        x: 12.3,
+        y: 72.25,
         width: 25,
         height: 2.5,
         recipientRole: 'buyer',
@@ -869,8 +869,8 @@ class PDFGeneratorService {
       // Seller date field - ABOVE signature ("APPROVED AND ACCEPTED BY SELLER ON:" line)
       positions.push({
         page: totalPages,
-        x: 28.3,
-        y: 17.25,
+        x: 27.3,
+        y: 18.25,
         width: 42,
         height: 2.5,
         recipientRole: 'seller',
@@ -926,8 +926,8 @@ class PDFGeneratorService {
       // Buyer date field - below signature (DATE: row is 2 rows below signature)
       positions.push({
         page: totalPages,
-        x: 13.3,
-        y: 64.25,
+        x: 12.3,
+        y: 65.25,
         width: 25,
         height: 2.5,
         recipientRole: 'buyer',
@@ -960,8 +960,8 @@ class PDFGeneratorService {
       // X coordinate aligned with signature, Y is ~5% above
       positions.push({
         page: totalPages,
-        x: 11.3,
-        y: 19.75,
+        x: 10.3,
+        y: 20.75,
         width: 35,
         height: 2.5,
         recipientRole: 'seller',

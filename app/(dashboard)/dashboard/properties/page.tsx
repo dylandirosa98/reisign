@@ -56,7 +56,7 @@ export default async function PropertiesPage() {
 
   const templateMap = new Map<string, string>()
   if (companyTemplates) {
-    (companyTemplates as Array<{ id: string; name: string }>).forEach(t => {
+    (companyTemplates as unknown as Array<{ id: string; name: string }>).forEach(t => {
       templateMap.set(t.id, t.name)
     })
   }
