@@ -1749,180 +1749,177 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                           </div>
                         </div>
 
-                        {/* Signature and Initials Row */}
-                        <div className="grid grid-cols-2 gap-6">
-                          {/* Signature */}
-                          <div>
-                            <Label className="text-xs text-[var(--gray-600)] mb-2 block">Signature *</Label>
-                            {formData.buyer_signature ? (
-                              <div className="space-y-2">
-                                <div className="border border-[var(--gray-300)] rounded-md p-3 bg-white">
-                                  <img src={formData.buyer_signature} alt="Signature" className="max-h-20 mx-auto" />
-                                </div>
-                                <Button type="button" variant="outline" size="sm" onClick={clearSignature} className="text-xs">
-                                  <RotateCcw className="w-3 h-3 mr-1" /> Clear
-                                </Button>
+                        {/* Signature - Full Width */}
+                        <div>
+                          <Label className="text-xs text-[var(--gray-600)] mb-2 block">Signature *</Label>
+                          {formData.buyer_signature ? (
+                            <div className="space-y-2">
+                              <div className="border border-[var(--gray-300)] rounded-md p-3 bg-white">
+                                <img src={formData.buyer_signature} alt="Signature" className="max-h-24 mx-auto" />
                               </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSignatureMode('draw')}
-                                    className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                                      signatureMode === 'draw' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
-                                    }`}
-                                  >
-                                    <PenTool className="w-3 h-3 inline mr-1" /> Draw
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setSignatureMode('type')}
-                                    className={`flex-1 px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
-                                      signatureMode === 'type' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
-                                    }`}
-                                  >
-                                    Type
-                                  </button>
-                                </div>
-                                {signatureMode === 'draw' ? (
-                                  <div className="space-y-2">
-                                    <div className="border border-[var(--gray-300)] rounded-md bg-white">
-                                      <SignatureCanvas
-                                        ref={signatureRef}
-                                        canvasProps={{
-                                          className: 'w-full h-32 rounded-md',
-                                          style: { width: '100%', height: '128px' }
-                                        }}
-                                        backgroundColor="white"
-                                      />
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <Button type="button" variant="outline" size="sm" onClick={() => signatureRef.current?.clear()}>
-                                        <RotateCcw className="w-3 h-3 mr-1" /> Clear
-                                      </Button>
-                                      <button
-                                        type="button"
-                                        onClick={saveDrawnSignature}
-                                        style={{ backgroundColor: '#16a34a', color: 'white' }}
-                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:opacity-90"
-                                      >
-                                        <CheckCircle className="w-3 h-3 mr-1" /> Save Signature
-                                      </button>
-                                    </div>
+                              <Button type="button" variant="outline" size="sm" onClick={clearSignature} className="text-xs">
+                                <RotateCcw className="w-3 h-3 mr-1" /> Clear
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden w-48">
+                                <button
+                                  type="button"
+                                  onClick={() => setSignatureMode('draw')}
+                                  className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                                    signatureMode === 'draw' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
+                                  }`}
+                                >
+                                  <PenTool className="w-3 h-3 inline mr-1" /> Draw
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setSignatureMode('type')}
+                                  className={`flex-1 px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
+                                    signatureMode === 'type' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
+                                  }`}
+                                >
+                                  Type
+                                </button>
+                              </div>
+                              {signatureMode === 'draw' ? (
+                                <div className="space-y-2">
+                                  <div className="border border-[var(--gray-300)] rounded-md bg-white">
+                                    <SignatureCanvas
+                                      ref={signatureRef}
+                                      canvasProps={{
+                                        className: 'w-full h-24 rounded-md',
+                                        style: { width: '100%', height: '96px' }
+                                      }}
+                                      backgroundColor="white"
+                                    />
                                   </div>
-                                ) : (
-                                  <div className="space-y-2">
-                                    <Input value={typedSignature} onChange={(e) => setTypedSignature(e.target.value)} placeholder="Type your full name" />
-                                    {typedSignature && (
-                                      <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white flex items-center justify-center min-h-[128px]">
-                                        <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '36px' }}>{typedSignature}</span>
-                                      </div>
-                                    )}
+                                  <div className="flex gap-2">
+                                    <Button type="button" variant="outline" size="sm" onClick={() => signatureRef.current?.clear()}>
+                                      <RotateCcw className="w-3 h-3 mr-1" /> Clear
+                                    </Button>
                                     <button
                                       type="button"
-                                      onClick={saveTypedSignature}
-                                      disabled={!typedSignature.trim()}
-                                      style={{ backgroundColor: typedSignature.trim() ? '#16a34a' : '#d1d5db', color: typedSignature.trim() ? 'white' : '#6b7280' }}
-                                      className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:opacity-90 disabled:cursor-not-allowed"
+                                      onClick={saveDrawnSignature}
+                                      style={{ backgroundColor: '#16a34a', color: 'white' }}
+                                      className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:opacity-90"
                                     >
                                       <CheckCircle className="w-3 h-3 mr-1" /> Save Signature
                                     </button>
                                   </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Initials - Only for non-three-party */}
-                          {!isThreeParty && (
-                            <div>
-                              <Label className="text-xs text-[var(--gray-600)] mb-2 block">Initials *</Label>
-                              {formData.buyer_initials ? (
-                                <div className="space-y-2">
-                                  <div className="border border-[var(--gray-300)] rounded-md p-3 bg-white inline-block">
-                                    <img src={formData.buyer_initials} alt="Initials" className="h-12" />
-                                  </div>
-                                  <div>
-                                    <Button type="button" variant="outline" size="sm" onClick={clearInitials} className="text-xs">
-                                      <RotateCcw className="w-3 h-3 mr-1" /> Clear
-                                    </Button>
-                                  </div>
                                 </div>
                               ) : (
                                 <div className="space-y-2">
-                                  <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden w-40">
-                                    <button
-                                      type="button"
-                                      onClick={() => setInitialsMode('draw')}
-                                      className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                                        initialsMode === 'draw' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)]'
-                                      }`}
-                                    >
-                                      Draw
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setInitialsMode('type')}
-                                      className={`flex-1 px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
-                                        initialsMode === 'type' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)]'
-                                      }`}
-                                    >
-                                      Type
-                                    </button>
-                                  </div>
-                                  {initialsMode === 'draw' ? (
-                                    <div className="space-y-2">
-                                      <div className="border border-[var(--gray-300)] rounded-md bg-white inline-block">
-                                        <SignatureCanvas
-                                          ref={initialsRef}
-                                          canvasProps={{
-                                            className: 'rounded-md',
-                                            style: { width: '120px', height: '60px' }
-                                          }}
-                                          backgroundColor="white"
-                                        />
-                                      </div>
-                                      <div className="flex gap-2">
-                                        <Button type="button" variant="outline" size="sm" onClick={() => initialsRef.current?.clear()}>
-                                          Clear
-                                        </Button>
-                                        <button
-                                          type="button"
-                                          onClick={saveDrawnInitials}
-                                          style={{ backgroundColor: '#16a34a', color: 'white' }}
-                                          className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:opacity-90"
-                                        >
-                                          Save Initials
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      <Input value={typedInitials} onChange={(e) => setTypedInitials(e.target.value.slice(0, 4))} placeholder="JD" className="w-20" maxLength={4} />
-                                      {typedInitials && (
-                                        <div className="border border-[var(--gray-300)] rounded-md p-3 bg-white inline-block">
-                                          <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '32px' }}>{typedInitials.toUpperCase()}</span>
-                                        </div>
-                                      )}
-                                      <div>
-                                        <button
-                                          type="button"
-                                          onClick={saveTypedInitials}
-                                          disabled={!typedInitials.trim()}
-                                          style={{ backgroundColor: typedInitials.trim() ? '#16a34a' : '#d1d5db', color: typedInitials.trim() ? 'white' : '#6b7280' }}
-                                          className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:opacity-90 disabled:cursor-not-allowed"
-                                        >
-                                          Save Initials
-                                        </button>
-                                      </div>
+                                  <Input value={typedSignature} onChange={(e) => setTypedSignature(e.target.value)} placeholder="Type your full name" />
+                                  {typedSignature && (
+                                    <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white flex items-center justify-center min-h-[96px]">
+                                      <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '36px' }}>{typedSignature}</span>
                                     </div>
                                   )}
+                                  <button
+                                    type="button"
+                                    onClick={saveTypedSignature}
+                                    disabled={!typedSignature.trim()}
+                                    style={{ backgroundColor: typedSignature.trim() ? '#16a34a' : '#d1d5db', color: typedSignature.trim() ? 'white' : '#6b7280' }}
+                                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:opacity-90 disabled:cursor-not-allowed"
+                                  >
+                                    <CheckCircle className="w-3 h-3 mr-1" /> Save Signature
+                                  </button>
                                 </div>
                               )}
                             </div>
                           )}
                         </div>
+
+                        {/* Initials - Only for non-three-party */}
+                        {!isThreeParty && (
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)] mb-2 block">Initials *</Label>
+                            {formData.buyer_initials ? (
+                              <div className="space-y-2">
+                                <div className="border border-[var(--gray-300)] rounded-md p-3 bg-white inline-block">
+                                  <img src={formData.buyer_initials} alt="Initials" className="h-12" />
+                                </div>
+                                <div>
+                                  <Button type="button" variant="outline" size="sm" onClick={clearInitials} className="text-xs">
+                                    <RotateCcw className="w-3 h-3 mr-1" /> Clear
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden w-40">
+                                  <button
+                                    type="button"
+                                    onClick={() => setInitialsMode('draw')}
+                                    className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                                      initialsMode === 'draw' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)]'
+                                    }`}
+                                  >
+                                    Draw
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setInitialsMode('type')}
+                                    className={`flex-1 px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
+                                      initialsMode === 'type' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)]'
+                                    }`}
+                                  >
+                                    Type
+                                  </button>
+                                </div>
+                                {initialsMode === 'draw' ? (
+                                  <div className="space-y-2">
+                                    <div className="border border-[var(--gray-300)] rounded-md bg-white inline-block">
+                                      <SignatureCanvas
+                                        ref={initialsRef}
+                                        canvasProps={{
+                                          className: 'rounded-md',
+                                          style: { width: '120px', height: '60px' }
+                                        }}
+                                        backgroundColor="white"
+                                      />
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button type="button" variant="outline" size="sm" onClick={() => initialsRef.current?.clear()}>
+                                        Clear
+                                      </Button>
+                                      <button
+                                        type="button"
+                                        onClick={saveDrawnInitials}
+                                        style={{ backgroundColor: '#16a34a', color: 'white' }}
+                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:opacity-90"
+                                      >
+                                        Save Initials
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    <Input value={typedInitials} onChange={(e) => setTypedInitials(e.target.value.slice(0, 4))} placeholder="JD" className="w-20" maxLength={4} />
+                                    {typedInitials && (
+                                      <div className="border border-[var(--gray-300)] rounded-md p-3 bg-white inline-block">
+                                        <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '32px' }}>{typedInitials.toUpperCase()}</span>
+                                      </div>
+                                    )}
+                                    <div>
+                                      <button
+                                        type="button"
+                                        onClick={saveTypedInitials}
+                                        disabled={!typedInitials.trim()}
+                                        style={{ backgroundColor: typedInitials.trim() ? '#16a34a' : '#d1d5db', color: typedInitials.trim() ? 'white' : '#6b7280' }}
+                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:opacity-90 disabled:cursor-not-allowed"
+                                      >
+                                        Save Initials
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Submit Button */}
                         <div className="pt-2 border-t border-[var(--gray-200)]">
