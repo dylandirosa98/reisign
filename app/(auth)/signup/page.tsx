@@ -70,6 +70,35 @@ function SignupForm() {
       if (!inviteToken) return
 
       try {
+        // First check if user is already authenticated (coming from Supabase's invite email flow)
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (user) {
+          // User is already authenticated - accept the invite and redirect
+          const acceptResponse = await fetch('/api/team/invite/accept', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: inviteToken }),
+          })
+
+          if (acceptResponse.ok) {
+            // Redirect to dashboard
+            window.location.href = '/dashboard'
+            return
+          } else {
+            const acceptData = await acceptResponse.json()
+            // If invite already accepted or other error, just go to dashboard
+            if (acceptData.error === 'This invite has already been used') {
+              window.location.href = '/dashboard'
+              return
+            }
+            setError(acceptData.error || 'Failed to accept invite')
+            setLoadingInvite(false)
+            return
+          }
+        }
+
+        // User not authenticated - show signup form
         const response = await fetch(`/api/team/invite/verify?token=${inviteToken}`)
         if (response.ok) {
           const data = await response.json()
@@ -86,7 +115,7 @@ function SignupForm() {
     }
 
     loadInvite()
-  }, [inviteToken])
+  }, [inviteToken, supabase.auth])
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
