@@ -6,66 +6,68 @@
     Seller acknowledges and agrees that Seller has read and fully understands the terms and conditions of this Contract and is entering into this Contract voluntarily and has not been threatened, coerced, or intimidated into signing this Contract.
   </p>
 
-  <div class="signature-columns">
-    <div class="signature-column">
-      <div class="signature-row">
-        <div class="signature-label">APPROVED AND ACCEPTED BY SELLER ON:</div>
-        <div class="signature-line"></div>
-      </div>
-
-      <div class="signature-row">
-        <div class="signature-label">SELLER SIGNATURE:</div>
-        <div class="signature-box" id="seller-signature" style="min-height: 30pt;"></div>
-      </div>
-
-      <div class="signature-row">
-        <div class="signature-label">MAILING ADDRESS:</div>
-        <div class="signature-line">{{seller_address}}</div>
-      </div>
-
-      <div class="signature-row">
-        <div class="signature-label">EMAIL:</div>
-        <div class="signature-line">{{seller_email}}</div>
-      </div>
-
-      <div class="signature-row">
-        <div class="signature-label">PHONE:</div>
-        <div class="signature-line">{{seller_phone}}</div>
-      </div>
-    </div>
-
-    <div class="signature-column">
-      <div class="signature-row">
-        <div class="signature-label">APPROVED AND ACCEPTED BY BUYER ON:</div>
-        <div class="signature-line">{{contract_date}}</div>
-      </div>
-
-      <div class="signature-row">
-        <div class="signature-label">BUYER SIGNATURE:</div>
-        <div class="signature-box" style="display: flex; align-items: center; justify-content: center; padding: 2px; min-height: 35pt;">
-          {{buyer_signature_img}}
+  <table style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td style="width: 45%; vertical-align: top; padding-right: 20pt;">
+        <div class="signature-row">
+          <div class="signature-label">APPROVED AND ACCEPTED BY SELLER ON:</div>
+          <div class="signature-line"></div>
         </div>
-      </div>
 
-      <div class="signature-row">
-        <div class="signature-label">COMPANY NAME:</div>
-        <div class="signature-line">{{company_name}}</div>
-      </div>
+        <div class="signature-row">
+          <div class="signature-label">SELLER SIGNATURE:</div>
+          <div class="signature-box" id="seller-signature"></div>
+        </div>
 
-      <div class="signature-row">
-        <div class="signature-label">BUYER SIGNER NAME:</div>
-        <div class="signature-line">{{company_signer_name}}</div>
-      </div>
+        <div class="signature-row">
+          <div class="signature-label">MAILING ADDRESS:</div>
+          <div class="signature-line">{{seller_address}}</div>
+        </div>
 
-      <div class="signature-row">
-        <div class="signature-label">EMAIL:</div>
-        <div class="signature-line">{{company_email}}</div>
-      </div>
+        <div class="signature-row">
+          <div class="signature-label">EMAIL:</div>
+          <div class="signature-line">{{seller_email}}</div>
+        </div>
 
-      <div class="signature-row">
-        <div class="signature-label">PHONE:</div>
-        <div class="signature-line">{{company_phone}}</div>
-      </div>
-    </div>
-  </div>
+        <div class="signature-row">
+          <div class="signature-label">PHONE:</div>
+          <div class="signature-line">{{seller_phone}}</div>
+        </div>
+      </td>
+
+      <td style="width: 45%; vertical-align: top; padding-left: 20pt;">
+        <div class="signature-row">
+          <div class="signature-label">APPROVED AND ACCEPTED BY BUYER ON:</div>
+          <div class="signature-line">{{contract_date}}</div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">BUYER SIGNATURE:</div>
+          <div class="signature-box" style="display: flex; align-items: center; justify-content: center; padding: 2px;">
+            {{buyer_signature_img}}
+          </div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">COMPANY NAME:</div>
+          <div class="signature-line">{{company_name}}</div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">BUYER SIGNER NAME:</div>
+          <div class="signature-line">{{company_signer_name}}</div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">EMAIL:</div>
+          <div class="signature-line">{{company_email}}</div>
+        </div>
+
+        <div class="signature-row">
+          <div class="signature-label">PHONE:</div>
+          <div class="signature-line">{{company_phone}}</div>
+        </div>
+      </td>
+    </tr>
+  </table>
 </div>
