@@ -504,14 +504,11 @@ export default function NewContractPage() {
         </div>
       )}
 
-      {/* Form - Only show if template is selected */}
-      {!selectedTemplate && !loadingTemplates ? (
+      {/* Form - Show for all cases (template optional) */}
+      {loadingTemplates && templateId ? (
         <div className="bg-white border border-[var(--gray-200)] rounded p-8 text-center">
-          <FileText className="w-12 h-12 text-[var(--gray-400)] mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-[var(--gray-900)] mb-2">Select a Template</h3>
-          <p className="text-sm text-[var(--gray-600)] mb-4">
-            Please select a template above to start creating your contract.
-          </p>
+          <Loader2 className="w-8 h-8 animate-spin text-[var(--primary-600)] mx-auto mb-3" />
+          <p className="text-sm text-[var(--gray-600)]">Loading template...</p>
         </div>
       ) : (
       <div className="bg-white border border-[var(--gray-200)] rounded">
@@ -519,16 +516,6 @@ export default function NewContractPage() {
           <h2 className="font-semibold text-[var(--gray-900)]">Contract Details</h2>
         </div>
         <div className="p-4">
-          {/* Show loading state when template is being loaded from URL */}
-          {loadingTemplates && templateId ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-[var(--primary-600)] mx-auto mb-3" />
-                <p className="text-sm text-[var(--gray-600)]">Loading template...</p>
-              </div>
-            </div>
-          ) : (
-          <>
           <div className="space-y-6">
             {/* Property Section */}
             {isGroupVisible(['property_address', 'property_city', 'property_state', 'property_zip', 'apn']) && (
@@ -1091,8 +1078,6 @@ export default function NewContractPage() {
               )}
             </Button>
           </div>
-          </>
-          )}
         </div>
       </div>
       )}
