@@ -131,6 +131,7 @@ export async function GET(
     seller_phone?: string
     seller_address?: string
     buyer_phone?: string
+    assignee_address?: string
     earnest_money?: number
     escrow_agent_name?: string
     escrow_agent_address?: string
@@ -196,6 +197,11 @@ export async function GET(
       buyer_name: contract.buyer_name,
       buyer_email: contract.buyer_email,
       buyer_phone: customFields?.buyer_phone,
+      // Assignee fields for three-party contracts
+      assignee_name: contract.buyer_name,
+      assignee_email: contract.buyer_email,
+      assignee_phone: customFields?.buyer_phone,
+      assignee_address: customFields?.assignee_address,
       purchase_price: contract.price || 0,
       earnest_money: customFields?.earnest_money,
       assignment_fee: customFields?.assignment_fee,
