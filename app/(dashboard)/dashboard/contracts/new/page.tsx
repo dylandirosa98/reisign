@@ -243,7 +243,7 @@ export default function NewContractPage() {
     if (!formData.seller_email.trim()) {
       return 'Seller email is required'
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.seller_email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.seller_email.trim())) {
       return 'Invalid seller email format'
     }
     // Purchase price - always required
@@ -261,7 +261,7 @@ export default function NewContractPage() {
       if (!formData.buyer_email.trim()) {
         return 'Buyer/Assignee email is required for this contract type'
       }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.buyer_email)) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.buyer_email.trim())) {
         return 'Invalid buyer email format'
       }
     }
@@ -291,14 +291,14 @@ export default function NewContractPage() {
             zip: formData.property_zip,
           },
           seller: {
-            name: formData.seller_name,
-            email: formData.seller_email,
-            phone: formData.seller_phone,
+            name: formData.seller_name.trim(),
+            email: formData.seller_email.trim(),
+            phone: formData.seller_phone.trim(),
           },
           buyer: {
-            name: formData.buyer_name,
-            email: formData.buyer_email,
-            phone: formData.buyer_phone,
+            name: formData.buyer_name.trim(),
+            email: formData.buyer_email.trim(),
+            phone: formData.buyer_phone.trim(),
           },
           contract: {
             purchasePrice: parseFloat(formData.price.replace(/[,$]/g, '') || '0'),
