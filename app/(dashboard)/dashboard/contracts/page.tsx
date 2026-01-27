@@ -68,12 +68,10 @@ export default async function ContractsPage({
   // Filter contracts based on tab
   const activeTab = params.tab || 'all'
 
-  // Unsigned contracts: contracts that have been sent but don't have wholesaler signature
+  // Unsigned contracts: draft contracts that don't have wholesaler signature yet (pending manager signature)
   const unsignedContracts = typedContracts?.filter(c =>
     !c.custom_fields?.buyer_signature &&
-    c.status !== 'draft' &&
-    c.status !== 'completed' &&
-    c.status !== 'cancelled'
+    c.status === 'draft'
   ) || []
 
   const filteredContracts = activeTab === 'unsigned'
@@ -153,8 +151,8 @@ export default async function ContractsPage({
             <FileText className="h-12 w-12 text-[var(--gray-400)] mx-auto mb-4" />
             {activeTab === 'unsigned' ? (
               <>
-                <h3 className="text-lg font-medium text-[var(--gray-900)] mb-2">No unsigned contracts</h3>
-                <p className="text-sm text-[var(--gray-600)] mb-4">All sent contracts have been signed by your company</p>
+                <h3 className="text-lg font-medium text-[var(--gray-900)] mb-2">No contracts pending signature</h3>
+                <p className="text-sm text-[var(--gray-600)] mb-4">All draft contracts have been signed by a manager</p>
               </>
             ) : (
               <>
@@ -177,6 +175,7 @@ export default async function ContractsPage({
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; bgColor: string; textColor: string }> = {
     draft: { label: 'Draft', bgColor: 'var(--gray-100)', textColor: 'var(--gray-700)' },
+    ready: { label: 'Ready to Send', bgColor: 'var(--primary-100)', textColor: 'var(--primary-700)' },
     sent: { label: 'Sent', bgColor: 'var(--info-100)', textColor: 'var(--info-700)' },
     viewed: { label: 'Viewed', bgColor: 'var(--warning-100)', textColor: 'var(--warning-700)' },
     seller_signed: { label: 'Seller Signed', bgColor: 'var(--success-100)', textColor: 'var(--success-700)' },

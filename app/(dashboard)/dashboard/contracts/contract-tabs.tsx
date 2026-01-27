@@ -32,7 +32,7 @@ export function ContractTabs({ activeTab, unsignedCount }: ContractTabsProps) {
           }`}
         >
           <PenTool className="w-4 h-4" />
-          Unsigned Contracts
+          Pending Signature
           {unsignedCount > 0 && (
             <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-[var(--warning-100)] text-[var(--warning-700)] rounded-full">
               {unsignedCount}

@@ -424,8 +424,12 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   // Validate email format
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
-  // Check if we can send (names and emails are required)
+  // Check if we can send (names, emails, and signature are required)
   const canSend = () => {
+    // Wholesaler signature required (contract must be in 'ready' status or have signature)
+    if (!contract?.custom_fields?.buyer_signature || !contract?.custom_fields?.buyer_initials) {
+      return false
+    }
     // Seller name and email required
     if (!sendToSellerName.trim()) {
       return false
@@ -453,7 +457,12 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
   // Check if overage warning needed before sending
   const inititateSend = (type: 'purchase' | 'assignment') => {
-    // Validate all seller info first
+    // Validate wholesaler signature first
+    if (!contract?.custom_fields?.buyer_signature || !contract?.custom_fields?.buyer_initials) {
+      setError('Wholesaler signature and initials are required before sending.')
+      return
+    }
+    // Validate all seller info
     if (!sendToSellerName.trim()) {
       setError('Please enter the seller name before sending.')
       return
@@ -1413,7 +1422,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   </div>
                   )}
 
-                  {/* Signature Page - Buyer/Company Details */}
+                  {/* Signature Page - Buyer/Company Details (Managers Only) */}
+                  {isManager && (
                   <div className="border-t border-[var(--gray-200)] pt-6">
                     <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-1 flex items-center gap-2">
                       <PenTool className="w-4 h-4 text-[var(--gray-400)]" />
@@ -1718,6 +1728,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                       </div>
                     )}
                   </div>
+                  )}
 
                   {/* AI Clause Generation Section */}
                   <AIClauseSection
@@ -2153,8 +2164,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Send Contract - Signer Information */}
-          {(contract.status === 'draft' || contract.status === 'ready') && (
+          {/* Send Contract - Signer Information (Managers Only) */}
+          {isManager && (contract.status === 'draft' || contract.status === 'ready') && (
             <div className="bg-white border border-[var(--gray-200)] rounded">
               <div className="px-4 py-3 border-b border-[var(--gray-200)]">
                 <h2 className="font-semibold text-[var(--gray-900)]">Send Contract</h2>
@@ -2248,6 +2259,9 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   <div className="text-xs text-[var(--warning-700)] bg-[var(--warning-100)] p-2 rounded">
                     <p className="font-medium">Required before sending:</p>
                     <ul className="mt-1 list-disc list-inside">
+                      {(!contract.custom_fields?.buyer_signature || !contract.custom_fields?.buyer_initials) && (
+                        <li>Wholesaler signature and initials</li>
+                      )}
                       {!sendToSellerName.trim() && (
                         <li>Seller name</li>
                       )}
@@ -2273,9 +2287,9 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               <h2 className="font-semibold text-[var(--gray-900)]">Actions</h2>
             </div>
             <div className="p-4 space-y-3">
-              {contract.status === 'draft' && (
+              {(contract.status === 'draft' || contract.status === 'ready') && (
                 <>
-                  {/* Preview Button */}
+                  {/* Preview Button - available for everyone */}
                   <Button
                     onClick={() => handlePreview(contractType)}
                     disabled={previewLoading}
@@ -2290,37 +2304,49 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     Preview {contractType === 'assignment' ? 'Assignment Contract' : 'Purchase Agreement'}
                   </Button>
 
-                  <hr className="my-2 border-[var(--gray-200)]" />
+                  {/* Send and Delete - Managers Only */}
+                  {isManager && (
+                    <>
+                      <hr className="my-2 border-[var(--gray-200)]" />
 
-                  {/* Send Button */}
-                  <Button
-                    onClick={() => inititateSend(contractType)}
-                    disabled={sending || !canSend()}
-                    className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {sending ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4 mr-2" />
-                    )}
-                    Send {contractType === 'assignment' ? 'Assignment Contract' : 'Purchase Agreement'}
-                  </Button>
+                      {/* Send Button */}
+                      <Button
+                        onClick={() => inititateSend(contractType)}
+                        disabled={sending || !canSend()}
+                        className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {sending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4 mr-2" />
+                        )}
+                        Send {contractType === 'assignment' ? 'Assignment Contract' : 'Purchase Agreement'}
+                      </Button>
 
-                  <hr className="my-2 border-[var(--gray-200)]" />
+                      <hr className="my-2 border-[var(--gray-200)]" />
 
-                  <Button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    variant="outline"
-                    className="w-full border-[var(--error-700)] text-[var(--error-700)] hover:bg-[var(--error-100)]"
-                  >
-                    {deleting ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-4 h-4 mr-2" />
-                    )}
-                    Delete Contract
-                  </Button>
+                      <Button
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        variant="outline"
+                        className="w-full border-[var(--error-700)] text-[var(--error-700)] hover:bg-[var(--error-100)]"
+                      >
+                        {deleting ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4 mr-2" />
+                        )}
+                        Delete Contract
+                      </Button>
+                    </>
+                  )}
+
+                  {/* Message for non-managers */}
+                  {!isManager && (
+                    <div className="text-xs text-[var(--gray-600)] bg-[var(--gray-50)] p-3 rounded mt-2">
+                      <p>This contract is pending manager signature. A manager will review and send it to the seller.</p>
+                    </div>
+                  )}
                 </>
               )}
 
