@@ -242,19 +242,11 @@ export default function NewContractPage() {
     return { visible: isUsed, required: false }
   }
 
-  // Core required fields that are ALWAYS visible (needed for contract creation API)
-  const ALWAYS_VISIBLE_FIELDS: StandardFieldKey[] = [
-    'property_address', 'property_city', 'property_state', 'property_zip',
-    'seller_name', 'seller_email', 'purchase_price',
-  ]
-
   // Check if a field should be visible
-  const isFieldVisible = (fieldKey: StandardFieldKey): boolean => {
-    // Core required fields are always visible regardless of template config
-    if (ALWAYS_VISIBLE_FIELDS.includes(fieldKey)) {
-      return true
-    }
-    return getFieldConfig(fieldKey).visible
+  // When a template is selected, show ALL fields so users can fill everything
+  const isFieldVisible = (_fieldKey: StandardFieldKey): boolean => {
+    // Show all fields when a template is selected
+    return selectedTemplate !== null
   }
 
   // Check if a field is required
@@ -504,8 +496,16 @@ export default function NewContractPage() {
         </div>
       )}
 
-      {/* Form - Show for all cases (template optional) */}
-      {loadingTemplates && templateId ? (
+      {/* Form - Only show if template is selected */}
+      {!selectedTemplate && !loadingTemplates ? (
+        <div className="bg-white border border-[var(--gray-200)] rounded p-8 text-center">
+          <FileText className="w-12 h-12 text-[var(--gray-400)] mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-[var(--gray-900)] mb-2">Select a Template</h3>
+          <p className="text-sm text-[var(--gray-600)] mb-4">
+            Please select a template above to start creating your contract.
+          </p>
+        </div>
+      ) : loadingTemplates ? (
         <div className="bg-white border border-[var(--gray-200)] rounded p-8 text-center">
           <Loader2 className="w-8 h-8 animate-spin text-[var(--primary-600)] mx-auto mb-3" />
           <p className="text-sm text-[var(--gray-600)]">Loading template...</p>

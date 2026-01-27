@@ -129,8 +129,9 @@ export async function PATCH(
 
   // Only allow updates if contract is in draft or ready status
   if (existingContract.status !== 'draft' && existingContract.status !== 'ready') {
+    console.log(`[PATCH /api/contracts/${id}] Rejecting update - status is: ${existingContract.status}`)
     return NextResponse.json({
-      error: 'Cannot modify a contract that has been sent',
+      error: `Cannot modify a contract with status "${existingContract.status}". Only draft or ready contracts can be edited.`,
     }, { status: 400 })
   }
 
