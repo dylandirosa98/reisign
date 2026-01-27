@@ -1803,7 +1803,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                       <Button type="button" variant="outline" size="sm" onClick={() => signatureRef.current?.clear()}>
                                         <RotateCcw className="w-4 h-4 mr-1" /> Clear
                                       </Button>
-                                      <Button type="button" size="sm" onClick={saveDrawnSignature} className="bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white border-0">
+                                      <Button type="button" size="sm" onClick={saveDrawnSignature} className="!bg-[var(--success-600)] hover:!bg-[var(--success-700)] text-white">
                                         <CheckCircle className="w-4 h-4 mr-1" /> Save Signature
                                       </Button>
                                     </div>
@@ -1816,7 +1816,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                         <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '48px' }}>{typedSignature}</span>
                                       </div>
                                     )}
-                                    <Button type="button" size="sm" onClick={saveTypedSignature} disabled={!typedSignature.trim()} className="bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white border-0 disabled:bg-[var(--gray-300)] disabled:text-[var(--gray-500)]">
+                                    <Button type="button" size="sm" onClick={saveTypedSignature} disabled={!typedSignature.trim()} className="!bg-[var(--success-600)] hover:!bg-[var(--success-700)] text-white disabled:!bg-[var(--gray-300)] disabled:!text-[var(--gray-500)]">
                                       <CheckCircle className="w-4 h-4 mr-1" /> Save Signature
                                     </Button>
                                   </div>
@@ -1880,7 +1880,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                         <Button type="button" variant="outline" size="sm" onClick={() => initialsRef.current?.clear()}>
                                           Clear
                                         </Button>
-                                        <Button type="button" size="sm" onClick={saveDrawnInitials} className="bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white border-0">
+                                        <Button type="button" size="sm" onClick={saveDrawnInitials} className="!bg-[var(--success-600)] hover:!bg-[var(--success-700)] text-white">
                                           Save Initials
                                         </Button>
                                       </div>
@@ -1894,7 +1894,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                         </div>
                                       )}
                                       <div>
-                                        <Button type="button" size="sm" onClick={saveTypedInitials} disabled={!typedInitials.trim()} className="bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white border-0 disabled:bg-[var(--gray-300)] disabled:text-[var(--gray-500)]">
+                                        <Button type="button" size="sm" onClick={saveTypedInitials} disabled={!typedInitials.trim()} className="!bg-[var(--success-600)] hover:!bg-[var(--success-700)] text-white disabled:!bg-[var(--gray-300)] disabled:!text-[var(--gray-500)]">
                                           Save Initials
                                         </Button>
                                       </div>
