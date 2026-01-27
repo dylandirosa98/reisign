@@ -79,6 +79,10 @@ export default function TeamPage() {
   const [deletingMember, setDeletingMember] = useState<TeamMember | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
+  // Delete invite confirmation
+  const [deletingInvite, setDeletingInvite] = useState<PendingInvite | null>(null)
+  const [deleteInviteLoading, setDeleteInviteLoading] = useState(false)
+
   // Plan/seat limits
   const [planInfo, setPlanInfo] = useState<{
     maxUsers: number
@@ -253,6 +257,32 @@ export default function TeamPage() {
       alert('Failed to remove member')
     } finally {
       setDeleteLoading(false)
+    }
+  }
+
+  async function handleDeleteInvite() {
+    if (!deletingInvite) return
+    setDeleteInviteLoading(true)
+
+    try {
+      const response = await fetch(`/api/team/invite?id=${deletingInvite.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const result = await response.json()
+        alert(result.error || 'Failed to delete invitation')
+        return
+      }
+
+      await fetchPendingInvites()
+      await fetchPlanInfo() // Refresh plan info after deleting invite
+      setDeletingInvite(null)
+    } catch (err) {
+      console.error('Delete invite error:', err)
+      alert('Failed to delete invitation')
+    } finally {
+      setDeleteInviteLoading(false)
     }
   }
 
@@ -492,13 +522,22 @@ export default function TeamPage() {
                     </p>
                   </div>
                 </div>
-                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                  invite.role === 'manager'
-                    ? 'bg-purple-100 text-purple-700'
-                    : 'bg-gray-100 text-gray-700'
-                }`}>
-                  {invite.role === 'manager' ? 'Manager' : 'User'}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                    invite.role === 'manager'
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {invite.role === 'manager' ? 'Manager' : 'User'}
+                  </span>
+                  <button
+                    onClick={() => setDeletingInvite(invite)}
+                    className="p-1.5 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                    title="Delete invitation"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -715,6 +754,33 @@ export default function TeamPage() {
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
                 {deleteLoading ? 'Removing...' : 'Remove Member'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Invite Confirmation Modal */}
+      {deletingInvite && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Invitation</h3>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to delete the invitation for <strong>{deletingInvite.email}</strong>? They will no longer be able to join your team with this invitation link.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setDeletingInvite(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDeleteInvite}
+                disabled={deleteInviteLoading}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {deleteInviteLoading ? 'Deleting...' : 'Delete Invitation'}
               </Button>
             </div>
           </div>

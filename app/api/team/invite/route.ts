@@ -168,6 +168,71 @@ export async function POST(request: Request) {
   }
 }
 
+// DELETE - Delete a pending invite
+export async function DELETE(request: Request) {
+  try {
+    const supabase = await createClient()
+    const adminSupabase = createAdminClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get current user's company and role
+    const { data: userData } = await adminSupabase
+      .from('users')
+      .select('company_id, role')
+      .eq('id', user.id)
+      .single()
+
+    if (!userData?.company_id) {
+      return NextResponse.json({ error: 'No company found' }, { status: 404 })
+    }
+
+    // Check if user is manager
+    if (userData.role !== 'manager' && userData.role !== 'admin') {
+      return NextResponse.json({ error: 'Only managers can delete invitations' }, { status: 403 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const inviteId = searchParams.get('id')
+
+    if (!inviteId) {
+      return NextResponse.json({ error: 'Invite ID is required' }, { status: 400 })
+    }
+
+    // Verify the invite belongs to the user's company and is still pending
+    const { data: invite, error: fetchError } = await adminSupabase
+      .from('invites')
+      .select('id, email')
+      .eq('id', inviteId)
+      .eq('company_id', userData.company_id)
+      .is('accepted_at', null)
+      .single()
+
+    if (fetchError || !invite) {
+      return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
+    }
+
+    // Delete the invite
+    const { error: deleteError } = await adminSupabase
+      .from('invites')
+      .delete()
+      .eq('id', inviteId)
+
+    if (deleteError) {
+      console.error('Delete invite error:', deleteError)
+      return NextResponse.json({ error: 'Failed to delete invite' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, deletedEmail: invite.email })
+  } catch (error) {
+    console.error('Delete invite error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 // GET - List pending invites
 export async function GET() {
   try {
