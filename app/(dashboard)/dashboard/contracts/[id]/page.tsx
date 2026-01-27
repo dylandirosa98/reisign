@@ -1923,10 +1923,14 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
                         {/* Submit Button */}
                         <div className="pt-2 border-t border-[var(--gray-200)]">
-                          <Button
+                          <button
                             onClick={handleSaveSignatureOnly}
                             disabled={savingSignature || !formData.buyer_signature || (!isThreeParty && !formData.buyer_initials) || !formData.company_name || !formData.company_signer_name || !formData.company_email || !formData.company_phone}
-                            className="bg-[var(--success-600)] hover:bg-[var(--success-700)] text-white"
+                            style={{
+                              backgroundColor: (savingSignature || !formData.buyer_signature || (!isThreeParty && !formData.buyer_initials) || !formData.company_name || !formData.company_signer_name || !formData.company_email || !formData.company_phone) ? '#d1d5db' : '#16a34a',
+                              color: (savingSignature || !formData.buyer_signature || (!isThreeParty && !formData.buyer_initials) || !formData.company_name || !formData.company_signer_name || !formData.company_email || !formData.company_phone) ? '#6b7280' : 'white'
+                            }}
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md disabled:cursor-not-allowed"
                           >
                             {savingSignature ? (
                               <>
@@ -1939,7 +1943,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                 Save & Submit Signature
                               </>
                             )}
-                          </Button>
+                          </button>
                         </div>
                       </div>
                     ) : (
@@ -2193,15 +2197,15 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                               <RotateCcw className="w-3 h-3 mr-1" />
                               Clear
                             </Button>
-                            <Button
+                            <button
                               type="button"
-                              size="sm"
                               onClick={saveDrawnSignature}
-                              className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
+                              style={{ backgroundColor: '#16a34a', color: 'white' }}
+                              className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md"
                             >
                               <CheckCircle className="w-3 h-3 mr-1" />
                               Save Signature
-                            </Button>
+                            </button>
                           </div>
                         </div>
                       ) : (
@@ -2225,16 +2229,16 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                               </span>
                             </div>
                           )}
-                          <Button
+                          <button
                             type="button"
-                            size="sm"
                             onClick={saveTypedSignature}
                             disabled={!typedSignature.trim()}
-                            className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
+                            style={{ backgroundColor: typedSignature.trim() ? '#16a34a' : '#d1d5db', color: typedSignature.trim() ? 'white' : '#6b7280' }}
+                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md disabled:cursor-not-allowed"
                           >
                             <CheckCircle className="w-3 h-3 mr-1" />
                             Save Signature
-                          </Button>
+                          </button>
                         </div>
                       )}
                     </div>
@@ -2242,10 +2246,14 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                 </div>
 
                 {/* Save Button */}
-                <Button
+                <button
                   onClick={handleSave}
                   disabled={saving || !formData.buyer_signature}
-                  className="w-full bg-[var(--success-600)] hover:bg-[var(--success-700)] text-white"
+                  style={{
+                    backgroundColor: (saving || !formData.buyer_signature) ? '#d1d5db' : '#16a34a',
+                    color: (saving || !formData.buyer_signature) ? '#6b7280' : 'white'
+                  }}
+                  className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md disabled:cursor-not-allowed"
                 >
                   {saving ? (
                     <>
@@ -2258,7 +2266,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                       Save Signature
                     </>
                   )}
-                </Button>
+                </button>
               </div>
             </div>
           )}
