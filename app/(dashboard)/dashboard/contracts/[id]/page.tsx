@@ -458,18 +458,12 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     if (!sendToSellerEmail || !isValidEmail(sendToSellerEmail)) {
       return false
     }
-    if (!sendToSellerPhone.trim()) {
-      return false
-    }
     // For three-party, all assignee info also required
     if (isThreeParty) {
       if (!sendToAssigneeName.trim()) {
         return false
       }
       if (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)) {
-        return false
-      }
-      if (!sendToAssigneePhone.trim()) {
         return false
       }
     }
@@ -492,10 +486,6 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       setError('Please enter a valid seller email address before sending.')
       return
     }
-    if (!sendToSellerPhone.trim()) {
-      setError('Please enter the seller phone number before sending.')
-      return
-    }
     // For three-party, also require all assignee/buyer info
     if (isThreeParty) {
       if (!sendToAssigneeName.trim()) {
@@ -504,10 +494,6 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       }
       if (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)) {
         setError('Please enter a valid buyer/assignee email address before sending.')
-        return
-      }
-      if (!sendToAssigneePhone.trim()) {
-        setError('Please enter the buyer/assignee phone number before sending.')
         return
       }
     }
@@ -2529,7 +2515,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                         ) : (
                           <Send className="w-4 h-4 mr-2" />
                         )}
-                        Send {contractType === 'assignment' ? 'Assignment Contract' : 'Purchase Agreement'}
+                        Send Contract
                       </Button>
 
                       <hr className="my-2 border-[var(--gray-200)]" />
