@@ -286,6 +286,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const [savingBuyerInfo, setSavingBuyerInfo] = useState(false)
   const [notifyingManager, setNotifyingManager] = useState(false)
   const [savingSignature, setSavingSignature] = useState(false)
+  const [isResigning, setIsResigning] = useState(false)
 
   useEffect(() => {
     fetchContract()
@@ -678,6 +679,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       }
 
       await fetchContract()
+      setIsResigning(false) // Reset re-signing mode after successful save
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save signature')
     } finally {
@@ -1653,8 +1655,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                 </p>
               </div>
               <div className="p-4">
-                {/* Signature Status - Already Signed */}
-                {contract.custom_fields?.buyer_signature && contract.custom_fields?.buyer_initials ? (
+                {/* Signature Status - Already Signed (and not in re-signing mode) */}
+                {contract.custom_fields?.buyer_signature && contract.custom_fields?.buyer_initials && !isResigning ? (
                   <div className="p-4 bg-[var(--success-50)] border border-[var(--success-200)] rounded">
                     <div className="flex items-center gap-2 text-[var(--success-700)] mb-3">
                       <CheckCircle className="w-5 h-5" />
@@ -1695,6 +1697,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                         size="sm"
                         onClick={() => {
                           setFormData(prev => ({ ...prev, buyer_signature: '', buyer_initials: '' }))
+                          setIsResigning(true)
                         }}
                         className="text-xs mt-3"
                       >
@@ -1787,7 +1790,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                     <div className="border border-[var(--gray-300)] rounded-md bg-white">
                                       <SignatureCanvas
                                         ref={signatureRef}
-                                        canvasProps={{ className: 'w-full h-24 rounded-md', style: { width: '100%', height: '96px' } }}
+                                        canvasProps={{ className: 'w-full rounded-md', style: { width: '100%', height: '150px' } }}
                                         backgroundColor="white"
                                       />
                                     </div>
@@ -1804,8 +1807,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                   <div className="space-y-2">
                                     <Input value={typedSignature} onChange={(e) => setTypedSignature(e.target.value)} placeholder="Type your name" />
                                     {typedSignature && (
-                                      <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white flex items-center justify-center min-h-[96px]">
-                                        <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '32px' }}>{typedSignature}</span>
+                                      <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white flex items-center justify-center min-h-[150px]">
+                                        <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '36px' }}>{typedSignature}</span>
                                       </div>
                                     )}
                                     <Button type="button" size="sm" onClick={saveTypedSignature} disabled={!typedSignature.trim()} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
@@ -1859,7 +1862,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                       <div className="border border-[var(--gray-300)] rounded-md bg-white inline-block">
                                         <SignatureCanvas
                                           ref={initialsRef}
-                                          canvasProps={{ className: 'rounded-md', style: { width: '100px', height: '50px' } }}
+                                          canvasProps={{ className: 'rounded-md', style: { width: '150px', height: '80px' } }}
                                           backgroundColor="white"
                                         />
                                       </div>
@@ -1876,8 +1879,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                                     <div className="space-y-2">
                                       <Input value={typedInitials} onChange={(e) => setTypedInitials(e.target.value.slice(0, 4))} placeholder="JD" className="w-24" maxLength={4} />
                                       {typedInitials && (
-                                        <div className="border border-[var(--gray-300)] rounded-md p-3 bg-white inline-block">
-                                          <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '28px' }}>{typedInitials.toUpperCase()}</span>
+                                        <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white inline-block min-h-[80px] flex items-center justify-center">
+                                          <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '36px' }}>{typedInitials.toUpperCase()}</span>
                                         </div>
                                       )}
                                       <div>
