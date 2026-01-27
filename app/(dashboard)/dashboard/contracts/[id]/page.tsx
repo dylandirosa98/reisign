@@ -1640,6 +1640,317 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
             </div>
           </div>
 
+          {/* Wholesaler Signature Section - Between Contract Details and Timeline */}
+          {(contract.status === 'draft' || contract.status === 'ready') && (
+            <div className="bg-white border border-[var(--gray-200)] rounded">
+              <div className="px-4 py-3 border-b border-[var(--gray-200)]">
+                <h2 className="font-semibold text-[var(--gray-900)] flex items-center gap-2">
+                  <PenTool className="w-4 h-4" />
+                  Wholesaler Signature
+                </h2>
+                <p className="text-xs text-[var(--gray-500)] mt-1">
+                  {isThreeParty ? 'Assignor (wholesaler) signature required before sending' : 'Buyer signature required before sending to seller'}
+                </p>
+              </div>
+              <div className="p-4">
+                {/* Signature Status - Already Signed */}
+                {contract.custom_fields?.buyer_signature && contract.custom_fields?.buyer_initials ? (
+                  <div className="p-4 bg-[var(--success-50)] border border-[var(--success-200)] rounded">
+                    <div className="flex items-center gap-2 text-[var(--success-700)] mb-3">
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="font-medium">Signed</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white border border-[var(--gray-200)] rounded p-3">
+                        <p className="text-xs text-[var(--gray-500)] mb-2">Signature</p>
+                        <img
+                          src={contract.custom_fields.buyer_signature}
+                          alt="Signature"
+                          className="max-h-20"
+                        />
+                      </div>
+                      {contract.custom_fields.buyer_initials && (
+                        <div className="bg-white border border-[var(--gray-200)] rounded p-3">
+                          <p className="text-xs text-[var(--gray-500)] mb-2">Initials</p>
+                          <img
+                            src={contract.custom_fields.buyer_initials}
+                            alt="Initials"
+                            className="h-12"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    {contract.custom_fields?.company_name && (
+                      <p className="text-sm text-[var(--gray-600)] mt-3">
+                        <span className="font-medium">{contract.custom_fields.company_name}</span>
+                        {contract.custom_fields.company_signer_name && (
+                          <span> - {contract.custom_fields.company_signer_name}</span>
+                        )}
+                      </p>
+                    )}
+                    {isManager && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, buyer_signature: '', buyer_initials: '' }))
+                        }}
+                        className="text-xs mt-3"
+                      >
+                        <RotateCcw className="w-3 h-3 mr-1" />
+                        Re-sign
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Not Signed - Show form for managers, message for users */}
+                    {isManager ? (
+                      <div className="space-y-4">
+                        {/* Company Info */}
+                        <div className="grid grid-cols-4 gap-4">
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">Company Name *</Label>
+                            <Input
+                              value={formData.company_name}
+                              onChange={(e) => updateField('company_name', e.target.value)}
+                              placeholder="Your company name"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">Signer Name *</Label>
+                            <Input
+                              value={formData.company_signer_name}
+                              onChange={(e) => updateField('company_signer_name', e.target.value)}
+                              placeholder="Person signing"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">Email *</Label>
+                            <Input
+                              type="email"
+                              value={formData.company_email}
+                              onChange={(e) => updateField('company_email', e.target.value)}
+                              placeholder="your@email.com"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)]">Phone *</Label>
+                            <Input
+                              value={formData.company_phone}
+                              onChange={(e) => updateField('company_phone', formatPhoneNumber(e.target.value))}
+                              placeholder="(555) 123-4567"
+                              maxLength={14}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Signature and Initials Row */}
+                        <div className="grid grid-cols-2 gap-6">
+                          {/* Signature */}
+                          <div>
+                            <Label className="text-xs text-[var(--gray-600)] mb-2 block">Signature *</Label>
+                            {formData.buyer_signature ? (
+                              <div className="space-y-2">
+                                <div className="border border-[var(--gray-300)] rounded-md p-3 bg-white">
+                                  <img src={formData.buyer_signature} alt="Signature" className="max-h-20 mx-auto" />
+                                </div>
+                                <Button type="button" variant="outline" size="sm" onClick={clearSignature} className="text-xs">
+                                  <RotateCcw className="w-3 h-3 mr-1" /> Clear
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSignatureMode('draw')}
+                                    className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                                      signatureMode === 'draw' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
+                                    }`}
+                                  >
+                                    <PenTool className="w-3 h-3 inline mr-1" /> Draw
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSignatureMode('type')}
+                                    className={`flex-1 px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
+                                      signatureMode === 'type' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
+                                    }`}
+                                  >
+                                    Type
+                                  </button>
+                                </div>
+                                {signatureMode === 'draw' ? (
+                                  <div className="space-y-2">
+                                    <div className="border border-[var(--gray-300)] rounded-md bg-white">
+                                      <SignatureCanvas
+                                        ref={signatureRef}
+                                        canvasProps={{ className: 'w-full h-24 rounded-md', style: { width: '100%', height: '96px' } }}
+                                        backgroundColor="white"
+                                      />
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button type="button" variant="outline" size="sm" onClick={() => signatureRef.current?.clear()} className="text-xs">
+                                        <RotateCcw className="w-3 h-3 mr-1" /> Clear
+                                      </Button>
+                                      <Button type="button" size="sm" onClick={saveDrawnSignature} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
+                                        <CheckCircle className="w-3 h-3 mr-1" /> Save
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    <Input value={typedSignature} onChange={(e) => setTypedSignature(e.target.value)} placeholder="Type your name" />
+                                    {typedSignature && (
+                                      <div className="border border-[var(--gray-300)] rounded-md p-4 bg-white flex items-center justify-center min-h-[96px]">
+                                        <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '32px' }}>{typedSignature}</span>
+                                      </div>
+                                    )}
+                                    <Button type="button" size="sm" onClick={saveTypedSignature} disabled={!typedSignature.trim()} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
+                                      <CheckCircle className="w-3 h-3 mr-1" /> Save
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Initials - Only for non-three-party */}
+                          {!isThreeParty && (
+                            <div>
+                              <Label className="text-xs text-[var(--gray-600)] mb-2 block">Initials *</Label>
+                              {formData.buyer_initials ? (
+                                <div className="space-y-2">
+                                  <div className="border border-[var(--gray-300)] rounded-md p-3 bg-white inline-block">
+                                    <img src={formData.buyer_initials} alt="Initials" className="h-12" />
+                                  </div>
+                                  <div>
+                                    <Button type="button" variant="outline" size="sm" onClick={clearInitials} className="text-xs">
+                                      <RotateCcw className="w-3 h-3 mr-1" /> Clear
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden w-40">
+                                    <button
+                                      type="button"
+                                      onClick={() => setInitialsMode('draw')}
+                                      className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                                        initialsMode === 'draw' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)]'
+                                      }`}
+                                    >
+                                      Draw
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setInitialsMode('type')}
+                                      className={`flex-1 px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
+                                        initialsMode === 'type' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)]'
+                                      }`}
+                                    >
+                                      Type
+                                    </button>
+                                  </div>
+                                  {initialsMode === 'draw' ? (
+                                    <div className="space-y-2">
+                                      <div className="border border-[var(--gray-300)] rounded-md bg-white inline-block">
+                                        <SignatureCanvas
+                                          ref={initialsRef}
+                                          canvasProps={{ className: 'rounded-md', style: { width: '100px', height: '50px' } }}
+                                          backgroundColor="white"
+                                        />
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <Button type="button" variant="outline" size="sm" onClick={() => initialsRef.current?.clear()} className="text-xs">
+                                          Clear
+                                        </Button>
+                                        <Button type="button" size="sm" onClick={saveDrawnInitials} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
+                                          Save
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <Input value={typedInitials} onChange={(e) => setTypedInitials(e.target.value.slice(0, 4))} placeholder="JD" className="w-24" maxLength={4} />
+                                      {typedInitials && (
+                                        <div className="border border-[var(--gray-300)] rounded-md p-3 bg-white inline-block">
+                                          <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '28px' }}>{typedInitials.toUpperCase()}</span>
+                                        </div>
+                                      )}
+                                      <div>
+                                        <Button type="button" size="sm" onClick={saveTypedInitials} disabled={!typedInitials.trim()} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
+                                          Save
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Submit Button */}
+                        <div className="pt-2 border-t border-[var(--gray-200)]">
+                          <Button
+                            onClick={handleSaveSignatureOnly}
+                            disabled={savingSignature || !formData.buyer_signature || (!isThreeParty && !formData.buyer_initials) || !formData.company_name || !formData.company_signer_name || !formData.company_email || !formData.company_phone}
+                            className="bg-[var(--success-600)] hover:bg-[var(--success-700)] text-white"
+                          >
+                            {savingSignature ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="w-4 h-4 mr-2" />
+                                Save & Submit Signature
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Non-manager view - show pending status and notify button */
+                      <div className="space-y-4">
+                        <div className="p-4 bg-[var(--warning-50)] border border-[var(--warning-200)] rounded">
+                          <div className="flex items-center gap-2 text-[var(--warning-700)] mb-2">
+                            <AlertTriangle className="w-5 h-5" />
+                            <span className="font-medium">Signature Required</span>
+                          </div>
+                          <p className="text-sm text-[var(--warning-600)]">
+                            A manager must sign this contract before it can be sent to the seller.
+                          </p>
+                        </div>
+                        <Button
+                          onClick={handleNotifyManager}
+                          disabled={notifyingManager}
+                          className="bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
+                        >
+                          {notifyingManager ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Notifying...
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="w-4 h-4 mr-2" />
+                              Notify Manager to Sign
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Timeline */}
           <div className="bg-white border border-[var(--gray-200)] rounded">
             <div className="px-4 py-3 border-b border-[var(--gray-200)]">
@@ -2039,312 +2350,6 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                       )}
                     </ul>
                   </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Wholesaler Signature Section - Visible to all, editable by managers only */}
-          {(contract.status === 'draft' || contract.status === 'ready') && (
-            <div className="bg-white border border-[var(--gray-200)] rounded">
-              <div className="px-4 py-3 border-b border-[var(--gray-200)]">
-                <h2 className="font-semibold text-[var(--gray-900)] flex items-center gap-2">
-                  <PenTool className="w-4 h-4" />
-                  Wholesaler Signature
-                </h2>
-                <p className="text-xs text-[var(--gray-500)] mt-1">
-                  {isThreeParty ? 'Assignor (wholesaler) signature required before sending' : 'Buyer signature required before sending to seller'}
-                </p>
-              </div>
-              <div className="p-4 space-y-4">
-                {/* Signature Status */}
-                {contract.custom_fields?.buyer_signature && contract.custom_fields?.buyer_initials ? (
-                  <div className="p-3 bg-[var(--success-50)] border border-[var(--success-200)] rounded">
-                    <div className="flex items-center gap-2 text-[var(--success-700)] mb-2">
-                      <CheckCircle className="w-5 h-5" />
-                      <span className="font-medium">Signed</span>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="bg-white border border-[var(--gray-200)] rounded p-2">
-                        <p className="text-xs text-[var(--gray-500)] mb-1">Signature</p>
-                        <img
-                          src={contract.custom_fields.buyer_signature}
-                          alt="Signature"
-                          className="max-h-16"
-                        />
-                      </div>
-                      {contract.custom_fields.buyer_initials && (
-                        <div className="bg-white border border-[var(--gray-200)] rounded p-2 inline-block">
-                          <p className="text-xs text-[var(--gray-500)] mb-1">Initials</p>
-                          <img
-                            src={contract.custom_fields.buyer_initials}
-                            alt="Initials"
-                            className="h-10"
-                          />
-                        </div>
-                      )}
-                      {contract.custom_fields?.company_name && (
-                        <p className="text-sm text-[var(--gray-600)]">
-                          <span className="font-medium">{contract.custom_fields.company_name}</span>
-                          {contract.custom_fields.company_signer_name && (
-                            <span> - {contract.custom_fields.company_signer_name}</span>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                    {isManager && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, buyer_signature: '', buyer_initials: '' }))
-                        }}
-                        className="text-xs mt-3"
-                      >
-                        <RotateCcw className="w-3 h-3 mr-1" />
-                        Re-sign
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    {/* Not Signed - Show form for managers, message for users */}
-                    {isManager ? (
-                      <div className="space-y-4">
-                        {/* Company Info */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label className="text-xs text-[var(--gray-600)]">Company Name *</Label>
-                            <Input
-                              value={formData.company_name}
-                              onChange={(e) => updateField('company_name', e.target.value)}
-                              placeholder="Your company name"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs text-[var(--gray-600)]">Signer Name *</Label>
-                            <Input
-                              value={formData.company_signer_name}
-                              onChange={(e) => updateField('company_signer_name', e.target.value)}
-                              placeholder="Person signing"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs text-[var(--gray-600)]">Email *</Label>
-                            <Input
-                              type="email"
-                              value={formData.company_email}
-                              onChange={(e) => updateField('company_email', e.target.value)}
-                              placeholder="your@email.com"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs text-[var(--gray-600)]">Phone *</Label>
-                            <Input
-                              value={formData.company_phone}
-                              onChange={(e) => updateField('company_phone', formatPhoneNumber(e.target.value))}
-                              placeholder="(555) 123-4567"
-                              maxLength={14}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Signature */}
-                        <div>
-                          <Label className="text-xs text-[var(--gray-600)] mb-2 block">Signature *</Label>
-                          {formData.buyer_signature ? (
-                            <div className="space-y-2">
-                              <div className="border border-[var(--gray-300)] rounded-md p-2 bg-white">
-                                <img src={formData.buyer_signature} alt="Signature" className="max-h-16 mx-auto" />
-                              </div>
-                              <Button type="button" variant="outline" size="sm" onClick={clearSignature} className="text-xs">
-                                <RotateCcw className="w-3 h-3 mr-1" /> Clear
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden">
-                                <button
-                                  type="button"
-                                  onClick={() => setSignatureMode('draw')}
-                                  className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                                    signatureMode === 'draw' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
-                                  }`}
-                                >
-                                  <PenTool className="w-3 h-3 inline mr-1" /> Draw
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setSignatureMode('type')}
-                                  className={`flex-1 px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
-                                    signatureMode === 'type' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]'
-                                  }`}
-                                >
-                                  Type
-                                </button>
-                              </div>
-                              {signatureMode === 'draw' ? (
-                                <div className="space-y-2">
-                                  <div className="border border-[var(--gray-300)] rounded-md bg-white">
-                                    <SignatureCanvas
-                                      ref={signatureRef}
-                                      canvasProps={{ className: 'w-full h-20 rounded-md', style: { width: '100%', height: '80px' } }}
-                                      backgroundColor="white"
-                                    />
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <Button type="button" variant="outline" size="sm" onClick={() => signatureRef.current?.clear()} className="text-xs">
-                                      <RotateCcw className="w-3 h-3 mr-1" /> Clear
-                                    </Button>
-                                    <Button type="button" size="sm" onClick={saveDrawnSignature} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
-                                      <CheckCircle className="w-3 h-3 mr-1" /> Save
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="space-y-2">
-                                  <Input value={typedSignature} onChange={(e) => setTypedSignature(e.target.value)} placeholder="Type your name" />
-                                  {typedSignature && (
-                                    <div className="border border-[var(--gray-300)] rounded-md p-3 bg-white flex items-center justify-center">
-                                      <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '28px' }}>{typedSignature}</span>
-                                    </div>
-                                  )}
-                                  <Button type="button" size="sm" onClick={saveTypedSignature} disabled={!typedSignature.trim()} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
-                                    <CheckCircle className="w-3 h-3 mr-1" /> Save
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Initials - Only for non-three-party */}
-                        {!isThreeParty && (
-                          <div>
-                            <Label className="text-xs text-[var(--gray-600)] mb-2 block">Initials *</Label>
-                            {formData.buyer_initials ? (
-                              <div className="space-y-2">
-                                <div className="border border-[var(--gray-300)] rounded-md p-2 bg-white inline-block">
-                                  <img src={formData.buyer_initials} alt="Initials" className="h-10" />
-                                </div>
-                                <div>
-                                  <Button type="button" variant="outline" size="sm" onClick={clearInitials} className="text-xs">
-                                    <RotateCcw className="w-3 h-3 mr-1" /> Clear
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <div className="flex border border-[var(--gray-300)] rounded-md overflow-hidden w-32">
-                                  <button
-                                    type="button"
-                                    onClick={() => setInitialsMode('draw')}
-                                    className={`flex-1 px-2 py-1 text-xs font-medium transition-colors ${
-                                      initialsMode === 'draw' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)]'
-                                    }`}
-                                  >
-                                    Draw
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setInitialsMode('type')}
-                                    className={`flex-1 px-2 py-1 text-xs font-medium transition-colors border-l border-[var(--gray-300)] ${
-                                      initialsMode === 'type' ? 'bg-[var(--primary-900)] text-white' : 'bg-white text-[var(--gray-700)]'
-                                    }`}
-                                  >
-                                    Type
-                                  </button>
-                                </div>
-                                {initialsMode === 'draw' ? (
-                                  <div className="space-y-2">
-                                    <div className="border border-[var(--gray-300)] rounded-md bg-white inline-block">
-                                      <SignatureCanvas
-                                        ref={initialsRef}
-                                        canvasProps={{ className: 'rounded-md', style: { width: '80px', height: '40px' } }}
-                                        backgroundColor="white"
-                                      />
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <Button type="button" variant="outline" size="sm" onClick={() => initialsRef.current?.clear()} className="text-xs">
-                                        Clear
-                                      </Button>
-                                      <Button type="button" size="sm" onClick={saveDrawnInitials} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
-                                        Save
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="space-y-2">
-                                    <Input value={typedInitials} onChange={(e) => setTypedInitials(e.target.value.slice(0, 4))} placeholder="JD" className="w-20" maxLength={4} />
-                                    {typedInitials && (
-                                      <div className="border border-[var(--gray-300)] rounded-md p-2 bg-white inline-block">
-                                        <span style={{ fontFamily: '"Dancing Script", "Brush Script MT", cursive', fontSize: '24px' }}>{typedInitials.toUpperCase()}</span>
-                                      </div>
-                                    )}
-                                    <div>
-                                      <Button type="button" size="sm" onClick={saveTypedInitials} disabled={!typedInitials.trim()} className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white">
-                                        Save
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Save Button */}
-                        <Button
-                          onClick={handleSaveSignatureOnly}
-                          disabled={savingSignature || !formData.buyer_signature || (!isThreeParty && !formData.buyer_initials) || !formData.company_name || !formData.company_signer_name || !formData.company_email || !formData.company_phone}
-                          className="w-full bg-[var(--success-600)] hover:bg-[var(--success-700)] text-white"
-                        >
-                          {savingSignature ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Saving...
-                            </>
-                          ) : (
-                            <>
-                              <Save className="w-4 h-4 mr-2" />
-                              Save Signature
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    ) : (
-                      /* Non-manager view - show pending status and notify button */
-                      <div className="space-y-4">
-                        <div className="p-3 bg-[var(--warning-50)] border border-[var(--warning-200)] rounded">
-                          <div className="flex items-center gap-2 text-[var(--warning-700)] mb-2">
-                            <AlertTriangle className="w-5 h-5" />
-                            <span className="font-medium">Signature Required</span>
-                          </div>
-                          <p className="text-sm text-[var(--warning-600)]">
-                            A manager must sign this contract before it can be sent to the seller.
-                          </p>
-                        </div>
-                        <Button
-                          onClick={handleNotifyManager}
-                          disabled={notifyingManager}
-                          className="w-full bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
-                        >
-                          {notifyingManager ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Notifying...
-                            </>
-                          ) : (
-                            <>
-                              <Mail className="w-4 h-4 mr-2" />
-                              Notify Manager to Sign
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    )}
-                  </>
                 )}
               </div>
             </div>
