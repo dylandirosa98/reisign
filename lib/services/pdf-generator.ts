@@ -828,7 +828,7 @@ class PDFGeneratorService {
       positions.push({
         page: totalPages,
         x: 13,
-        y: 62.5,
+        y: 61.5,
         width: 30,
         height: 5,
         recipientRole: 'buyer',
@@ -839,7 +839,7 @@ class PDFGeneratorService {
       positions.push({
         page: totalPages,
         x: 11.3,
-        y: 76.75,
+        y: 75.75,
         width: 25,
         height: 2.5,
         recipientRole: 'buyer',
@@ -1078,7 +1078,7 @@ export async function addSigningDateToPdf(
     if (buyerSignedAt) {
       const dateText = formatDate(buyerSignedAt)
       const x = percentToX(11.3)
-      const y = percentToY(77.5)
+      const y = percentToY(76.5)
       lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
     }
   } else if (signatureLayout === 'buyer-only') {
