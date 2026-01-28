@@ -155,7 +155,7 @@ export function TopNav({ user }: TopNavProps) {
               <ChevronDown className="h-4 w-4 text-[var(--gray-500)]" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-56 bg-white border shadow-lg">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium text-[var(--gray-900)]">
