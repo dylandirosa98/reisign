@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     // Find the contract with custom_fields to check for three-party info
     const { data: contract, error: findError } = await adminSupabase
       .from('contracts')
-      .select('id, status, company_id, documenso_document_id, seller_email, buyer_email, custom_fields, template_id')
+      .select('id, status, company_id, documenso_document_id, seller_email, seller_name, buyer_email, custom_fields, template_id')
       .eq('id', contractId)
       .single()
 
@@ -326,7 +326,7 @@ export async function POST(request: NextRequest) {
 
           // Send email to seller: "We got your signature, waiting for buyer"
           // Only for 3-party contracts
-          if (contract.seller_email) {
+          if (contract.seller_email && contract.company_id) {
             try {
               const propertyAddress = (customFields?.property_address as string) || 'the property'
 
