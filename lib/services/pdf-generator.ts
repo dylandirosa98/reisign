@@ -805,7 +805,7 @@ class PDFGeneratorService {
       positions.push({
         page: totalPages,
         x: 13,
-        y: 15,
+        y: 14.5,
         width: 30,
         height: 5,
         recipientRole: 'seller',
@@ -817,29 +817,29 @@ class PDFGeneratorService {
       positions.push({
         page: totalPages,
         x: 11.3,
-        y: 29.25,
+        y: 28.75,
         width: 25,
         height: 2.5,
         recipientRole: 'seller',
         fieldType: 'date',
       })
 
-      // Assignee/Buyer signature - bottom section on signature page
+      // Assignee/Buyer signature - bottom section (seller y + 65%)
       positions.push({
         page: totalPages,
-        x: 11,
-        y: 65,
+        x: 13,
+        y: 79.5,
         width: 30,
         height: 5,
         recipientRole: 'buyer',
         fieldType: 'signature',
       })
 
-      // Assignee/Buyer date field - below signature
+      // Assignee/Buyer date field - below signature (same gap as seller: 14.25%)
       positions.push({
         page: totalPages,
-        x: 12.3,
-        y: 72.25,
+        x: 11.3,
+        y: 93.75,
         width: 25,
         height: 2.5,
         recipientRole: 'buyer',
@@ -1067,18 +1067,18 @@ export async function addSigningDateToPdf(
     }
   } else if (signatureLayout === 'three-party') {
     // Three-party: Date is BELOW signature (in left column, third row)
-    // Seller section: signature at y: 15%, date at y: 29.25%
-    // Assignee section: signature at y: 65%, date is 2 rows below at ~73%
+    // Seller section: signature at y: 14.5%, date at y: 28.75%
+    // Assignee section: signature at y: 79.5%, date at y: 93.75%
     if (sellerSignedAt) {
       const dateText = formatDate(sellerSignedAt)
-      const x = percentToX(9)  // Left column
-      const y = percentToY(30) // Below signature + printed name
+      const x = percentToX(11.3)
+      const y = percentToY(29.5)
       lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
     }
     if (buyerSignedAt) {
       const dateText = formatDate(buyerSignedAt)
-      const x = percentToX(8)  // Left column
-      const y = percentToY(79) // Below signature + printed name in assignee section
+      const x = percentToX(11.3)
+      const y = percentToY(94.5)
       lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
     }
   } else if (signatureLayout === 'buyer-only') {
