@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendSignedContractEmail } from '@/lib/services/email'
+import { sendSignedContractEmail, sendSellerSignedEmail } from '@/lib/services/email'
 import { documenso } from '@/lib/documenso'
 
 // Webhook secret for verification (configure in Documenso)
@@ -323,6 +323,31 @@ export async function POST(request: NextRequest) {
             seller_signed_at: sellerSignedAt,
           }
           console.log('Three-party: Seller signed, waiting for buyer document to be sent')
+
+          // Send email to seller: "We got your signature, waiting for buyer"
+          // Only for 3-party contracts
+          if (contract.seller_email) {
+            try {
+              const propertyAddress = (customFields?.property_address as string) || 'the property'
+
+              // Get company name
+              const { data: companyData } = await adminSupabase
+                .from('companies')
+                .select('name')
+                .eq('id', contract.company_id)
+                .single()
+
+              await sendSellerSignedEmail({
+                to: contract.seller_email,
+                sellerName: contract.seller_name || 'Seller',
+                propertyAddress,
+                companyName: companyData?.name || 'REI Sign',
+              })
+              console.log('[Webhook] Sent seller signed confirmation email')
+            } catch (emailErr) {
+              console.error('[Webhook] Failed to send seller signed email:', emailErr)
+            }
+          }
         } else if (isThreePartyContract && threePartyStage === 'buyer') {
           // Buyer's document completed - contract is fully complete
           newStatus = 'completed'

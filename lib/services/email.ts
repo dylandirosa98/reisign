@@ -140,6 +140,99 @@ If you have questions about this document, please contact ${companyName} directl
   }
 }
 
+interface SendSellerSignedEmailParams {
+  to: string
+  sellerName: string
+  propertyAddress: string
+  companyName: string
+}
+
+/**
+ * Send email to seller after they sign a 3-party contract (waiting for buyer)
+ * ONLY used for 3-party signature contracts
+ */
+export async function sendSellerSignedEmail({
+  to,
+  sellerName,
+  propertyAddress,
+  companyName,
+}: SendSellerSignedEmailParams): Promise<{ success: boolean; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.log('[Email] RESEND_API_KEY not configured, skipping email')
+    return { success: false, error: 'Email not configured' }
+  }
+
+  const subject = `Signature Received - Waiting for Buyer`
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 30px; border-radius: 10px 10px 0 0;">
+        <h1 style="color: #fff; margin: 0; font-size: 24px;">Signature Received!</h1>
+      </div>
+
+      <div style="background: #fff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
+        <p style="margin-top: 0;">Hi ${sellerName},</p>
+
+        <p>Thank you for signing the contract for <strong>${propertyAddress}</strong>.</p>
+
+        <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0; color: #0369a1;">
+            <strong>What's next?</strong><br>
+            We're now waiting for the buyer to sign. Once all parties have signed, you'll receive a copy of the fully executed contract via email.
+          </p>
+        </div>
+
+        <p style="font-size: 12px; color: #999; margin-top: 30px;">
+          This is an automated notification sent on behalf of ${companyName} via REI Sign.
+        </p>
+      </div>
+    </body>
+    </html>
+  `
+
+  const textContent = `
+Signature Received!
+
+Hi ${sellerName},
+
+Thank you for signing the contract for ${propertyAddress}.
+
+What's next?
+We're now waiting for the buyer to sign. Once all parties have signed, you'll receive a copy of the fully executed contract via email.
+
+This is an automated notification sent on behalf of ${companyName} via REI Sign.
+  `.trim()
+
+  try {
+    console.log(`[Email] Sending seller signed email to: ${to}`)
+
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject,
+      html: htmlContent,
+      text: textContent,
+    })
+
+    if (error) {
+      console.error('[Email] Failed to send seller signed email:', error)
+      return { success: false, error: error.message }
+    }
+
+    console.log(`[Email] Seller signed email sent successfully, id: ${data?.id}`)
+    return { success: true }
+  } catch (err) {
+    console.error('[Email] Error sending seller signed email:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 interface SendSignedContractEmailParams {
   to: string[]
   contractId: string
