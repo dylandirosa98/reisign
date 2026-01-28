@@ -57,15 +57,11 @@ export async function sendSigningInviteEmail({
       <div style="background: #fff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
         <p style="margin-top: 0;">Hi ${recipientName},</p>
 
-        <p><strong>${companyName}</strong> has invited you to sign a ${contractTypeName}${roleText}.</p>
+        <p><strong>${companyName}</strong> has invited you to sign a document${roleText}.</p>
 
         <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <h3 style="margin-top: 0; color: #1a1a2e;">Document Details</h3>
           <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 8px 0; color: #666;">Document Type:</td>
-              <td style="padding: 8px 0; font-weight: 500;">${contractTypeName}</td>
-            </tr>
             <tr>
               <td style="padding: 8px 0; color: #666;">Property:</td>
               <td style="padding: 8px 0; font-weight: 500;">${propertyAddress}</td>
@@ -107,10 +103,9 @@ Document Ready for Signature
 
 Hi ${recipientName},
 
-${companyName} has invited you to sign a ${contractTypeName}${roleText}.
+${companyName} has invited you to sign a document${roleText}.
 
 Document Details:
-- Document Type: ${contractTypeName}
 - Property: ${propertyAddress}
 - From: ${companyName}
 
