@@ -824,11 +824,11 @@ class PDFGeneratorService {
         fieldType: 'date',
       })
 
-      // Assignee/Buyer signature - bottom section (seller y + 65%)
+      // Assignee/Buyer signature - bottom section
       positions.push({
         page: totalPages,
         x: 13,
-        y: 79.5,
+        y: 67.5,
         width: 30,
         height: 5,
         recipientRole: 'buyer',
@@ -839,7 +839,7 @@ class PDFGeneratorService {
       positions.push({
         page: totalPages,
         x: 11.3,
-        y: 93.75,
+        y: 81.75,
         width: 25,
         height: 2.5,
         recipientRole: 'buyer',
@@ -1078,7 +1078,7 @@ export async function addSigningDateToPdf(
     if (buyerSignedAt) {
       const dateText = formatDate(buyerSignedAt)
       const x = percentToX(11.3)
-      const y = percentToY(94.5)
+      const y = percentToY(82.5)
       lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
     }
   } else if (signatureLayout === 'buyer-only') {
