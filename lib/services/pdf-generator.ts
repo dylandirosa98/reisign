@@ -804,7 +804,7 @@ class PDFGeneratorService {
       // Seller signature - top section on signature page
       positions.push({
         page: totalPages,
-        x: 11,
+        x: 13,
         y: 15,
         width: 30,
         height: 5,
@@ -817,7 +817,7 @@ class PDFGeneratorService {
       positions.push({
         page: totalPages,
         x: 11.3,
-        y: 25.25,
+        y: 29.25,
         width: 25,
         height: 2.5,
         recipientRole: 'seller',
@@ -1067,12 +1067,12 @@ export async function addSigningDateToPdf(
     }
   } else if (signatureLayout === 'three-party') {
     // Three-party: Date is BELOW signature (in left column, third row)
-    // Seller section: signature at y: 15%, date at y: 25.25%
+    // Seller section: signature at y: 15%, date at y: 29.25%
     // Assignee section: signature at y: 65%, date is 2 rows below at ~73%
     if (sellerSignedAt) {
       const dateText = formatDate(sellerSignedAt)
       const x = percentToX(9)  // Left column
-      const y = percentToY(26) // Below signature + printed name
+      const y = percentToY(30) // Below signature + printed name
       lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
     }
     if (buyerSignedAt) {
