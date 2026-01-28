@@ -264,7 +264,7 @@ export function constructWebhookEvent(
 /**
  * Charge for an extra contract (overage)
  * Adds an invoice item to the customer's upcoming invoice
- * Price varies by plan: Individual $2.50, Team $2.00, Business $1.50
+ * Price varies by plan: Standard $1.50, Teams $1.25, Enterprise $1.00
  */
 export async function chargeExtraContract(
   customerId: string,
@@ -301,7 +301,7 @@ export async function chargeExtraContract(
 /**
  * Add extra seat to subscription
  * Adds the recurring extra seat price to the subscription
- * Price varies by plan: Team $20/mo, Business $15/mo
+ * Price varies by plan: Teams $20/mo, Enterprise $15/mo
  */
 export async function addExtraSeat(
   subscriptionId: string,

@@ -62,7 +62,7 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
   },
   individual: {
     id: 'individual',
-    name: 'Individual',
+    name: 'Standard',
     description: 'For solo wholesalers',
     monthlyPrice: 3900, // $39
     yearlyPrice: 39000, // $390 (10x monthly)
@@ -79,19 +79,19 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
         dedicatedSupport: false,
       },
       overagePricing: {
-        extraContractPrice: 250, // $2.50 per extra contract
+        extraContractPrice: 150, // $1.50 per extra contract
         extraSeatPrice: 0, // N/A for individual (only 1 user allowed)
       },
     },
   },
   team: {
     id: 'team',
-    name: 'Small Team',
+    name: 'Teams',
     description: 'For growing businesses',
-    monthlyPrice: 7900, // $79
-    yearlyPrice: 79000, // $790 (10x monthly)
+    monthlyPrice: 5900, // $59
+    yearlyPrice: 59000, // $590 (10x monthly)
     limits: {
-      contractsPerMonth: 15,
+      contractsPerMonth: 10,
       maxUsers: 3,
       features: {
         allStateTemplates: true,
@@ -103,20 +103,20 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
         dedicatedSupport: false,
       },
       overagePricing: {
-        extraContractPrice: 200, // $2 per extra contract
+        extraContractPrice: 125, // $1.25 per extra contract
         extraSeatPrice: 2000, // $20 per extra seat per month
       },
     },
   },
   business: {
     id: 'business',
-    name: 'Business',
+    name: 'Enterprise',
     description: 'For teams & brokerages',
-    monthlyPrice: 19900, // $199
-    yearlyPrice: 199000, // $1990 (10x monthly)
+    monthlyPrice: 12900, // $129
+    yearlyPrice: 129000, // $1290 (10x monthly)
     limits: {
       contractsPerMonth: 40,
-      maxUsers: 10,
+      maxUsers: 5,
       features: {
         allStateTemplates: true,
         customTemplates: true,
@@ -127,7 +127,7 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
         dedicatedSupport: true,
       },
       overagePricing: {
-        extraContractPrice: 150, // $1.50 per extra contract
+        extraContractPrice: 100, // $1.00 per extra contract
         extraSeatPrice: 1500, // $15 per extra seat per month
       },
     },
