@@ -612,6 +612,7 @@ class DocumensoClient {
       recipients: DocumentRecipient[]
       signatureFields: SignatureFieldPosition[]
       sendImmediately?: boolean
+      sendEmail?: boolean // Whether Documenso should send its own email (default: false)
       redirectUrl?: string // URL to redirect to after signing
       meta?: {
         subject?: string
@@ -739,8 +740,10 @@ class DocumensoClient {
     if (options.sendImmediately) {
       // Small delay to ensure fields are fully registered in Documenso
       await new Promise(resolve => setTimeout(resolve, 500))
-      await this.sendDocument(document.id)
-      console.log(`[Documenso] Document sent for signing`)
+      // Send document - disable Documenso emails by default (we send our own)
+      const sendEmail = options.sendEmail ?? false
+      await this.sendDocument(document.id, sendEmail)
+      console.log(`[Documenso] Document sent for signing (sendEmail: ${sendEmail})`)
     }
 
     // Step 5: Get signing URLs for recipients

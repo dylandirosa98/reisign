@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendSignedContractEmail, sendSellerSignedEmail } from '@/lib/services/email'
+import { sendSignedContractEmail, sendSellerSignedEmail, sendSigningInviteEmail } from '@/lib/services/email'
 import { documenso } from '@/lib/documenso'
+import { pdfGenerator, ContractData } from '@/lib/services/pdf-generator'
 
 // Webhook secret for verification (configure in Documenso)
 const WEBHOOK_SECRET = process.env.DOCUMENSO_WEBHOOK_SECRET
@@ -303,33 +304,16 @@ export async function POST(request: NextRequest) {
         console.log('DOCUMENT_COMPLETED: isThreePartyContract=', isThreePartyContract, 'threePartyStage=', threePartyStage)
 
         if (isThreePartyContract && threePartyStage === 'seller') {
-          // Seller's document completed - move to 'seller_signed' status
-          // User can now send the buyer document
+          // Seller's document completed - auto-send to buyer
           const sellerSignedAt = payload.recipients?.[0]?.signedAt || new Date().toISOString()
-          newStatus = 'seller_signed'
-          updateData = {
-            status: 'seller_signed',
-            // Store seller signed date in custom_fields for later use
-            custom_fields: {
-              ...customFields,
-              seller_signed_at: sellerSignedAt,
-            },
-          }
-          additionalMetadata = {
-            action: 'seller_document_completed',
-            party: 'seller',
-            three_party_stage: 'seller',
-            next_step: 'send_to_buyer',
-            seller_signed_at: sellerSignedAt,
-          }
-          console.log('Three-party: Seller signed, waiting for buyer document to be sent')
+          console.log('Three-party: Seller signed, auto-sending to buyer')
 
           // Send email to seller: "We got your signature, waiting for buyer"
-          // Only for 3-party contracts
+          const propertyAddress = (customFields?.property_address as string) || 'the property'
+          let companyName = 'REI Sign'
+
           if (contract.seller_email && contract.company_id) {
             try {
-              const propertyAddress = (customFields?.property_address as string) || 'the property'
-
               // Get company name
               const { data: companyData } = await adminSupabase
                 .from('companies')
@@ -337,15 +321,181 @@ export async function POST(request: NextRequest) {
                 .eq('id', contract.company_id)
                 .single()
 
+              companyName = companyData?.name || 'REI Sign'
+
               await sendSellerSignedEmail({
                 to: contract.seller_email,
                 sellerName: contract.seller_name || 'Seller',
                 propertyAddress,
-                companyName: companyData?.name || 'REI Sign',
+                companyName,
               })
               console.log('[Webhook] Sent seller signed confirmation email')
             } catch (emailErr) {
               console.error('[Webhook] Failed to send seller signed email:', emailErr)
+            }
+          }
+
+          // Auto-send to buyer
+          try {
+            // Get full contract details including buyer info
+            const { data: fullContract } = await adminSupabase
+              .from('contracts')
+              .select(`
+                *,
+                property:properties(id, address, city, state, zip)
+              `)
+              .eq('id', contractId)
+              .single()
+
+            if (fullContract && fullContract.buyer_email && fullContract.buyer_name) {
+              const fullCustomFields = fullContract.custom_fields as Record<string, unknown> | null
+
+              // Download the signed seller PDF
+              const sellerDocId = (fullCustomFields?.documenso_seller_document_id as string) ||
+                                  fullContract.documenso_document_id
+
+              if (!sellerDocId) {
+                throw new Error('No seller document ID found')
+              }
+
+              console.log(`[Webhook] Downloading signed seller PDF (doc ID: ${sellerDocId})`)
+              const signedPdfBuffer = await documenso.downloadSignedDocumentBuffer(sellerDocId)
+              console.log(`[Webhook] Downloaded signed PDF: ${signedPdfBuffer.length} bytes`)
+
+              // Get page count
+              const pageCount = await pdfGenerator.getPageCount(signedPdfBuffer)
+
+              // Build contract data for signature positions
+              const contractData: ContractData = {
+                property_address: (fullCustomFields?.property_address as string) || fullContract.property?.address || '',
+                property_city: (fullCustomFields?.property_city as string) || fullContract.property?.city || '',
+                property_state: (fullCustomFields?.property_state as string) || fullContract.property?.state || '',
+                property_zip: (fullCustomFields?.property_zip as string) || fullContract.property?.zip || '',
+                seller_name: fullContract.seller_name || '',
+                seller_email: fullContract.seller_email || '',
+                buyer_name: fullContract.buyer_name || '',
+                buyer_email: fullContract.buyer_email || '',
+                assignee_name: fullContract.buyer_name || '',
+                assignee_email: fullContract.buyer_email || '',
+                purchase_price: fullContract.price || 0,
+                company_name: companyName,
+              }
+
+              // Get signature positions for three-party buyer
+              const signaturePositions = await pdfGenerator.getSignaturePositions(
+                'assignment-contract',
+                contractData,
+                pageCount,
+                'three-party'
+              )
+
+              // Filter to buyer positions only
+              const buyerPositions = signaturePositions.filter(pos => pos.recipientRole === 'buyer')
+              console.log(`[Webhook] Got ${buyerPositions.length} buyer signature positions`)
+
+              const signatureFields = buyerPositions.map(pos => ({
+                page: pos.page,
+                x: pos.x,
+                y: pos.y,
+                width: pos.width,
+                height: pos.height,
+                recipientEmail: fullContract.buyer_email!,
+                fieldType: pos.fieldType as 'signature' | 'initials' | 'date' | undefined,
+              }))
+
+              // Create document in Documenso for buyer
+              const externalId = `contract::${contractId}::assignment::buyer`
+              const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.reisign.com'
+              const redirectUrl = `${appUrl}/signing-complete?contractId=${contractId}`
+
+              const result = await documenso.createDocumentWithSignatures(signedPdfBuffer, {
+                title: `Assignment Contract (Buyer) - ${propertyAddress}`,
+                externalId,
+                recipients: [{
+                  name: fullContract.buyer_name!,
+                  email: fullContract.buyer_email!,
+                  role: 'SIGNER' as const,
+                  signingOrder: 1,
+                }],
+                signatureFields,
+                sendImmediately: true,
+                sendEmail: false, // We send our own email
+                redirectUrl,
+              })
+
+              console.log(`[Webhook] Buyer document created and sent: ${result.documentId}`)
+
+              // Send custom signing invite email to buyer
+              const signingUrl = result.recipients[0]?.signingUrl
+              if (signingUrl) {
+                await sendSigningInviteEmail({
+                  to: fullContract.buyer_email!,
+                  recipientName: fullContract.buyer_name!,
+                  companyName,
+                  propertyAddress,
+                  signingUrl,
+                  contractType: 'assignment',
+                  isThreeParty: true,
+                  signerRole: 'buyer',
+                })
+                console.log(`[Webhook] Sent signing invite email to buyer: ${fullContract.buyer_email}`)
+              }
+
+              // Update status to buyer_pending and store buyer doc ID
+              newStatus = 'buyer_pending'
+              updateData = {
+                status: 'buyer_pending',
+                custom_fields: {
+                  ...fullCustomFields,
+                  seller_signed_at: sellerSignedAt,
+                  documenso_buyer_document_id: String(result.documentId),
+                },
+              }
+              additionalMetadata = {
+                action: 'auto_sent_to_buyer',
+                party: 'seller',
+                three_party_stage: 'seller',
+                seller_signed_at: sellerSignedAt,
+                buyer_document_id: result.documentId,
+              }
+            } else {
+              // No buyer info - just update to seller_signed
+              console.log('[Webhook] No buyer email/name found, setting to seller_signed')
+              newStatus = 'seller_signed'
+              updateData = {
+                status: 'seller_signed',
+                custom_fields: {
+                  ...customFields,
+                  seller_signed_at: sellerSignedAt,
+                },
+              }
+              additionalMetadata = {
+                action: 'seller_document_completed',
+                party: 'seller',
+                three_party_stage: 'seller',
+                next_step: 'send_to_buyer',
+                seller_signed_at: sellerSignedAt,
+                auto_send_failed: 'missing_buyer_info',
+              }
+            }
+          } catch (autoSendError) {
+            console.error('[Webhook] Failed to auto-send to buyer:', autoSendError)
+            // Fall back to seller_signed status
+            newStatus = 'seller_signed'
+            updateData = {
+              status: 'seller_signed',
+              custom_fields: {
+                ...customFields,
+                seller_signed_at: sellerSignedAt,
+              },
+            }
+            additionalMetadata = {
+              action: 'seller_document_completed',
+              party: 'seller',
+              three_party_stage: 'seller',
+              next_step: 'send_to_buyer',
+              seller_signed_at: sellerSignedAt,
+              auto_send_failed: autoSendError instanceof Error ? autoSendError.message : 'unknown error',
             }
           }
         } else if (isThreePartyContract && threePartyStage === 'buyer') {
