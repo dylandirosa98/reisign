@@ -436,6 +436,7 @@ class DocumensoClient {
         signingOrder?: 'PARALLEL' | 'SEQUENTIAL'
         subject?: string
         message?: string
+        sendCompletionEmail?: boolean
       }
     }
   ): Promise<CreateDocumentResponse> {
@@ -448,7 +449,11 @@ class DocumensoClient {
     const payload = JSON.stringify({
       title: options.title,
       externalId: options.externalId,
-      meta: options.meta,
+      meta: {
+        ...options.meta,
+        // Disable Documenso completion emails - we send our own
+        sendCompletionEmail: options.meta?.sendCompletionEmail ?? false,
+      },
     })
     formData.append('payload', payload)
 
