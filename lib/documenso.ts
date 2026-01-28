@@ -89,6 +89,9 @@ interface DocumentRecipient {
   email: string
   role?: 'SIGNER' | 'VIEWER' | 'APPROVER'
   signingOrder?: number
+  signingComplete?: {
+    redirectUrl?: string
+  }
 }
 
 interface SignatureFieldPosition {
@@ -479,14 +482,23 @@ class DocumensoClient {
     documentId: number,
     recipient: DocumentRecipient
   ): Promise<AddRecipientResponse> {
+    const payload: Record<string, unknown> = {
+      email: recipient.email,
+      name: recipient.name,
+      role: recipient.role || 'SIGNER',
+      signingOrder: recipient.signingOrder,
+    }
+
+    // Add redirect URL if provided
+    if (recipient.signingComplete?.redirectUrl) {
+      payload.signingComplete = {
+        redirectUrl: recipient.signingComplete.redirectUrl,
+      }
+    }
+
     return this.request(`/documents/${documentId}/recipients`, {
       method: 'POST',
-      body: JSON.stringify({
-        email: recipient.email,
-        name: recipient.name,
-        role: recipient.role || 'SIGNER',
-        signingOrder: recipient.signingOrder,
-      }),
+      body: JSON.stringify(payload),
     })
   }
 
@@ -600,6 +612,7 @@ class DocumensoClient {
       recipients: DocumentRecipient[]
       signatureFields: SignatureFieldPosition[]
       sendImmediately?: boolean
+      redirectUrl?: string // URL to redirect to after signing
       meta?: {
         subject?: string
         message?: string
@@ -630,8 +643,12 @@ class DocumensoClient {
 
     console.log(`[Documenso] Document created with ID: ${document.id}`)
 
-    // Step 2: Add recipients
-    const addedRecipients = await this.addRecipients(document.id, options.recipients)
+    // Step 2: Add recipients (with redirect URL if provided)
+    const recipientsWithRedirect = options.recipients.map(r => ({
+      ...r,
+      signingComplete: options.redirectUrl ? { redirectUrl: options.redirectUrl } : undefined,
+    }))
+    const addedRecipients = await this.addRecipients(document.id, recipientsWithRedirect)
     console.log(`[Documenso] Added ${addedRecipients.length} recipients`)
 
     // Create a map of email to recipient ID for field assignment

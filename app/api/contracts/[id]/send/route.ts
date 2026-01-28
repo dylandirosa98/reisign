@@ -6,6 +6,7 @@ import { pdfGenerator, ContractData, TemplateType } from '@/lib/services/pdf-gen
 import { aiClauseService, ClauseType } from '@/lib/services/ai-clauses'
 import { canCreateContract, PLANS, formatPrice } from '@/lib/plans'
 import { chargeExtraContract, isStripeConfigured } from '@/lib/stripe'
+import { sendSigningInviteEmail } from '@/lib/services/email'
 
 // POST /api/contracts/[id]/send - Send contract for signing via Documenso
 // For three-party contracts, this is called twice:
@@ -435,12 +436,18 @@ export async function POST(
     const externalId = `contract::${id}::${sendType}${externalIdSuffix}`
     console.log(`[Send Contract] Creating document in Documenso with externalId: ${externalId}`)
 
+    // Build redirect URL for after signing
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.reisign.com'
+    const redirectUrl = `${appUrl}/signing-complete?contractId=${id}`
+    console.log(`[Send Contract] Redirect URL after signing: ${redirectUrl}`)
+
     const result = await documenso.createDocumentWithSignatures(pdfBuffer, {
       title: documentTitle,
       externalId,
       recipients,
       signatureFields,
       sendImmediately: true,
+      redirectUrl,
     })
 
     console.log(`[Send Contract] Document created and sent: ${result.documentId}`)
@@ -515,6 +522,31 @@ export async function POST(
           three_party_stage: isThreePartyTemplate ? (sendTo || 'seller') : undefined,
         },
       })
+
+    // Send custom signing invite email
+    const signingUrl = result.recipients[0]?.signingUrl
+    if (signingUrl && recipientEmail) {
+      try {
+        const signerRole = isThreePartyTemplate
+          ? (sendTo === 'buyer' ? 'buyer' : 'seller')
+          : undefined
+
+        await sendSigningInviteEmail({
+          to: recipientEmail,
+          recipientName: recipientName,
+          companyName: company?.name || 'REI Sign',
+          propertyAddress: propertyAddress,
+          signingUrl: signingUrl,
+          contractType: sendType as 'purchase' | 'assignment',
+          isThreeParty: isThreePartyTemplate,
+          signerRole: signerRole as 'seller' | 'buyer' | undefined,
+        })
+        console.log(`[Send Contract] Custom signing invite email sent to ${recipientEmail}`)
+      } catch (emailError) {
+        // Don't fail the send if email fails
+        console.error('[Send Contract] Failed to send custom signing invite email:', emailError)
+      }
+    }
 
     // Increment contracts used this period (only on first send)
     if (isFirstSend) {
