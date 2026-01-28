@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { documenso } from '@/lib/documenso'
-import { checkContractCreation, incrementContractCount, logUsage } from '@/lib/services/plan-enforcement'
+import { logUsage } from '@/lib/services/plan-enforcement'
 
 interface CreateContractRequest {
   templateId?: string // Company template ID - if provided, uses this template instead of state template
@@ -129,24 +129,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Check plan limits before creating contract
-    const enforcementResult = await checkContractCreation(userData.company_id)
-    if (!enforcementResult.allowed) {
-      return NextResponse.json(
-        {
-          error: enforcementResult.reason || 'Contract limit reached',
-          upgradeRequired: enforcementResult.upgradeRequired,
-          suggestedPlan: enforcementResult.suggestedPlan,
-        },
-        { status: 403 }
-      )
-    }
-
-    // Log that we're allowing the contract (may have overage)
-    if (enforcementResult.overagePrice) {
-      console.log(`[Create Contract] Overage contract - will be charged ${enforcementResult.overagePrice} cents`)
-    }
-
+    // Drafts are unlimited - limits are only checked when sending
     // 1. Create or find the property
     const { data: existingProperty } = await adminSupabase
       .from('properties')
@@ -327,15 +310,10 @@ export async function POST(request: NextRequest) {
         metadata: { action: 'created' },
       })
 
-    // 5. Increment contract count for billing
-    const newCount = await incrementContractCount(userData.company_id)
-    console.log(`[Create Contract] Contract count updated to ${newCount}`)
-
-    // 6. Log usage for analytics
+    // 5. Log usage for analytics (billing count is incremented when contract is sent)
     await logUsage(userData.company_id, user.id, 'contract_created', {
       contractId: newContract.id,
       contractType: contract.contractType,
-      hasOverage: !!enforcementResult.overagePrice,
     })
 
     return NextResponse.json({
