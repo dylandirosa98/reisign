@@ -454,6 +454,14 @@ export async function POST(request: NextRequest) {
                 return true
               }
 
+              // Add signers (seller and buyer/assignee)
+              if (fullContract.seller_email && isValidEmail(fullContract.seller_email)) {
+                emailRecipients.push(fullContract.seller_email)
+              }
+              if (fullContract.buyer_email && isValidEmail(fullContract.buyer_email) && !emailRecipients.includes(fullContract.buyer_email)) {
+                emailRecipients.push(fullContract.buyer_email)
+              }
+
               // Add managers
               if (managers) {
                 managers.forEach(m => {

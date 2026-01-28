@@ -874,7 +874,7 @@ class PDFGeneratorService {
       // Seller date field - ABOVE signature ("APPROVED AND ACCEPTED BY SELLER ON:" line)
       positions.push({
         page: totalPages,
-        x: 27.3,
+        x: 30.3,
         y: 18.25,
         width: 42,
         height: 2.5,
