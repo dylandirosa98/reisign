@@ -688,7 +688,7 @@ export default function TeamPage() {
                     onChange={(e) => setAddForm({ ...addForm, role: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="user">User - Can create and send contracts</option>
+                    <option value="user">User - Can create contracts</option>
                     <option value="manager">Manager - Full access including team & billing</option>
                   </select>
                 </div>
