@@ -970,8 +970,8 @@ class PDFGeneratorService {
       // Seller/Assignee date field - ABOVE signature
       positions.push({
         page: totalPages,
-        x: 10.3,
-        y: 19.25,
+        x: 11.3,
+        y: 18.25,
         width: 35,
         height: 2.5,
         recipientRole: 'seller',
@@ -981,8 +981,8 @@ class PDFGeneratorService {
       // Seller/Assignee signature - left column on last page
       positions.push({
         page: totalPages,
-        x: 9,
-        y: 25.0,
+        x: 10,
+        y: 24.0,
         width: 35,
         height: 5,
         recipientRole: 'seller',
