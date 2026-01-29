@@ -967,23 +967,22 @@ class PDFGeneratorService {
         })
       }
 
-      // Seller date field - ABOVE signature ("APPROVED AND ACCEPTED BY SELLER ON:" line)
-      // X coordinate aligned with signature, Y is ~5% above
+      // Seller/Assignee date field - ABOVE signature
       positions.push({
         page: totalPages,
         x: 10.3,
-        y: 20.75,
+        y: 19.25,
         width: 35,
         height: 2.5,
         recipientRole: 'seller',
         fieldType: 'date',
       })
 
-      // Seller signature - left column on last page
+      // Seller/Assignee signature - left column on last page
       positions.push({
         page: totalPages,
         x: 9,
-        y: 26.5,
+        y: 25.0,
         width: 35,
         height: 5,
         recipientRole: 'seller',
