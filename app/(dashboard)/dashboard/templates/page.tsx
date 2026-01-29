@@ -232,7 +232,8 @@ export default function TemplatesPage() {
 
               {/* Signature Layout */}
               <div className="text-xs text-[var(--gray-500)] mb-3">
-                Signature: {template.signature_layout === 'two-column' ? 'Two Column' :
+                Signature: {template.signature_layout === 'two-column' ? 'Two Column Purchase' :
+                  template.signature_layout === 'two-column-assignment' ? 'Two Column Assignment' :
                   template.signature_layout === 'seller-only' ? 'Seller Only' :
                   template.signature_layout === 'three-party' ? 'Three Party' : template.signature_layout}
               </div>
@@ -1203,6 +1204,64 @@ function TemplatePreview({
           </div>
         </div>
       `
+    } else if (layout === 'two-column-assignment') {
+      return `
+        <div class="signature-page">
+          <p class="signature-header">
+            Assignee acknowledges and agrees that Assignee has read and fully understands the terms and conditions of this Contract and is entering into this Contract voluntarily and has not been threatened, coerced, or intimidated into signing this Contract.
+          </p>
+          <div class="signature-columns">
+            <div class="signature-column">
+              <div class="signature-row">
+                <div class="signature-label">APPROVED AND ACCEPTED BY ASSIGNEE ON:</div>
+                <div class="signature-line"></div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">ASSIGNEE SIGNATURE:</div>
+                <div class="signature-box"></div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">MAILING ADDRESS:</div>
+                <div class="signature-line">123 Main St, City, ST 12345</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">EMAIL:</div>
+                <div class="signature-line">assignee@example.com</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">PHONE:</div>
+                <div class="signature-line">(555) 123-4567</div>
+              </div>
+            </div>
+            <div class="signature-column">
+              <div class="signature-row">
+                <div class="signature-label">APPROVED AND ACCEPTED BY ASSIGNOR ON:</div>
+                <div class="signature-line">January 15, 2025</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">ASSIGNOR SIGNATURE:</div>
+                <div class="signature-box" style="display: flex; align-items: center; justify-content: center; padding: 2px; font-style: italic; color: #666;">[Pre-signed]</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">COMPANY NAME:</div>
+                <div class="signature-line">Acme Investments LLC</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">ASSIGNOR SIGNER NAME:</div>
+                <div class="signature-line">John Smith</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">EMAIL:</div>
+                <div class="signature-line">assignor@company.com</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">PHONE:</div>
+                <div class="signature-line">(555) 987-6543</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `
     } else if (layout === 'seller-only') {
       return `
         <div class="signature-page">
@@ -1773,7 +1832,8 @@ function TemplatePreview({
         <div className="flex items-center justify-between p-4 border-t border-[var(--gray-200)]">
           <div className="text-sm text-[var(--gray-500)]">
             Signature Layout: <span className="font-medium">
-              {template.signature_layout === 'two-column' ? 'Two Column (Seller + Buyer)' :
+              {template.signature_layout === 'two-column' ? 'Two Column Purchase (Seller + Buyer)' :
+               template.signature_layout === 'two-column-assignment' ? 'Two Column Assignment (Assignee + Assignor)' :
                template.signature_layout === 'seller-only' ? 'Seller Only' :
                template.signature_layout === 'three-party' ? 'Three Party (Assignment)' : template.signature_layout}
             </span>
