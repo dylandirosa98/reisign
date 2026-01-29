@@ -11,6 +11,7 @@
 
 export type SignaturePageLayout =
   | 'two-column'        // Standard: Seller + Buyer side by side
+  | 'two-column-assignment' // Assignment: Assignee + Assignor side by side
   | 'seller-only'       // Just seller signature
   | 'three-party'       // Seller + Assignor (pre-signed) + Assignee
 
@@ -51,6 +52,26 @@ export const SIGNATURE_PAGE_LAYOUTS: Record<SignaturePageLayout, LayoutConfig> =
         x: 6,         // Left column, left margin
         y: 26,        // After header and first row
         width: 32,    // Half page width minus margins
+        height: 4.5,
+      },
+    ],
+  },
+
+  'two-column-assignment': {
+    id: 'two-column-assignment',
+    name: 'Two Column (Assignment)',
+    description: 'Assignee and Assignor signatures side by side. Assignor pre-signs, Assignee signs via Documenso.',
+    recipients: [
+      { role: 'seller', label: 'Assignee', signsViaDocumenso: true },
+      { role: 'buyer', label: 'Assignor', signsViaDocumenso: false },
+    ],
+    signaturePositions: [
+      {
+        recipientRole: 'seller',
+        fieldType: 'signature',
+        x: 6,
+        y: 26,
+        width: 32,
         height: 4.5,
       },
     ],

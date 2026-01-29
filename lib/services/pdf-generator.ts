@@ -417,17 +417,20 @@ class PDFGeneratorService {
    */
   private generateFooterTemplate(buyerInitialsImg: string, signatureLayout?: string): string {
     const isThreeParty = signatureLayout === 'three-party'
+    const isAssignment = signatureLayout === 'two-column-assignment'
 
     // For three-party, use "Assignee Initials" label and empty box (Documenso will fill)
+    // For assignment, use "Assignor Initials" with pre-filled image from form
     // For other layouts, use "Buyer Initials" with pre-filled image from form
-    const rightLabel = isThreeParty ? 'Assignee Initials:' : 'Buyer Initials:'
+    const leftLabel = isAssignment ? 'Assignee Initials:' : 'Seller Initials:'
+    const rightLabel = isThreeParty ? 'Assignee Initials:' : isAssignment ? 'Assignor Initials:' : 'Buyer Initials:'
     const rightContent = isThreeParty ? '' : buyerInitialsImg
 
     return `
       <div style="width: 100%; font-size: 9px; font-family: 'Tinos', 'Times New Roman', Times, serif; padding: 0 0.5in;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #ccc; padding-top: 8px; margin-top: 5px;">
           <div style="display: flex; align-items: center; gap: 5px;">
-            <span>Seller Initials:</span>
+            <span>${leftLabel}</span>
             <div style="width: 50px; height: 22px; border: 1px solid #000;"></div>
           </div>
           <div>Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>
@@ -448,6 +451,7 @@ class PDFGeneratorService {
   private async loadSignaturePageTemplate(layout: string): Promise<string> {
     const templateMap: Record<string, string> = {
       'two-column': 'two-column.html',
+      'two-column-assignment': 'two-column-assignment.html',
       'seller-only': 'seller-only.html',
       'three-party': 'three-party-assignment.html',
     }
@@ -946,7 +950,9 @@ class PDFGeneratorService {
       })))
 
     } else {
-      // TWO-COLUMN LAYOUT (default): Only seller signs (left column)
+      // TWO-COLUMN LAYOUT (default + assignment): Only left column signs via Documenso
+      // For two-column: Seller signs left, Buyer pre-signed right
+      // For two-column-assignment: Assignee signs left, Assignor pre-signed right
 
       // Seller initials in footer (pages 1 to N-1)
       for (let page = 1; page <= pagesWithInitials; page++) {

@@ -121,7 +121,7 @@ function fillPlaceholders(html: string): string {
   return result
 }
 
-type SignatureLayout = 'two-column' | 'seller-only' | 'three-party'
+type SignatureLayout = 'two-column' | 'two-column-assignment' | 'seller-only' | 'three-party'
 
 // Paginated Template Preview Component
 function TemplatePreviewPane({ htmlContent, signatureLayout }: { htmlContent: string; signatureLayout: SignatureLayout }) {
@@ -1097,12 +1097,14 @@ export default function AdminTemplatesPage() {
                         onChange={(e) => setSignatureLayout(e.target.value as SignatureLayout)}
                         className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="two-column">Two Column (Seller + Buyer)</option>
+                        <option value="two-column">Two Column Purchase (Seller + Buyer)</option>
+                        <option value="two-column-assignment">Two Column Assignment (Assignee + Assignor)</option>
                         <option value="seller-only">Seller Only</option>
                         <option value="three-party">Three Party (Seller + Assignor + Assignee)</option>
                       </select>
                       <p className="text-xs text-gray-500 mt-1">
                         {signatureLayout === 'two-column' && 'Standard layout with Seller and Buyer signatures side by side'}
+                        {signatureLayout === 'two-column-assignment' && 'Assignment layout with Assignee and Assignor signatures side by side'}
                         {signatureLayout === 'seller-only' && 'Only Seller signs via Documenso. Buyer pre-signs.'}
                         {signatureLayout === 'three-party' && 'For assignments: Seller and Assignee sign via Documenso'}
                       </p>

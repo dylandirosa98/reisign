@@ -641,12 +641,14 @@ function TemplateEditor({
                   onChange={(e) => setSignatureLayout(e.target.value as CompanyTemplate['signature_layout'])}
                   className="w-full px-3 py-2 border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
                 >
-                  <option value="two-column">Two Column (Seller + Buyer)</option>
+                  <option value="two-column">Two Column Purchase (Seller + Buyer)</option>
+                  <option value="two-column-assignment">Two Column Assignment (Assignee + Assignor)</option>
                   <option value="seller-only">Seller Only</option>
                   <option value="three-party">Three Party (Seller + Assignor + Assignee)</option>
                 </select>
                 <p className="text-xs text-[var(--gray-500)] mt-1">
                   {signatureLayout === 'two-column' && 'Standard layout with Seller and Buyer signatures side by side'}
+                  {signatureLayout === 'two-column-assignment' && 'Assignment layout with Assignee and Assignor signatures side by side'}
                   {signatureLayout === 'seller-only' && 'Only Seller signs via Documenso. Buyer pre-signs.'}
                   {signatureLayout === 'three-party' && 'For assignments: Seller and Assignee sign via Documenso'}
                 </p>
