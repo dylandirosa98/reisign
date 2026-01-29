@@ -441,6 +441,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const isThreeParty = template?.signature_layout === 'three-party' ||
     contract?.custom_fields?.contract_type === 'three-party' ||
     contract?.custom_fields?.contract_type === 'assignment'
+  const isAssignment = template?.signature_layout === 'two-column-assignment'
+  const sellerLabel = isAssignment ? 'Assignee' : 'Seller'
 
   // Validate email format
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -1163,7 +1165,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     <div>
                       <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
                         <User className="w-4 h-4 text-[var(--gray-400)]" />
-                        Seller (Property Owner)
+                        {isAssignment ? 'Assignee' : 'Seller (Property Owner)'}
                       </h3>
                       <div className="grid grid-cols-2 gap-3">
                         {isFieldVisible('seller_name') && (
@@ -1187,7 +1189,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                               type="email"
                               value={formData.seller_email}
                               onChange={(e) => updateField('seller_email', e.target.value)}
-                              placeholder="seller@email.com"
+                              placeholder={isAssignment ? "assignee@email.com" : "seller@email.com"}
                             />
                             <p className="text-xs text-[var(--primary-600)] mt-1">
                               Signing document will be sent here via Documenso
@@ -1216,7 +1218,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                             <Input
                               value={formData.seller_address}
                               onChange={(e) => updateField('seller_address', e.target.value)}
-                              placeholder="Seller's mailing address"
+                              placeholder={isAssignment ? "Assignee's mailing address" : "Seller's mailing address"}
                             />
                           </div>
                         )}
@@ -2359,7 +2361,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium text-[var(--gray-700)] flex items-center gap-2">
                     <User className="w-4 h-4" />
-                    Seller {isThreeParty && <span className="text-xs text-[var(--primary-600)]">(Signs 1st)</span>}
+                    {sellerLabel} {isThreeParty && <span className="text-xs text-[var(--primary-600)]">(Signs 1st)</span>}
                   </h3>
                   <div className="grid grid-cols-1 gap-2">
                     <div>
@@ -2367,7 +2369,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                       <Input
                         value={sendToSellerName}
                         onChange={(e) => setSendToSellerName(e.target.value)}
-                        placeholder="Seller name"
+                        placeholder={isAssignment ? "Assignee name" : "Seller name"}
                         className="mt-1"
                       />
                     </div>
@@ -2377,7 +2379,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                         type="email"
                         value={sendToSellerEmail}
                         onChange={(e) => setSendToSellerEmail(e.target.value)}
-                        placeholder="seller@email.com"
+                        placeholder={isAssignment ? "assignee@email.com" : "seller@email.com"}
                         className="mt-1"
                       />
                     </div>
@@ -2486,10 +2488,10 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                         <li>Wholesaler initials</li>
                       )}
                       {!sendToSellerName.trim() && (
-                        <li>Seller name</li>
+                        <li>{sellerLabel} name</li>
                       )}
                       {(!sendToSellerEmail || !isValidEmail(sendToSellerEmail)) && (
-                        <li>Valid seller email address</li>
+                        <li>Valid {sellerLabel.toLowerCase()} email address</li>
                       )}
                       {isThreeParty && !sendToAssigneeName.trim() && (
                         <li>Assignee name</li>

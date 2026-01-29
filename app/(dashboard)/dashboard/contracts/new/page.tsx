@@ -215,8 +215,10 @@ export default function NewContractPage() {
     fetchTemplates()
   }, [templateId])
 
-  // Check if template is three-party (for UI hints)
+  // Check if template is three-party or assignment (for UI hints)
   const isThreeParty = selectedTemplate?.signature_layout === 'three-party'
+  const isAssignment = selectedTemplate?.signature_layout === 'two-column-assignment'
+  const sellerLabel = isAssignment ? 'Assignee' : 'Seller'
 
   const updateField = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -236,15 +238,15 @@ export default function NewContractPage() {
     if (!formData.property_zip.trim()) {
       return 'Property ZIP code is required'
     }
-    // Seller fields - always required
+    // Seller/Assignee fields - always required
     if (!formData.seller_name.trim()) {
-      return 'Seller name is required'
+      return `${sellerLabel} name is required`
     }
     if (!formData.seller_email.trim()) {
-      return 'Seller email is required'
+      return `${sellerLabel} email is required`
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.seller_email.trim())) {
-      return 'Invalid seller email format'
+      return `Invalid ${sellerLabel.toLowerCase()} email format`
     }
     // Purchase price - always required
     if (!formData.price.trim()) {
@@ -502,7 +504,7 @@ export default function NewContractPage() {
             <div>
               <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
                 <User className="w-4 h-4 text-[var(--gray-400)]" />
-                Seller Info
+                {sellerLabel} Info
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -519,7 +521,7 @@ export default function NewContractPage() {
                     type="email"
                     value={formData.seller_email}
                     onChange={(e) => updateField('seller_email', e.target.value)}
-                    placeholder="seller@email.com"
+                    placeholder={isAssignment ? "assignee@email.com" : "seller@email.com"}
                   />
                 </div>
                 <div>
