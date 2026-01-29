@@ -65,7 +65,7 @@ export function getSeatPriceId(planTier: PlanTier): string | null {
     case 'business':
       return STRIPE_OVERAGE_PRICE_IDS.extraSeatBusiness
     default:
-      return null // Individual and free can't add seats
+      return null // Standard and free can't add seats
   }
 }
 
@@ -264,7 +264,7 @@ export function constructWebhookEvent(
 /**
  * Charge for an extra contract (overage)
  * Adds an invoice item to the customer's upcoming invoice
- * Price varies by plan: Individual $2.50, Small Team $2.00, Business $1.50
+ * Price varies by plan: Standard $1.49, Teams $0.97, Enterprise unlimited
  */
 export async function chargeExtraContract(
   customerId: string,
@@ -301,7 +301,7 @@ export async function chargeExtraContract(
 /**
  * Add extra seat to subscription
  * Adds the recurring extra seat price to the subscription
- * Price varies by plan: Small Team $20/mo, Business $15/mo
+ * Price varies by plan: Teams $19/mo, Enterprise $19/mo
  */
 export async function addExtraSeat(
   subscriptionId: string,

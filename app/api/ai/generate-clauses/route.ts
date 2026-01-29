@@ -53,11 +53,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // AI generation requires a paid plan (team or business have AI features)
-    const paidPlansWithAI = ['team', 'business', 'admin']
-    if (!paidPlansWithAI.includes(company.actual_plan)) {
+    // AI generation requires a paid plan (all paid plans have AI features)
+    if (company.actual_plan === 'free') {
       return NextResponse.json(
-        { error: 'AI clause generation requires a Small Team plan or higher. Please upgrade to access this feature.' },
+        { error: 'AI clause generation requires a paid plan. Please upgrade to access this feature.' },
         { status: 403 }
       )
     }

@@ -85,9 +85,9 @@ interface AnalyticsData {
 
 const planColors: Record<string, string> = {
   'Free': 'bg-gray-400',
-  'Individual': 'bg-blue-500',
-  'Small Team': 'bg-purple-500',
-  'Business': 'bg-amber-500',
+  'Standard': 'bg-blue-500',
+  'Teams': 'bg-purple-500',
+  'Enterprise': 'bg-amber-500',
   'Admin': 'bg-red-500',
 }
 
@@ -384,9 +384,9 @@ export default function AdminAnalyticsPage() {
                     <td className="py-3">
                       <span className={`px-2 py-0.5 text-xs rounded-full ${
                         company.plan === 'Free' ? 'bg-gray-100 text-gray-700' :
-                        company.plan === 'Individual' ? 'bg-blue-100 text-blue-700' :
-                        company.plan === 'Small Team' ? 'bg-purple-100 text-purple-700' :
-                        company.plan === 'Business' ? 'bg-amber-100 text-amber-700' :
+                        company.plan === 'Standard' ? 'bg-blue-100 text-blue-700' :
+                        company.plan === 'Teams' ? 'bg-purple-100 text-purple-700' :
+                        company.plan === 'Enterprise' ? 'bg-amber-100 text-amber-700' :
                         'bg-red-100 text-red-700'
                       }`}>
                         {company.plan}
