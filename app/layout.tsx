@@ -17,8 +17,8 @@ export const metadata: Metadata = {
   title: "REI Sign",
   description: "Contract Management for Real Estate Wholesalers",
   icons: {
-    icon: '/icon.jpg',
-    apple: '/icon.jpg',
+    icon: '/icon.png',
+    apple: '/icon.png',
   },
 };
 
