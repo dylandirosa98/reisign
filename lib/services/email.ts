@@ -270,8 +270,7 @@ export async function sendSignedContractEmail({
     year: 'numeric',
     month: 'long',
     day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
+    timeZone: 'America/Chicago',
   })
 
   const subject = `Contract Signed: ${propertyAddress}`
