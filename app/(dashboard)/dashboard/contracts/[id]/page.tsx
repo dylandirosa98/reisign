@@ -1600,11 +1600,11 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                   </div>
 
-                  {/* Seller */}
+                  {/* Seller / Assignee */}
                   <div className="flex items-start gap-3">
                     <User className="w-5 h-5 text-[var(--gray-400)] mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-[var(--gray-700)]">Seller</p>
+                      <p className="text-sm font-medium text-[var(--gray-700)]">{sellerLabel}</p>
                       <p className="text-sm text-[var(--gray-900)]">{contract.seller_name}</p>
                       <p className="text-sm text-[var(--gray-600)]">{contract.seller_email}</p>
                       {contract.custom_fields?.seller_phone && (
