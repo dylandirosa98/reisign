@@ -376,3 +376,96 @@ This is an automated notification from REI Sign.
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
   }
 }
+
+const ADMIN_EMAIL = 'dylandirosa980@gmail.com'
+
+interface SendAdminNotificationParams {
+  subject: string
+  event: string
+  details: Record<string, string>
+}
+
+/**
+ * Send admin notification email for key business events
+ */
+export async function sendAdminNotification({
+  subject,
+  event,
+  details,
+}: SendAdminNotificationParams): Promise<{ success: boolean; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.log('[Email] RESEND_API_KEY not configured, skipping admin notification')
+    return { success: false, error: 'Email not configured' }
+  }
+
+  const detailRows = Object.entries(details)
+    .map(([key, value]) => `
+      <tr>
+        <td style="padding: 8px 0; color: #666;">${key}:</td>
+        <td style="padding: 8px 0; font-weight: 500;">${value}</td>
+      </tr>
+    `)
+    .join('')
+
+  const detailText = Object.entries(details)
+    .map(([key, value]) => `- ${key}: ${value}`)
+    .join('\n')
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 30px; border-radius: 10px 10px 0 0;">
+        <h1 style="color: #fff; margin: 0; font-size: 24px;">${event}</h1>
+      </div>
+
+      <div style="background: #fff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse;">
+            ${detailRows}
+          </table>
+        </div>
+
+        <p style="font-size: 12px; color: #999; margin-top: 30px;">
+          REI Sign Admin Notification
+        </p>
+      </div>
+    </body>
+    </html>
+  `
+
+  const textContent = `
+${event}
+
+${detailText}
+
+REI Sign Admin Notification
+  `.trim()
+
+  try {
+    console.log(`[Email] Sending admin notification: ${event}`)
+
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [ADMIN_EMAIL],
+      subject,
+      html: htmlContent,
+      text: textContent,
+    })
+
+    if (error) {
+      console.error('[Email] Failed to send admin notification:', error)
+      return { success: false, error: error.message }
+    }
+
+    console.log(`[Email] Admin notification sent successfully, id: ${data?.id}`)
+    return { success: true }
+  } catch (err) {
+    console.error('[Email] Error sending admin notification:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}

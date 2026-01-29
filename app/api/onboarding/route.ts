@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendAdminNotification } from '@/lib/services/email'
 
 export async function POST(request: Request) {
   try {
@@ -64,6 +65,17 @@ export async function POST(request: Request) {
       await adminSupabase.from('companies').delete().eq('id', company.id)
       return NextResponse.json({ error: 'Failed to link company to user' }, { status: 500 })
     }
+
+    // Notify admin of new signup
+    sendAdminNotification({
+      subject: `New Signup: ${companyName.trim()}`,
+      event: 'New User Signup',
+      details: {
+        'Company': companyName.trim(),
+        'Email': user.email || 'Unknown',
+        'Date': new Date().toLocaleDateString('en-US', { timeZone: 'America/Chicago' }),
+      },
+    }).catch(() => {}) // Fire and forget
 
     return NextResponse.json({ success: true, companyId: company.id })
   } catch (error) {

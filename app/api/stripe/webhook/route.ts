@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { constructWebhookEvent, isStripeConfigured, getSubscription } from '@/lib/stripe'
-import { type PlanTier } from '@/lib/plans'
+import { PLANS, type PlanTier } from '@/lib/plans'
+import { sendAdminNotification } from '@/lib/services/email'
 import Stripe from 'stripe'
 
 export async function POST(request: NextRequest) {
@@ -76,6 +77,25 @@ export async function POST(request: NextRequest) {
                 reason: 'checkout_completed',
                 stripe_event_id: event.id,
               })
+
+            // Notify admin of new subscription
+            const planName = PLANS[planId]?.name || planId
+            const { data: companyInfo } = await adminSupabase
+              .from('companies')
+              .select('name')
+              .eq('id', companyId)
+              .single()
+
+            sendAdminNotification({
+              subject: `New Subscription: ${planName}`,
+              event: 'New Subscription Activated',
+              details: {
+                'Company': companyInfo?.name || companyId,
+                'Plan': planName,
+                'Customer Email': (session.customer_details as any)?.email || 'Unknown',
+                'Date': new Date().toLocaleDateString('en-US', { timeZone: 'America/Chicago' }),
+              },
+            }).catch(() => {}) // Fire and forget
           }
         }
         break
@@ -154,6 +174,25 @@ export async function POST(request: NextRequest) {
               stripe_subscription_id: null,
             })
             .eq('id', company.id)
+
+          // Notify admin of cancellation
+          const { data: cancelledCompany } = await adminSupabase
+            .from('companies')
+            .select('name')
+            .eq('id', company.id)
+            .single()
+
+          const previousPlan = PLANS[company.billing_plan as PlanTier]?.name || company.billing_plan
+
+          sendAdminNotification({
+            subject: `Subscription Cancelled: ${cancelledCompany?.name || 'Unknown'}`,
+            event: 'Subscription Cancelled',
+            details: {
+              'Company': cancelledCompany?.name || company.id,
+              'Previous Plan': previousPlan || 'Unknown',
+              'Date': new Date().toLocaleDateString('en-US', { timeZone: 'America/Chicago' }),
+            },
+          }).catch(() => {}) // Fire and forget
         }
         break
       }
