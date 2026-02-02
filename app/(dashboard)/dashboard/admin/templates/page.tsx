@@ -12,16 +12,28 @@ import {
   Eye,
   Code,
   Sparkles,
+  Plus,
+  X,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
 
-interface StateTemplate {
+interface AdminTemplateData {
   id: string
+  name: string
+  description: string | null
+  html_content: string
+  signature_layout: string
+  is_active: boolean
+  sort_order: number
+  overrides?: AdminOverrideData[]
+}
+
+interface AdminOverrideData {
+  id: string
+  admin_template_id: string
   state_code: string
-  state_name: string
-  is_general: boolean
-  purchase_agreement_html: string | null
-  is_purchase_customized: boolean
-  use_general_template: boolean
+  html_content: string
 }
 
 interface PlaceholderInfo {
@@ -97,6 +109,27 @@ const SAMPLE_DATA: Record<string, string> = {
   assignee_address: '321 Buyer Blvd, Miami, FL 33101',
   ai_clauses: '<p><strong>12.6</strong> <em>AS-IS Condition:</em> Buyer accepts property in as-is condition.</p>',
 }
+
+// US states list for the state override sidebar
+const US_STATES = [
+  { code: 'AL', name: 'Alabama' }, { code: 'AK', name: 'Alaska' }, { code: 'AZ', name: 'Arizona' },
+  { code: 'AR', name: 'Arkansas' }, { code: 'CA', name: 'California' }, { code: 'CO', name: 'Colorado' },
+  { code: 'CT', name: 'Connecticut' }, { code: 'DE', name: 'Delaware' }, { code: 'FL', name: 'Florida' },
+  { code: 'GA', name: 'Georgia' }, { code: 'HI', name: 'Hawaii' }, { code: 'ID', name: 'Idaho' },
+  { code: 'IL', name: 'Illinois' }, { code: 'IN', name: 'Indiana' }, { code: 'IA', name: 'Iowa' },
+  { code: 'KS', name: 'Kansas' }, { code: 'KY', name: 'Kentucky' }, { code: 'LA', name: 'Louisiana' },
+  { code: 'ME', name: 'Maine' }, { code: 'MD', name: 'Maryland' }, { code: 'MA', name: 'Massachusetts' },
+  { code: 'MI', name: 'Michigan' }, { code: 'MN', name: 'Minnesota' }, { code: 'MS', name: 'Mississippi' },
+  { code: 'MO', name: 'Missouri' }, { code: 'MT', name: 'Montana' }, { code: 'NE', name: 'Nebraska' },
+  { code: 'NV', name: 'Nevada' }, { code: 'NH', name: 'New Hampshire' }, { code: 'NJ', name: 'New Jersey' },
+  { code: 'NM', name: 'New Mexico' }, { code: 'NY', name: 'New York' }, { code: 'NC', name: 'North Carolina' },
+  { code: 'ND', name: 'North Dakota' }, { code: 'OH', name: 'Ohio' }, { code: 'OK', name: 'Oklahoma' },
+  { code: 'OR', name: 'Oregon' }, { code: 'PA', name: 'Pennsylvania' }, { code: 'RI', name: 'Rhode Island' },
+  { code: 'SC', name: 'South Carolina' }, { code: 'SD', name: 'South Dakota' }, { code: 'TN', name: 'Tennessee' },
+  { code: 'TX', name: 'Texas' }, { code: 'UT', name: 'Utah' }, { code: 'VT', name: 'Vermont' },
+  { code: 'VA', name: 'Virginia' }, { code: 'WA', name: 'Washington' }, { code: 'WV', name: 'West Virginia' },
+  { code: 'WI', name: 'Wisconsin' }, { code: 'WY', name: 'Wyoming' },
+]
 
 // Replace placeholders with sample data
 function fillPlaceholders(html: string): string {
@@ -179,6 +212,64 @@ function TemplatePreviewPane({ htmlContent, signatureLayout }: { htmlContent: st
               <div class="signature-row">
                 <div class="signature-label">EMAIL:</div>
                 <div class="signature-line">buyer@company.com</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">PHONE:</div>
+                <div class="signature-line">(555) 987-6543</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `
+    } else if (signatureLayout === 'two-column-assignment') {
+      return `
+        <div class="signature-page">
+          <p class="signature-header">
+            Assignee acknowledges and agrees that Assignee has read and fully understands the terms and conditions of this Contract and is entering into this Contract voluntarily.
+          </p>
+          <div class="signature-columns">
+            <div class="signature-column">
+              <div class="signature-row">
+                <div class="signature-label">APPROVED AND ACCEPTED BY ASSIGNEE ON:</div>
+                <div class="signature-line"></div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">ASSIGNEE SIGNATURE:</div>
+                <div class="signature-box"></div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">MAILING ADDRESS:</div>
+                <div class="signature-line">123 Main St, City, ST 12345</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">EMAIL:</div>
+                <div class="signature-line">assignee@example.com</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">PHONE:</div>
+                <div class="signature-line">(555) 123-4567</div>
+              </div>
+            </div>
+            <div class="signature-column">
+              <div class="signature-row">
+                <div class="signature-label">APPROVED AND ACCEPTED BY ASSIGNOR ON:</div>
+                <div class="signature-line">January 15, 2025</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">ASSIGNOR SIGNATURE:</div>
+                <div class="signature-box" style="display: flex; align-items: center; justify-content: center; padding: 2px; font-style: italic; color: #666;">[Pre-signed]</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">COMPANY NAME:</div>
+                <div class="signature-line">Acme Investments LLC</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">ASSIGNOR SIGNER NAME:</div>
+                <div class="signature-line">John Smith</div>
+              </div>
+              <div class="signature-row">
+                <div class="signature-label">EMAIL:</div>
+                <div class="signature-line">assignor@company.com</div>
               </div>
               <div class="signature-row">
                 <div class="signature-label">PHONE:</div>
@@ -676,9 +767,15 @@ function TemplatePreviewPane({ htmlContent, signatureLayout }: { htmlContent: st
 }
 
 export default function AdminTemplatesPage() {
-  const [templates, setTemplates] = useState<StateTemplate[]>([])
+  // Admin templates list
+  const [adminTemplates, setAdminTemplates] = useState<AdminTemplateData[]>([])
+  const [selectedAdminTemplate, setSelectedAdminTemplate] = useState<AdminTemplateData | null>(null)
+  const [overriddenStates, setOverriddenStates] = useState<Set<string>>(new Set())
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // "BASE" means editing the admin template's base content, otherwise a state code
   const [selectedState, setSelectedState] = useState<string | null>(null)
   const [expandStates, setExpandStates] = useState(false)
 
@@ -691,31 +788,43 @@ export default function AdminTemplatesPage() {
   const [hasChanges, setHasChanges] = useState(false)
   const [viewMode, setViewMode] = useState<'code' | 'preview' | 'input'>('input')
 
-  // Plain text input mode (like regular templates page)
+  // Plain text input mode
   const [plainTextInput, setPlainTextInput] = useState('')
   const [signatureLayout, setSignatureLayout] = useState<SignatureLayout>('two-column')
   const [isGeneratingHtml, setIsGeneratingHtml] = useState(false)
   const [generationError, setGenerationError] = useState('')
   const [hasGeneratedHtml, setHasGeneratedHtml] = useState(false)
 
+  // New template modal
+  const [showNewTemplateModal, setShowNewTemplateModal] = useState(false)
+  const [newTemplateName, setNewTemplateName] = useState('')
+  const [newTemplateDescription, setNewTemplateDescription] = useState('')
+  const [newTemplateLayout, setNewTemplateLayout] = useState<SignatureLayout>('two-column')
+  const [isCreating, setIsCreating] = useState(false)
+
+  // Edit template name/description
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editLayout, setEditLayout] = useState<SignatureLayout>('two-column')
+
   useEffect(() => {
-    fetchTemplates()
+    fetchAdminTemplates()
   }, [])
 
-  const fetchTemplates = async () => {
+  const fetchAdminTemplates = async () => {
     try {
-      const res = await fetch('/api/templates')
+      const res = await fetch('/api/admin-templates')
       if (!res.ok) {
         const data = await res.json()
         throw new Error(data.error || 'Failed to fetch templates')
       }
-      const data = await res.json()
-      setTemplates(data)
+      const data: AdminTemplateData[] = await res.json()
+      setAdminTemplates(data)
 
-      // Auto-select General template
-      const general = data.find((t: StateTemplate) => t.is_general)
-      if (general) {
-        loadTemplateContent(general.state_code)
+      // Auto-select first template if none selected
+      if (data.length > 0 && !selectedAdminTemplate) {
+        await selectAdminTemplate(data[0])
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load templates')
@@ -724,24 +833,61 @@ export default function AdminTemplatesPage() {
     }
   }
 
-  const loadTemplateContent = useCallback(async (stateCode: string) => {
+  const selectAdminTemplate = async (template: AdminTemplateData) => {
+    setSelectedAdminTemplate(template)
+    setSignatureLayout(template.signature_layout as SignatureLayout)
+
+    // Fetch overrides to know which states are customized
+    try {
+      const res = await fetch(`/api/admin-templates/${template.id}/overrides`)
+      if (res.ok) {
+        const overrides: AdminOverrideData[] = await res.json()
+        setOverriddenStates(new Set(overrides.map(o => o.state_code)))
+      }
+    } catch {
+      // Ignore errors fetching overrides
+    }
+
+    // Load base template content
+    loadBaseContent(template)
+  }
+
+  const loadBaseContent = (template: AdminTemplateData) => {
+    setSelectedState('BASE')
+    setEditorContent(template.html_content)
+    setOriginalContent(template.html_content)
+    setIsCustomized(true)
+    setHasChanges(false)
+    setPlainTextInput('')
+
+    if (template.html_content) {
+      setHasGeneratedHtml(true)
+      setViewMode('code')
+    } else {
+      setHasGeneratedHtml(false)
+      setViewMode('input')
+    }
+  }
+
+  const loadStateOverrideContent = useCallback(async (stateCode: string) => {
+    if (!selectedAdminTemplate) return
+
     setLoadingContent(true)
     setSelectedState(stateCode)
     setError(null)
     setGenerationError('')
 
     try {
-      const res = await fetch(`/api/templates/${stateCode}`)
+      const res = await fetch(`/api/admin-templates/${selectedAdminTemplate.id}/overrides/${stateCode}`)
       if (!res.ok) throw new Error('Failed to load template content')
       const data = await res.json()
 
       const htmlContent = data.html || ''
       setEditorContent(htmlContent)
       setOriginalContent(htmlContent)
-      setIsCustomized(data.isCustomized || false)
+      setIsCustomized(data.isOverride || false)
       setHasChanges(false)
 
-      // If there's existing HTML, show it
       if (htmlContent) {
         setHasGeneratedHtml(true)
         setViewMode('code')
@@ -755,7 +901,7 @@ export default function AdminTemplatesPage() {
     } finally {
       setLoadingContent(false)
     }
-  }, [])
+  }, [selectedAdminTemplate])
 
   // Generate HTML from plain text using AI
   const handleGenerateHtml = async () => {
@@ -805,26 +951,46 @@ export default function AdminTemplatesPage() {
   }
 
   const handleSave = async () => {
-    if (!selectedState) return
+    if (!selectedAdminTemplate || !selectedState) return
 
     setIsSaving(true)
     setError(null)
 
     try {
-      const res = await fetch(`/api/templates/${selectedState}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ purchase_agreement_html: editorContent }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to save template')
+      if (selectedState === 'BASE') {
+        // Save base template content + signature layout
+        const res = await fetch(`/api/admin-templates/${selectedAdminTemplate.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            html_content: editorContent,
+            signature_layout: signatureLayout,
+          }),
+        })
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.error || 'Failed to save template')
+        }
+        const updated = await res.json()
+        setSelectedAdminTemplate({ ...selectedAdminTemplate, ...updated })
+        // Update in list
+        setAdminTemplates(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t))
+      } else {
+        // Save state override
+        const res = await fetch(`/api/admin-templates/${selectedAdminTemplate.id}/overrides/${selectedState}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ html_content: editorContent }),
+        })
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.error || 'Failed to save template')
+        }
+        setOverriddenStates(prev => new Set([...prev, selectedState]))
       }
 
       setOriginalContent(editorContent)
       setHasChanges(false)
-      await fetchTemplates()
       setIsCustomized(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save template')
@@ -834,8 +1000,8 @@ export default function AdminTemplatesPage() {
   }
 
   const handleReset = async () => {
-    if (!selectedState) return
-    if (!confirm('This will reset the template to the General template. Any customizations will be lost. Continue?')) {
+    if (!selectedAdminTemplate || !selectedState || selectedState === 'BASE') return
+    if (!confirm('This will reset the template to the base template. Any state customizations will be lost. Continue?')) {
       return
     }
 
@@ -843,10 +1009,8 @@ export default function AdminTemplatesPage() {
     setError(null)
 
     try {
-      const res = await fetch(`/api/templates/${selectedState}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reset_to_general: true }),
+      const res = await fetch(`/api/admin-templates/${selectedAdminTemplate.id}/overrides/${selectedState}`, {
+        method: 'DELETE',
       })
 
       if (!res.ok) {
@@ -854,8 +1018,13 @@ export default function AdminTemplatesPage() {
         throw new Error(data.error || 'Failed to reset template')
       }
 
-      await loadTemplateContent(selectedState)
-      await fetchTemplates()
+      setOverriddenStates(prev => {
+        const next = new Set(prev)
+        next.delete(selectedState)
+        return next
+      })
+
+      await loadStateOverrideContent(selectedState)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reset template')
     } finally {
@@ -875,6 +1044,96 @@ export default function AdminTemplatesPage() {
     setHasChanges(false)
   }
 
+  const handleCreateTemplate = async () => {
+    if (!newTemplateName.trim()) return
+
+    setIsCreating(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/admin-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newTemplateName,
+          description: newTemplateDescription || null,
+          signature_layout: newTemplateLayout,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to create template')
+      }
+
+      const newTemplate: AdminTemplateData = await res.json()
+      setAdminTemplates(prev => [...prev, newTemplate])
+      setShowNewTemplateModal(false)
+      setNewTemplateName('')
+      setNewTemplateDescription('')
+      setNewTemplateLayout('two-column')
+
+      // Select the new template
+      await selectAdminTemplate(newTemplate)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create template')
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  const handleDeleteTemplate = async () => {
+    if (!selectedAdminTemplate) return
+    if (!confirm(`Deactivate "${selectedAdminTemplate.name}"? It will no longer appear for users.`)) return
+
+    try {
+      const res = await fetch(`/api/admin-templates/${selectedAdminTemplate.id}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Failed to delete template')
+
+      setAdminTemplates(prev => prev.filter(t => t.id !== selectedAdminTemplate.id))
+      setSelectedAdminTemplate(null)
+      setSelectedState(null)
+      setEditorContent('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete template')
+    }
+  }
+
+  const handleEditTemplate = async () => {
+    if (!selectedAdminTemplate || !editName.trim()) return
+
+    try {
+      const res = await fetch(`/api/admin-templates/${selectedAdminTemplate.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName,
+          description: editDescription || null,
+          signature_layout: editLayout,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to update template')
+
+      const updated = await res.json()
+      setSelectedAdminTemplate({ ...selectedAdminTemplate, ...updated })
+      setAdminTemplates(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t))
+      setSignatureLayout(editLayout)
+      setShowEditModal(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update template')
+    }
+  }
+
+  const openEditModal = () => {
+    if (!selectedAdminTemplate) return
+    setEditName(selectedAdminTemplate.name)
+    setEditDescription(selectedAdminTemplate.description || '')
+    setEditLayout(selectedAdminTemplate.signature_layout as SignatureLayout)
+    setShowEditModal(true)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -883,256 +1142,317 @@ export default function AdminTemplatesPage() {
     )
   }
 
-  const generalTemplate = templates.find(t => t.is_general)
-  const stateTemplates = templates.filter(t => !t.is_general)
-  const selectedTemplate = templates.find(t => t.state_code === selectedState)
-
-  const getTemplateLabel = () => {
-    if (!selectedTemplate) return 'Select a Template'
-    if (selectedTemplate.is_general) return 'General Template (Default for all states)'
-    if (isCustomized) return `${selectedTemplate.state_name} Template (Customized)`
-    return `${selectedTemplate.state_name} (Using General Template)`
+  const getEditorLabel = () => {
+    if (!selectedAdminTemplate) return 'Select a Template'
+    if (selectedState === 'BASE') return `${selectedAdminTemplate.name} - Base Template`
+    const state = US_STATES.find(s => s.code === selectedState)
+    if (isCustomized) return `${selectedAdminTemplate.name} - ${state?.name || selectedState} (Customized)`
+    return `${selectedAdminTemplate.name} - ${state?.name || selectedState} (Using Base)`
   }
 
   return (
-    <div className="flex h-[calc(100vh-120px)]">
-      {/* Left sidebar - Template selector */}
-      <div className="w-64 border-r border-gray-200 bg-white overflow-y-auto flex-shrink-0">
-        <div className="p-4 border-b border-gray-200">
-          <h1 className="text-lg font-bold text-gray-900">State Templates</h1>
-          <p className="text-xs text-gray-600 mt-1">
-            Edit the General Purchase Agreement and state-specific overrides
-          </p>
+    <div className="flex flex-col h-[calc(100vh-120px)]">
+      {/* Top bar - Template selector */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-bold text-gray-900">Admin Templates</h1>
+          <div className="flex items-center gap-1">
+            {adminTemplates.map((template) => (
+              <button
+                key={template.id}
+                onClick={() => selectAdminTemplate(template)}
+                className={`
+                  px-3 py-1.5 rounded text-sm font-medium transition-colors
+                  ${selectedAdminTemplate?.id === template.id
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'hover:bg-gray-100 text-gray-600'
+                  }
+                `}
+              >
+                {template.name}
+              </button>
+            ))}
+          </div>
         </div>
-
-        {error && (
-          <div className="m-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            {error}
-          </div>
-        )}
-
-        {/* General Template */}
-        {generalTemplate && (
-          <div className="p-2">
-            <button
-              onClick={() => loadTemplateContent(generalTemplate.state_code)}
-              className={`
-                w-full px-3 py-2 rounded text-left flex items-center gap-2 transition-colors
-                ${selectedState === generalTemplate.state_code
-                  ? 'bg-blue-50 text-blue-700 border border-blue-300'
-                  : 'hover:bg-gray-100 text-gray-700'
-                }
-              `}
-            >
-              <FileText className="w-4 h-4 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm truncate">General Template</div>
-                <div className="text-xs text-gray-500">Default for all 50 states</div>
-              </div>
-            </button>
-          </div>
-        )}
-
-        {/* States section */}
-        <div className="p-2 border-t border-gray-200">
+        <div className="flex items-center gap-2">
+          {selectedAdminTemplate && (
+            <>
+              <button
+                onClick={openEditModal}
+                className="px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded flex items-center gap-1"
+              >
+                <Pencil className="w-3 h-3" />
+                Settings
+              </button>
+              <button
+                onClick={handleDeleteTemplate}
+                className="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded flex items-center gap-1"
+              >
+                <Trash2 className="w-3 h-3" />
+                Deactivate
+              </button>
+            </>
+          )}
           <button
-            onClick={() => setExpandStates(!expandStates)}
-            className="w-full px-3 py-2 flex items-center justify-between text-sm font-medium text-gray-700 hover:bg-gray-100 rounded"
+            onClick={() => setShowNewTemplateModal(true)}
+            className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
           >
-            <span>State-Specific Overrides</span>
-            {expandStates ? (
-              <ChevronDown className="w-4 h-4" />
-            ) : (
-              <ChevronRight className="w-4 h-4" />
-            )}
+            <Plus className="w-3 h-3" />
+            New Template
           </button>
+        </div>
+      </div>
 
-          {expandStates && (
-            <div className="mt-1 space-y-0.5 max-h-[400px] overflow-y-auto">
-              {stateTemplates.map((template) => (
+      {/* Main layout */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left sidebar - Base + State overrides */}
+        <div className="w-64 border-r border-gray-200 bg-white overflow-y-auto flex-shrink-0">
+          {selectedAdminTemplate ? (
+            <>
+              <div className="p-4 border-b border-gray-200">
+                <p className="text-xs text-gray-600">
+                  Edit the base template and state-specific overrides
+                </p>
+              </div>
+
+              {error && (
+                <div className="m-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {error}
+                </div>
+              )}
+
+              {/* Base Template */}
+              <div className="p-2">
                 <button
-                  key={template.id}
-                  onClick={() => loadTemplateContent(template.state_code)}
+                  onClick={() => loadBaseContent(selectedAdminTemplate)}
                   className={`
-                    w-full px-3 py-1.5 rounded text-left flex items-center gap-2 transition-colors text-sm
-                    ${selectedState === template.state_code
-                      ? 'bg-blue-50 text-blue-700'
+                    w-full px-3 py-2 rounded text-left flex items-center gap-2 transition-colors
+                    ${selectedState === 'BASE'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-300'
                       : 'hover:bg-gray-100 text-gray-700'
                     }
                   `}
                 >
-                  <span className="flex-1 truncate">{template.state_name}</span>
-                  {template.is_purchase_customized && (
-                    <span title="Has custom template">
-                      <Edit3 className="w-3 h-3 text-blue-600" />
-                    </span>
+                  <FileText className="w-4 h-4 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">Base Template</div>
+                    <div className="text-xs text-gray-500">Default for all states</div>
+                  </div>
+                </button>
+              </div>
+
+              {/* States section */}
+              <div className="p-2 border-t border-gray-200">
+                <button
+                  onClick={() => setExpandStates(!expandStates)}
+                  className="w-full px-3 py-2 flex items-center justify-between text-sm font-medium text-gray-700 hover:bg-gray-100 rounded"
+                >
+                  <span>State-Specific Overrides</span>
+                  {expandStates ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
                   )}
                 </button>
-              ))}
+
+                {expandStates && (
+                  <div className="mt-1 space-y-0.5 max-h-[400px] overflow-y-auto">
+                    {US_STATES.map((state) => (
+                      <button
+                        key={state.code}
+                        onClick={() => loadStateOverrideContent(state.code)}
+                        className={`
+                          w-full px-3 py-1.5 rounded text-left flex items-center gap-2 transition-colors text-sm
+                          ${selectedState === state.code
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'hover:bg-gray-100 text-gray-700'
+                          }
+                        `}
+                      >
+                        <span className="flex-1 truncate">{state.name}</span>
+                        {overriddenStates.has(state.code) && (
+                          <span title="Has custom template">
+                            <Edit3 className="w-3 h-3 text-blue-600" />
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="p-4 text-sm text-gray-500">
+              Select or create a template to get started
             </div>
           )}
         </div>
-      </div>
 
-      {/* Main content - Editor */}
-      <div className="flex-1 overflow-y-auto bg-gray-50">
-        {loadingContent ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-          </div>
-        ) : selectedState ? (
-          <div className="p-6">
-            {/* Header */}
-            <div className="mb-4">
-              <h2 className="text-xl font-bold text-gray-900">
-                {getTemplateLabel()}
-              </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                {selectedTemplate?.is_general
-                  ? 'This template applies to all states unless they have a custom override.'
-                  : 'Customize this template for state-specific requirements, or use the General template.'}
-              </p>
+        {/* Main content - Editor */}
+        <div className="flex-1 overflow-y-auto bg-gray-50">
+          {loadingContent ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full"></div>
             </div>
+          ) : selectedAdminTemplate && selectedState ? (
+            <div className="p-6">
+              {/* Header */}
+              <div className="mb-4">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {getEditorLabel()}
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {selectedState === 'BASE'
+                    ? 'This template applies to all states unless they have a custom override.'
+                    : 'Customize this template for state-specific requirements, or use the base template.'}
+                </p>
+              </div>
 
-            {/* Editor Card */}
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-              {/* Editor Header */}
-              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {isCustomized ? (
-                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700">
-                      Customized
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">
-                      Using General Template
-                    </span>
-                  )}
-                  {hasChanges && (
-                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700">
-                      Unsaved Changes
-                    </span>
-                  )}
+              {/* Editor Card */}
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                {/* Editor Header */}
+                <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {selectedState === 'BASE' ? (
+                      <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700">
+                        Base Template
+                      </span>
+                    ) : isCustomized ? (
+                      <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700">
+                        Customized
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">
+                        Using Base Template
+                      </span>
+                    )}
+                    {hasChanges && (
+                      <span className="px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700">
+                        Unsaved Changes
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isCustomized && selectedState !== 'BASE' && (
+                      <button
+                        onClick={handleReset}
+                        className="px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded flex items-center gap-1"
+                        disabled={isSaving}
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        Reset to Base
+                      </button>
+                    )}
+                    {hasChanges && (
+                      <button
+                        onClick={handleDiscard}
+                        className="px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded"
+                        disabled={isSaving}
+                      >
+                        Discard
+                      </button>
+                    )}
+                    <button
+                      onClick={handleSave}
+                      disabled={!hasChanges || isSaving}
+                      className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <Save className="w-3 h-3" />
+                      {isSaving ? 'Saving...' : 'Save Template'}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {isCustomized && !selectedTemplate?.is_general && (
-                    <button
-                      onClick={handleReset}
-                      className="px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded flex items-center gap-1"
-                      disabled={isSaving}
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      Reset to General
-                    </button>
-                  )}
-                  {hasChanges && (
-                    <button
-                      onClick={handleDiscard}
-                      className="px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded"
-                      disabled={isSaving}
-                    >
-                      Discard
-                    </button>
-                  )}
+
+                {/* View Mode Tabs */}
+                <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2 bg-white">
                   <button
-                    onClick={handleSave}
-                    disabled={!hasChanges || isSaving}
-                    className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                    onClick={() => setViewMode('input')}
+                    className={`px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                      viewMode === 'input'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'hover:bg-gray-100 text-gray-600'
+                    }`}
                   >
-                    <Save className="w-3 h-3" />
-                    {isSaving ? 'Saving...' : 'Save Template'}
+                    <Sparkles className="w-4 h-4" />
+                    Text Input
+                  </button>
+                  <button
+                    onClick={() => setViewMode('code')}
+                    className={`px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                      viewMode === 'code'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'hover:bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    <Code className="w-4 h-4" />
+                    HTML Code
+                  </button>
+                  <button
+                    onClick={() => setViewMode('preview')}
+                    className={`px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                      viewMode === 'preview'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'hover:bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    <Eye className="w-4 h-4" />
+                    Preview
                   </button>
                 </div>
-              </div>
 
-              {/* View Mode Tabs */}
-              <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2 bg-white">
-                <button
-                  onClick={() => setViewMode('input')}
-                  className={`px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5 transition-colors ${
-                    viewMode === 'input'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'hover:bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Text Input
-                </button>
-                <button
-                  onClick={() => setViewMode('code')}
-                  className={`px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5 transition-colors ${
-                    viewMode === 'code'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'hover:bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  <Code className="w-4 h-4" />
-                  HTML Code
-                </button>
-                <button
-                  onClick={() => setViewMode('preview')}
-                  className={`px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5 transition-colors ${
-                    viewMode === 'preview'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'hover:bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  <Eye className="w-4 h-4" />
-                  Preview
-                </button>
-              </div>
+                {/* Content Area */}
+                <div className="min-h-[600px]">
+                  {viewMode === 'input' ? (
+                    <div className="p-6 space-y-4">
+                      {/* Signature Layout Selection - only on base template */}
+                      {selectedState === 'BASE' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Signature Page Layout
+                          </label>
+                          <select
+                            value={signatureLayout}
+                            onChange={(e) => setSignatureLayout(e.target.value as SignatureLayout)}
+                            className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="two-column">Two Column Purchase (Seller + Buyer)</option>
+                            <option value="two-column-assignment">Two Column Assignment (Assignee + Assignor)</option>
+                            <option value="seller-only">Seller Only</option>
+                            <option value="three-party">Three Party (Seller + Assignor + Assignee)</option>
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {signatureLayout === 'two-column' && 'Standard layout with Seller and Buyer signatures side by side'}
+                            {signatureLayout === 'two-column-assignment' && 'Assignment layout with Assignee and Assignor signatures side by side'}
+                            {signatureLayout === 'seller-only' && 'Only Seller signs via Documenso. Buyer pre-signs.'}
+                            {signatureLayout === 'three-party' && 'For assignments: Seller and Assignee sign via Documenso'}
+                          </p>
+                        </div>
+                      )}
 
-              {/* Content Area */}
-              <div className="min-h-[600px]">
-                {viewMode === 'input' ? (
-                  <div className="p-6 space-y-4">
-                    {/* Signature Layout Selection */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Signature Page Layout
-                      </label>
-                      <select
-                        value={signatureLayout}
-                        onChange={(e) => setSignatureLayout(e.target.value as SignatureLayout)}
-                        className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="two-column">Two Column Purchase (Seller + Buyer)</option>
-                        <option value="two-column-assignment">Two Column Assignment (Assignee + Assignor)</option>
-                        <option value="seller-only">Seller Only</option>
-                        <option value="three-party">Three Party (Seller + Assignor + Assignee)</option>
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {signatureLayout === 'two-column' && 'Standard layout with Seller and Buyer signatures side by side'}
-                        {signatureLayout === 'two-column-assignment' && 'Assignment layout with Assignee and Assignor signatures side by side'}
-                        {signatureLayout === 'seller-only' && 'Only Seller signs via Documenso. Buyer pre-signs.'}
-                        {signatureLayout === 'three-party' && 'For assignments: Seller and Assignee sign via Documenso'}
-                      </p>
-                    </div>
+                      {/* Auto-generated Info */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="text-sm font-medium text-blue-800 mb-2">What gets added automatically:</p>
+                        <ul className="text-xs text-blue-700 space-y-1">
+                          <li>- <strong>Page footers</strong> - Seller & Buyer initials boxes added to each page</li>
+                          <li>- <strong>&quot;[SIGNATURES ON FOLLOWING PAGE]&quot;</strong> - Added at the end of your content</li>
+                          <li>- <strong>Signature page</strong> - Auto-generated based on layout selection above</li>
+                          <li>- <strong>Page breaks</strong> - Content automatically splits into pages</li>
+                        </ul>
+                      </div>
 
-                    {/* Auto-generated Info */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <p className="text-sm font-medium text-blue-800 mb-2">What gets added automatically:</p>
-                      <ul className="text-xs text-blue-700 space-y-1">
-                        <li>• <strong>Page footers</strong> - Seller & Buyer initials boxes added to each page</li>
-                        <li>• <strong>"[SIGNATURES ON FOLLOWING PAGE]"</strong> - Added at the end of your content</li>
-                        <li>• <strong>Signature page</strong> - Auto-generated based on layout selection above</li>
-                        <li>• <strong>Page breaks</strong> - Content automatically splits into pages</li>
-                      </ul>
-                    </div>
-
-                    {/* Plain Text Input */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Contract Content
-                      </label>
-                      <p className="text-xs text-gray-500 mb-2">
-                        Paste your contract text below. The AI will format it into professional HTML with proper placeholders.
-                      </p>
-                      <textarea
-                        value={plainTextInput}
-                        onChange={(e) => setPlainTextInput(e.target.value)}
-                        placeholder={`Paste your contract text here...
+                      {/* Plain Text Input */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Contract Content
+                        </label>
+                        <p className="text-xs text-gray-500 mb-2">
+                          Paste your contract text below. The AI will format it into professional HTML with proper placeholders.
+                        </p>
+                        <textarea
+                          value={plainTextInput}
+                          onChange={(e) => setPlainTextInput(e.target.value)}
+                          placeholder={`Paste your contract text here...
 
 Example:
 PURCHASE AGREEMENT
@@ -1144,86 +1464,213 @@ The purchase price is $[Amount] to be paid as follows...
 
 2. CLOSING DATE
 The closing shall occur on [Date]...`}
-                        className="w-full h-[350px] px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                          className="w-full h-[350px] px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                        />
+                      </div>
+
+                      {/* Error Message */}
+                      {generationError && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          {generationError}
+                        </div>
+                      )}
+
+                      {/* Generate Button */}
+                      <button
+                        onClick={handleGenerateHtml}
+                        disabled={isGeneratingHtml || !plainTextInput.trim()}
+                        className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 font-medium"
+                      >
+                        {isGeneratingHtml ? (
+                          <>
+                            <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+                            Formatting Template...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-5 w-5" />
+                            Generate HTML Template
+                          </>
+                        )}
+                      </button>
+
+                      {hasGeneratedHtml && (
+                        <p className="text-sm text-center text-green-600">
+                          Template generated! Switch to &quot;HTML Code&quot; tab to view and edit.
+                        </p>
+                      )}
+                    </div>
+                  ) : viewMode === 'code' ? (
+                    <div className="relative">
+                      {hasGeneratedHtml && (
+                        <button
+                          onClick={handleStartOver}
+                          className="absolute top-2 right-2 px-2 py-1 text-xs text-gray-600 hover:text-gray-800 bg-white border border-gray-300 rounded flex items-center gap-1 z-10"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          Start Over
+                        </button>
+                      )}
+                      <textarea
+                        value={editorContent}
+                        onChange={(e) => handleContentChange(e.target.value)}
+                        className="w-full h-[600px] p-4 font-mono text-sm border-0 resize-none focus:outline-none focus:ring-0 bg-gray-50"
+                        spellCheck={false}
+                        placeholder="Enter HTML template content..."
                       />
                     </div>
+                  ) : (
+                    <TemplatePreviewPane htmlContent={editorContent} signatureLayout={signatureLayout} />
+                  )}
+                </div>
 
-                    {/* Error Message */}
-                    {generationError && (
-                      <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4" />
-                        {generationError}
-                      </div>
-                    )}
-
-                    {/* Generate Button */}
-                    <button
-                      onClick={handleGenerateHtml}
-                      disabled={isGeneratingHtml || !plainTextInput.trim()}
-                      className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 font-medium"
-                    >
-                      {isGeneratingHtml ? (
-                        <>
-                          <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
-                          Formatting Template...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-5 w-5" />
-                          Generate HTML Template
-                        </>
-                      )}
-                    </button>
-
-                    {hasGeneratedHtml && (
-                      <p className="text-sm text-center text-green-600">
-                        ✓ Template generated! Switch to "HTML Code" tab to view and edit.
-                      </p>
-                    )}
-                  </div>
-                ) : viewMode === 'code' ? (
-                  <div className="relative">
-                    {hasGeneratedHtml && (
-                      <button
-                        onClick={handleStartOver}
-                        className="absolute top-2 right-2 px-2 py-1 text-xs text-gray-600 hover:text-gray-800 bg-white border border-gray-300 rounded flex items-center gap-1 z-10"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        Start Over
-                      </button>
-                    )}
-                    <textarea
-                      value={editorContent}
-                      onChange={(e) => handleContentChange(e.target.value)}
-                      className="w-full h-[600px] p-4 font-mono text-sm border-0 resize-none focus:outline-none focus:ring-0 bg-gray-50"
-                      spellCheck={false}
-                      placeholder="Enter HTML template content..."
-                    />
-                  </div>
-                ) : (
-                  <TemplatePreviewPane htmlContent={editorContent} signatureLayout={signatureLayout} />
-                )}
-              </div>
-
-              {/* Footer with placeholders help */}
-              <div className="px-4 py-2 border-t border-gray-200 bg-gray-50">
-                <p className="text-xs text-gray-500">
-                  <strong>Common Placeholders:</strong>{' '}
-                  <code className="bg-gray-200 px-1 rounded">{'{{property_address}}'}</code>,{' '}
-                  <code className="bg-gray-200 px-1 rounded">{'{{seller_name}}'}</code>,{' '}
-                  <code className="bg-gray-200 px-1 rounded">{'{{purchase_price}}'}</code>,{' '}
-                  <code className="bg-gray-200 px-1 rounded">{'{{close_of_escrow}}'}</code>,{' '}
-                  <code className="bg-gray-200 px-1 rounded">{'{{ai_clauses}}'}</code>
-                </p>
+                {/* Footer with placeholders help */}
+                <div className="px-4 py-2 border-t border-gray-200 bg-gray-50">
+                  <p className="text-xs text-gray-500">
+                    <strong>Common Placeholders:</strong>{' '}
+                    <code className="bg-gray-200 px-1 rounded">{'{{property_address}}'}</code>,{' '}
+                    <code className="bg-gray-200 px-1 rounded">{'{{seller_name}}'}</code>,{' '}
+                    <code className="bg-gray-200 px-1 rounded">{'{{purchase_price}}'}</code>,{' '}
+                    <code className="bg-gray-200 px-1 rounded">{'{{close_of_escrow}}'}</code>,{' '}
+                    <code className="bg-gray-200 px-1 rounded">{'{{ai_clauses}}'}</code>
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center py-20 text-gray-500">
-            Select a template from the sidebar to edit
-          </div>
-        )}
+          ) : (
+            <div className="flex items-center justify-center py-20 text-gray-500">
+              {adminTemplates.length === 0
+                ? 'Create your first admin template to get started'
+                : 'Select a template from the top bar to edit'}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* New Template Modal */}
+      {showNewTemplateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Create New Template</h3>
+              <button onClick={() => setShowNewTemplateModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Template Name *</label>
+                <input
+                  type="text"
+                  value={newTemplateName}
+                  onChange={(e) => setNewTemplateName(e.target.value)}
+                  placeholder="e.g., Florida Purchase Agreement"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={newTemplateDescription}
+                  onChange={(e) => setNewTemplateDescription(e.target.value)}
+                  placeholder="Brief description of this template..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Signature Layout</label>
+                <select
+                  value={newTemplateLayout}
+                  onChange={(e) => setNewTemplateLayout(e.target.value as SignatureLayout)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="two-column">Two Column Purchase (Seller + Buyer)</option>
+                  <option value="two-column-assignment">Two Column Assignment (Assignee + Assignor)</option>
+                  <option value="seller-only">Seller Only</option>
+                  <option value="three-party">Three Party (Seller + Assignor + Assignee)</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setShowNewTemplateModal(false)}
+                className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateTemplate}
+                disabled={!newTemplateName.trim() || isCreating}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isCreating ? 'Creating...' : 'Create Template'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Template Modal */}
+      {showEditModal && selectedAdminTemplate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Template Settings</h3>
+              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Template Name *</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Signature Layout</label>
+                <select
+                  value={editLayout}
+                  onChange={(e) => setEditLayout(e.target.value as SignatureLayout)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="two-column">Two Column Purchase (Seller + Buyer)</option>
+                  <option value="two-column-assignment">Two Column Assignment (Assignee + Assignor)</option>
+                  <option value="seller-only">Seller Only</option>
+                  <option value="three-party">Three Party (Seller + Assignor + Assignee)</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditTemplate}
+                disabled={!editName.trim()}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { logUsage } from '@/lib/services/plan-enforcement'
 
 interface CreateContractRequest {
   templateId?: string // Company template ID - if provided, uses this template instead of state template
+  adminTemplateId?: string // Admin template ID - platform-wide template
   property: {
     address: string
     city: string
@@ -111,9 +112,9 @@ export async function POST(request: NextRequest) {
   }
 
   const body: CreateContractRequest = await request.json()
-  const { templateId, property, seller, buyer, contract, customFields } = body
+  const { templateId, adminTemplateId, property, seller, buyer, contract, customFields } = body
 
-  console.log('[Create Contract] Request body:', JSON.stringify({ templateId, property, seller, buyer, contract, customFields: customFields ? 'present' : 'missing' }, null, 2))
+  console.log('[Create Contract] Request body:', JSON.stringify({ templateId, adminTemplateId, property, seller, buyer, contract, customFields: customFields ? 'present' : 'missing' }, null, 2))
 
   // Validate required fields (only property, seller, and price are required)
   if (!property.address || !property.city || !property.state || !property.zip) {
@@ -167,8 +168,10 @@ export async function POST(request: NextRequest) {
 
     // 2. Get the appropriate template
     // If a company template ID is provided, use that template
+    // If an admin template ID is provided, use that
     // Otherwise, fall back to state-specific or general templates
     let companyTemplateId: string | null = templateId || null
+    let adminTemplateIdResolved: string | null = adminTemplateId || null
     let purchaseTemplateId: string | null = null
     let assignmentTemplateId: string | null = null
 
@@ -191,6 +194,23 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('[Create Contract] Using company template:', companyTemplate.name, companyTemplate.is_example ? '(example)' : '')
+    } else if (adminTemplateIdResolved) {
+      // Validate the admin template exists and is active
+      const { data: adminTemplateData, error: templateError } = await adminSupabase
+        .from('admin_templates')
+        .select('id, name, is_active')
+        .eq('id', adminTemplateIdResolved)
+        .eq('is_active', true)
+        .single()
+
+      if (templateError || !adminTemplateData) {
+        console.error('[Create Contract] Admin template not found:', templateError)
+        return NextResponse.json({
+          error: 'Selected template not found or is not active.',
+        }, { status: 400 })
+      }
+
+      console.log('[Create Contract] Using admin template:', adminTemplateData.name)
     } else {
       // Fall back to state-based templates
       const { data: stateTemplate } = await adminSupabase
@@ -256,8 +276,9 @@ export async function POST(request: NextRequest) {
           seller_phone: seller.phone || null,
           assignment_fee: contract.assignmentFee || 0,
           contract_type: contract.contractType,
-          // Template references - company template takes priority
+          // Template references - company template takes priority, then admin template
           company_template_id: companyTemplateId,
+          admin_template_id: adminTemplateIdResolved,
           purchase_template_id: purchaseTemplateId,
           assignment_template_id: assignmentTemplateId,
           // Property fields
@@ -321,9 +342,11 @@ export async function POST(request: NextRequest) {
       contract: newContract,
       templateInfo: {
         companyTemplateId,
+        adminTemplateId: adminTemplateIdResolved,
         purchaseTemplateId,
         assignmentTemplateId,
         usingCompanyTemplate: !!companyTemplateId,
+        usingAdminTemplate: !!adminTemplateIdResolved,
       },
     })
   } catch (error) {

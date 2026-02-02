@@ -110,6 +110,20 @@ export async function POST(request: NextRequest) {
       vertical-align: middle;
     }
 
+    .checkbox.checked {
+      background-color: #000;
+      position: relative;
+    }
+
+    .checkbox.checked::after {
+      content: '✓';
+      color: #fff;
+      font-size: 8px;
+      position: absolute;
+      top: -1px;
+      left: 1px;
+    }
+
     .paragraph {
       text-align: justify;
       margin-bottom: 10pt;
@@ -142,6 +156,40 @@ IMPORTANT RULES:
 8. Return ONLY the HTML code, no explanation
 9. ALWAYS add a $ symbol before price/money placeholders (e.g., $\{\{purchase_price\}\}, $\{\{earnest_money\}\}, $\{\{assignment_fee\}\}) - the form only accepts numbers so the $ must be in the template
 
+CRITICAL PLACEHOLDER RULES:
+10. Every <span class="field-line"> MUST contain a {{placeholder}} — NEVER leave one empty.
+11. For fields matching the standard list below, use the standard name (e.g., {{seller_name}}, {{purchase_price}}).
+12. For ALL OTHER blank/fill-in lines, create a descriptive snake_case placeholder from the surrounding context (e.g., {{repair_deadline_days}}, {{mortgage_type_from}}, {{title_company_name}}, {{closing_date_extension}}).
+13. Prefix monetary placeholders with $ in the template (e.g., $\{\{repair_cost_limit\}\}).
+14. For yes/no options, multiple-choice selections, or anywhere a checkmark/checkbox makes sense, put the placeholder in the CLASS attribute: <span class="checkbox {{field_name_check}}"></span> — the _check suffix indicates a checkbox placeholder. The value will be "checked" or "" which toggles the CSS class.
+15. When the plain text has a label followed by a colon and then a blank line, underscores, dashes, or whitespace (e.g., "Buyer Name: ___________", "Phone: ", "Address:                "), that colon signals a fill-in field — ALWAYS place a <span class="field-line">{{placeholder}}</span> after the colon. Derive the placeholder name from the label (e.g., "Buyer Name:" → {{buyer_name}}, "License #:" → {{license_number}}, "Title Company:" → {{title_company_name}}).
+
+EXAMPLES:
+
+CORRECT text field:
+  Seller agrees to complete repairs within <span class="field-line">{{repair_deadline_days}}</span> days.
+
+CORRECT colon field (label followed by colon and blank):
+  Buyer Name: <span class="field-line">{{buyer_name}}</span>
+  Phone: <span class="field-line">{{seller_phone}}</span>
+  Title Company: <span class="field-line">{{title_company_name}}</span>
+  License #: <span class="field-line">{{license_number}}</span>
+
+INCORRECT (empty field-line — NEVER do this):
+  Seller agrees to complete repairs within <span class="field-line"></span> days.
+
+INCORRECT (colon with no field — NEVER do this):
+  Buyer Name: ___________
+  Phone:
+
+CORRECT checkbox (placeholder in class attribute):
+  <span class="checkbox {{conventional_mortgage_check}}"></span> Conventional
+  <span class="checkbox {{fha_mortgage_check}}"></span> FHA
+  <span class="checkbox {{va_mortgage_check}}"></span> VA
+
+INCORRECT checkbox (no placeholder — NEVER do this):
+  <span class="checkbox"></span> Conventional
+
 REQUIRED CSS (use this exact CSS in the <style> tag):
 ${templateCss}
 
@@ -153,6 +201,7 @@ HTML STRUCTURE TO USE:
 - <p class="paragraph"> for body paragraphs (justified, indented)
 - <p class="paragraph-no-indent"> for paragraphs without indent
 - <span class="field-line">{{placeholder}}</span> for fill-in fields with underline
+- <span class="checkbox {{field_name_check}}"></span> for checkbox fields (placeholder in class attribute)
 - <p class="indented"> for indented items
 - <p class="center-text"> for centered text
 
@@ -182,7 +231,7 @@ Return a complete HTML document:
       messages: [
         {
           role: 'system',
-          content: 'You are a legal document HTML formatter specializing in real estate contracts. You convert plain text contracts into properly formatted HTML using a specific CSS framework. You MUST use the exact CSS classes provided (like .paragraph, .section-header, .subsection, .field-line) - never create your own styles. You preserve the exact text while adding proper structure. You use placeholders like {{seller_name}} for dynamic values. The output should look like a professional legal document with Times New Roman font, proper section numbering, and justified text.',
+          content: 'You are a legal document HTML formatter specializing in real estate contracts. You convert plain text contracts into properly formatted HTML using a specific CSS framework. You MUST use the exact CSS classes provided (like .paragraph, .section-header, .subsection, .field-line) - never create your own styles. You preserve the exact text while adding proper structure. You use placeholders like {{seller_name}} for dynamic values. CRITICAL: Every blank fill-in line MUST get a {{placeholder}} — never leave a field-line empty. When you see a label followed by a colon and a blank/underscores (e.g., "Buyer Name: ___", "Phone: "), that is ALWAYS a fill-in field — place a <span class="field-line">{{placeholder}}</span> after the colon. The output should look like a professional legal document with Times New Roman font, proper section numbering, and justified text.',
         },
         {
           role: 'user',
@@ -203,7 +252,32 @@ Return a complete HTML document:
       html = '<!DOCTYPE html>\n<html>\n<head>\n<style>\nbody { font-family: "Times New Roman", serif; font-size: 11pt; line-height: 1.4; }\n</style>\n</head>\n<body>\n' + html + '\n</body>\n</html>'
     }
 
-    return NextResponse.json({ html })
+    // Post-processing: warn about any empty field-line spans and fix them
+    const emptyFieldLineRegex = /<span class="field-line">\s*<\/span>/g
+    const emptyFieldLines = html.match(emptyFieldLineRegex)
+    if (emptyFieldLines) {
+      console.warn(`[AI HTML] WARNING: ${emptyFieldLines.length} empty field-line spans found. These should contain {{placeholder}} tags.`)
+    }
+
+    // Post-processing: warn about any empty checkbox spans
+    const emptyCheckboxRegex = /<span class="checkbox">\s*<\/span>/g
+    const emptyCheckboxes = html.match(emptyCheckboxRegex)
+    if (emptyCheckboxes) {
+      console.warn(`[AI HTML] WARNING: ${emptyCheckboxes.length} empty checkbox spans found. These should contain {{field_check}} tags.`)
+    }
+
+    // Extract all discovered placeholders from the HTML
+    const placeholderRegex = /\{\{([^}#/]+)\}\}/g
+    const discoveredPlaceholders: string[] = []
+    let match
+    while ((match = placeholderRegex.exec(html)) !== null) {
+      const key = match[1].trim()
+      if (!discoveredPlaceholders.includes(key)) {
+        discoveredPlaceholders.push(key)
+      }
+    }
+
+    return NextResponse.json({ html, discoveredPlaceholders })
   } catch (error) {
     console.error('AI HTML generation error:', error)
     return NextResponse.json(

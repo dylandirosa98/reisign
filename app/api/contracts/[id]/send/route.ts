@@ -130,6 +130,7 @@ export async function POST(
     buyer_signature?: string
     buyer_initials?: string
     company_template_id?: string
+    admin_template_id?: string
     // Three-party document IDs
     documenso_seller_document_id?: string
     documenso_buyer_document_id?: string
@@ -142,6 +143,13 @@ export async function POST(
       .from('company_templates' as any)
       .select('signature_layout')
       .eq('id', customFields.company_template_id)
+      .single()
+    signatureLayoutFromDb = (templateData as any)?.signature_layout
+  } else if (customFields?.admin_template_id) {
+    const { data: templateData } = await adminSupabase
+      .from('admin_templates')
+      .select('signature_layout')
+      .eq('id', customFields.admin_template_id)
       .single()
     signatureLayoutFromDb = (templateData as any)?.signature_layout
   }
@@ -291,10 +299,38 @@ export async function POST(
       ai_clauses: aiClausesHtml,
     }
 
-    // Generate PDF from HTML template (pass company template ID to use custom template)
+    // Collect non-standard custom_fields into extra_fields for arbitrary placeholder replacement
+    const standardCustomKeys = new Set([
+      'property_address', 'property_city', 'property_state', 'property_zip',
+      'assignment_fee', 'seller_phone', 'seller_address', 'buyer_phone',
+      'assignee_address', 'earnest_money', 'escrow_agent_name', 'escrow_agent_address',
+      'escrow_officer', 'escrow_agent_email', 'close_of_escrow', 'inspection_period',
+      'apn', 'personal_property', 'additional_terms', 'escrow_fees_split',
+      'title_policy_paid_by', 'hoa_fees_split', 'company_name', 'company_signer_name',
+      'company_email', 'company_phone', 'buyer_signature', 'buyer_initials',
+      'ai_clauses', 'company_template_id', 'admin_template_id',
+      'purchase_template_id', 'assignment_template_id', 'contract_type',
+      'documenso_seller_document_id', 'documenso_buyer_document_id', 'seller_signed_at',
+    ])
+
+    if (customFields) {
+      const extraFields: Record<string, string> = {}
+      for (const [key, value] of Object.entries(customFields)) {
+        if (!standardCustomKeys.has(key) && value != null && typeof value !== 'object') {
+          extraFields[key] = String(value)
+        }
+      }
+      if (Object.keys(extraFields).length > 0) {
+        contractData.extra_fields = extraFields
+      }
+    }
+
+    // Generate PDF from HTML template (pass company/admin template ID to use custom template)
     const companyTemplateId = customFields?.company_template_id
+    const adminTemplateId = customFields?.admin_template_id
     console.log(`[Send Contract] ===== STARTING CONTRACT SEND =====`)
     console.log(`[Send Contract] Company template ID: ${companyTemplateId || 'NONE'}`)
+    console.log(`[Send Contract] Admin template ID: ${adminTemplateId || 'NONE'}`)
     console.log(`[Send Contract] Template type: ${templateType}`)
     console.log(`[Send Contract] Three-party: ${isThreeParty}, sendTo: ${sendTo || 'default'}`)
     console.log(`[Send Contract] Seller: ${sellerNameToSend} <${sellerEmailToSend}> | Phone: ${sellerPhoneToSend} | Address: ${sellerAddressToSend}`)
@@ -326,14 +362,14 @@ export async function POST(
         console.error(`[Send Contract] Failed to download signed seller PDF:`, downloadError)
         // If download fails, generate a fresh PDF as fallback (without seller signatures)
         console.log(`[Send Contract] Falling back to generating fresh PDF`)
-        const result = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
+        const result = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId, adminTemplateId)
         pdfBuffer = result.pdfBuffer
         signatureLayout = result.signatureLayout
       }
 
       // If we downloaded the signed PDF, still need to get signatureLayout from template
       if (!signatureLayout) {
-        const { signatureLayout: layout } = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
+        const { signatureLayout: layout } = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId, adminTemplateId)
         signatureLayout = layout
       }
     } else {

@@ -31,9 +31,18 @@ interface PlaceholderInfo {
   category: string
 }
 
+interface AdminTemplateItem {
+  id: string
+  name: string
+  description: string | null
+  signature_layout: string
+  html_content: string
+}
+
 export default function TemplatesPage() {
   const router = useRouter()
   const [templates, setTemplates] = useState<CompanyTemplate[]>([])
+  const [adminTemplates, setAdminTemplates] = useState<AdminTemplateItem[]>([])
   const [availableTags, setAvailableTags] = useState<string[]>([])
   const [standardPlaceholders, setStandardPlaceholders] = useState<Record<string, PlaceholderInfo>>({})
   const [loading, setLoading] = useState(true)
@@ -42,8 +51,25 @@ export default function TemplatesPage() {
   const [showEditor, setShowEditor] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<CompanyTemplate | null>(null)
   const [previewTemplate, setPreviewTemplate] = useState<CompanyTemplate | null>(null)
+  const [previewAdminTemplate, setPreviewAdminTemplate] = useState<AdminTemplateItem | null>(null)
 
-  // Fetch templates
+  // Fetch admin templates
+  useEffect(() => {
+    const fetchAdminTemplates = async () => {
+      try {
+        const res = await fetch('/api/admin-templates/available')
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          setAdminTemplates(data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch admin templates:', error)
+      }
+    }
+    fetchAdminTemplates()
+  }, [])
+
+  // Fetch company templates
   const fetchTemplates = async () => {
     try {
       const params = new URLSearchParams()
@@ -93,7 +119,7 @@ export default function TemplatesPage() {
     }
   }
 
-  const handleUseTemplate = (template: CompanyTemplate) => {
+  const handleUseTemplate = (template: CompanyTemplate | AdminTemplateItem) => {
     // Navigate to contract creation with template ID
     router.push(`/dashboard/contracts/new?templateId=${template.id}`)
   }
@@ -152,6 +178,67 @@ export default function TemplatesPage() {
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--gray-400)]" />
         </div>
       </div>
+
+      {/* General Templates (Admin) */}
+      {adminTemplates.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--gray-900)] mb-3">General Templates</h2>
+          <p className="text-xs text-[var(--gray-500)] mb-3">Platform-wide templates available to all users</p>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {adminTemplates.map((template) => (
+              <div
+                key={template.id}
+                className="bg-white border border-[var(--gray-200)] rounded-lg p-4 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="p-2 bg-blue-50 rounded-lg">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-[var(--gray-900)]">{template.name}</h3>
+                    {template.description && (
+                      <p className="text-sm text-[var(--gray-600)] mt-1 line-clamp-2">
+                        {template.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Signature Layout */}
+                <div className="text-xs text-[var(--gray-500)] mb-3">
+                  Signature: {template.signature_layout === 'two-column' ? 'Two Column Purchase' :
+                    template.signature_layout === 'two-column-assignment' ? 'Two Column Assignment' :
+                    template.signature_layout === 'seller-only' ? 'Seller Only' :
+                    template.signature_layout === 'three-party' ? 'Three Party' : template.signature_layout}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-between pt-3 border-t border-[var(--gray-100)]">
+                  <button
+                    onClick={() => handleUseTemplate(template)}
+                    className="flex items-center gap-1 text-sm text-[var(--primary-600)] hover:text-[var(--primary-700)]"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Use Template
+                  </button>
+                  <button
+                    onClick={() => setPreviewAdminTemplate(template)}
+                    className="p-1.5 text-[var(--gray-500)] hover:text-[var(--gray-700)] hover:bg-[var(--gray-100)] rounded"
+                    title="Preview template"
+                  >
+                    <FileSearch className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* My Templates Header */}
+      {adminTemplates.length > 0 && (
+        <h2 className="text-lg font-semibold text-[var(--gray-900)]">My Templates</h2>
+      )}
 
       {/* Template Grid */}
       {loading ? (
@@ -327,6 +414,17 @@ export default function TemplatesPage() {
           }}
           onUse={() => {
             handleUseTemplate(previewTemplate)
+          }}
+        />
+      )}
+
+      {/* Admin Template Preview Modal */}
+      {previewAdminTemplate && (
+        <TemplatePreview
+          template={previewAdminTemplate}
+          onClose={() => setPreviewAdminTemplate(null)}
+          onUse={() => {
+            handleUseTemplate(previewAdminTemplate)
           }}
         />
       )}
@@ -1133,10 +1231,10 @@ function TemplatePreview({
   onCopy,
   onUse,
 }: {
-  template: CompanyTemplate
+  template: { name: string; html_content: string; signature_layout: string; is_example?: boolean }
   onClose: () => void
-  onEdit: () => void
-  onCopy: () => void
+  onEdit?: () => void
+  onCopy?: () => void
   onUse: () => void
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -1839,14 +1937,16 @@ function TemplatePreview({
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={onCopy}
-              className="px-4 py-2 text-[var(--gray-700)] hover:bg-[var(--gray-100)] rounded-lg flex items-center gap-2"
-            >
-              <Copy className="h-4 w-4" />
-              Copy Template
-            </button>
-            {!template.is_example && (
+            {onCopy && (
+              <button
+                onClick={onCopy}
+                className="px-4 py-2 text-[var(--gray-700)] hover:bg-[var(--gray-100)] rounded-lg flex items-center gap-2"
+              >
+                <Copy className="h-4 w-4" />
+                Copy Template
+              </button>
+            )}
+            {onEdit && !template.is_example && (
               <button
                 onClick={onEdit}
                 className="px-4 py-2 text-[var(--gray-700)] hover:bg-[var(--gray-100)] rounded-lg flex items-center gap-2"

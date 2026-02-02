@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use, useRef } from 'react'
+import { useState, useEffect, use, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -152,6 +152,7 @@ interface Template {
   id: string
   name: string
   signature_layout?: string
+  html_content?: string
   field_config?: {
     standardFields?: Record<string, FieldConfig>
   }
@@ -182,6 +183,284 @@ const formatPhoneNumber = (value: string): string => {
   } else {
     return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`
   }
+}
+
+// Fields that are auto-generated and should not be inline-editable
+const SKIP_INLINE_FIELDS = new Set([
+  'buyer_signature_img', 'buyer_initials_img', 'ai_clauses', 'contract_date',
+  'company_full_address', 'full_property_address',
+])
+
+// Fields that should use date input
+const DATE_FIELDS = new Set(['close_of_escrow', 'closing_date', 'effective_date', 'expiration_date'])
+
+// Fields that represent monetary values (auto-format with commas)
+const MONETARY_FIELDS = new Set([
+  'purchase_price', 'earnest_money', 'assignment_fee',
+  'repair_cost_limit', 'deposit_amount', 'option_fee',
+])
+
+function InlineDocumentEditor({
+  htmlContent,
+  values,
+  onValuesChange,
+}: {
+  htmlContent: string
+  values: Record<string, string>
+  onValuesChange: (values: Record<string, string>) => void
+}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [iframeHeight, setIframeHeight] = useState(800)
+  const valuesRef = useRef(values)
+  valuesRef.current = values
+
+  // Format monetary value with commas
+  const formatMoney = (val: string): string => {
+    const digits = val.replace(/[^\d.]/g, '')
+    if (!digits) return ''
+    const parts = digits.split('.')
+    const whole = parseInt(parts[0], 10)
+    if (isNaN(whole)) return ''
+    const formatted = whole.toLocaleString('en-US')
+    return parts.length > 1 ? `${formatted}.${parts[1]}` : formatted
+  }
+
+  const setupIframe = useCallback(() => {
+    const iframe = iframeRef.current
+    if (!iframe) return
+
+    const doc = iframe.contentDocument
+    if (!doc) return
+
+    // Process the HTML: replace {{placeholders}} with input elements
+    let processedHtml = htmlContent
+
+    // Replace field-line placeholders with input elements
+    // Pattern: <span class="field-line">{{placeholder}}</span>
+    // Also handle: <span class="field-line short">{{placeholder}}</span> etc.
+    processedHtml = processedHtml.replace(
+      /<span class="field-line([^"]*)">\s*\{\{([^}]+)\}\}\s*<\/span>/g,
+      (_, classes, key) => {
+        const trimmedKey = key.trim()
+        if (SKIP_INLINE_FIELDS.has(trimmedKey)) {
+          return `<span class="field-line${classes}">${values[trimmedKey] || ''}</span>`
+        }
+        const currentVal = values[trimmedKey] || ''
+        const isDate = DATE_FIELDS.has(trimmedKey)
+        const isMoney = MONETARY_FIELDS.has(trimmedKey) || trimmedKey.includes('price') || trimmedKey.includes('fee') || trimmedKey.includes('cost') || trimmedKey.includes('amount') || trimmedKey.includes('deposit')
+        const inputType = isDate ? 'date' : 'text'
+        const label = trimmedKey.replace(/_/g, ' ')
+        return `<span class="field-line${classes}" style="position:relative;">` +
+          `<input type="${inputType}" ` +
+          `data-field="${trimmedKey}" ` +
+          `data-monetary="${isMoney}" ` +
+          `value="${currentVal.replace(/"/g, '&quot;')}" ` +
+          `placeholder="${label}" ` +
+          `title="${label}" ` +
+          `class="inline-field-input" ` +
+          `/></span>`
+      }
+    )
+
+    // Replace standalone {{placeholders}} not inside field-line spans
+    // (but skip checkbox placeholders which are in class attributes)
+    processedHtml = processedHtml.replace(
+      /\{\{([^}#/]+)\}\}/g,
+      (match, key) => {
+        const trimmedKey = key.trim()
+        // Skip if it looks like a checkbox class placeholder (ends with _check)
+        if (trimmedKey.endsWith('_check')) return match
+        if (SKIP_INLINE_FIELDS.has(trimmedKey)) return values[trimmedKey] || ''
+        const currentVal = values[trimmedKey] || ''
+        const isDate = DATE_FIELDS.has(trimmedKey)
+        const isMoney = MONETARY_FIELDS.has(trimmedKey) || trimmedKey.includes('price') || trimmedKey.includes('fee') || trimmedKey.includes('cost') || trimmedKey.includes('amount') || trimmedKey.includes('deposit')
+        const inputType = isDate ? 'date' : 'text'
+        const label = trimmedKey.replace(/_/g, ' ')
+        return `<input type="${inputType}" ` +
+          `data-field="${trimmedKey}" ` +
+          `data-monetary="${isMoney}" ` +
+          `value="${currentVal.replace(/"/g, '&quot;')}" ` +
+          `placeholder="${label}" ` +
+          `title="${label}" ` +
+          `class="inline-field-input standalone" />`
+      }
+    )
+
+    // Replace checkbox placeholders in class attributes
+    // Pattern: <span class="checkbox {{field_check}}"></span>
+    processedHtml = processedHtml.replace(
+      /<span class="checkbox\s+\{\{([^}]+)\}\}"\s*><\/span>/g,
+      (_, key) => {
+        const trimmedKey = key.trim()
+        const isChecked = values[trimmedKey] === 'checked'
+        return `<input type="checkbox" ` +
+          `data-field="${trimmedKey}" ` +
+          `${isChecked ? 'checked' : ''} ` +
+          `class="inline-checkbox" />`
+      }
+    )
+
+    // Also handle already-replaced checkbox classes (e.g., class="checkbox checked" or class="checkbox ")
+    // These are checkboxes where the value was already interpolated but we want to make them editable
+    processedHtml = processedHtml.replace(
+      /<span class="checkbox\s*(checked)?\s*">\s*<\/span>/g,
+      (_, checked) => {
+        // No data-field key available for pre-interpolated checkboxes, skip these
+        return `<span class="checkbox ${checked || ''}"></span>`
+      }
+    )
+
+    // Inject custom styles for inline inputs
+    const customStyles = `
+      <style>
+        .inline-field-input {
+          font-family: inherit;
+          font-size: inherit;
+          line-height: inherit;
+          color: inherit;
+          border: none;
+          border-bottom: 1px solid #000;
+          background: rgba(59, 130, 246, 0.08);
+          outline: none;
+          padding: 0 2px;
+          width: 100%;
+          min-width: 60px;
+          box-sizing: border-box;
+        }
+        .inline-field-input:focus {
+          background: rgba(59, 130, 246, 0.15);
+          border-bottom-color: #3b82f6;
+        }
+        .inline-field-input:not(:placeholder-shown) {
+          background: transparent;
+        }
+        .inline-field-input::placeholder {
+          color: #9ca3af;
+          font-style: italic;
+          font-size: 0.9em;
+        }
+        .inline-field-input.standalone {
+          display: inline;
+          width: auto;
+          min-width: 100px;
+          border-bottom: 1px solid #000;
+        }
+        .inline-field-input[type="date"] {
+          width: auto;
+          min-width: 140px;
+        }
+        .inline-checkbox {
+          width: 10px;
+          height: 10px;
+          margin-right: 2px;
+          vertical-align: middle;
+          cursor: pointer;
+          accent-color: #000;
+        }
+        /* Hide the original body margin for continuous scroll */
+        body {
+          margin: 0.5in;
+        }
+      </style>
+    `
+
+    // Inject styles before </head>
+    if (processedHtml.includes('</head>')) {
+      processedHtml = processedHtml.replace('</head>', `${customStyles}</head>`)
+    } else if (processedHtml.includes('<body')) {
+      processedHtml = processedHtml.replace('<body', `${customStyles}<body`)
+    }
+
+    doc.open()
+    doc.write(processedHtml)
+    doc.close()
+
+    // Wait for content to render, then set up event listeners and resize
+    setTimeout(() => {
+      const contentDoc = iframe.contentDocument
+      if (!contentDoc) return
+
+      // Auto-resize iframe height
+      const resizeObserver = new ResizeObserver(() => {
+        const body = contentDoc.body
+        if (body) {
+          const newHeight = body.scrollHeight + 40
+          setIframeHeight(Math.max(newHeight, 400))
+        }
+      })
+
+      if (contentDoc.body) {
+        resizeObserver.observe(contentDoc.body)
+        // Initial sizing
+        setIframeHeight(Math.max(contentDoc.body.scrollHeight + 40, 400))
+      }
+
+      // Listen for input changes on text fields
+      contentDoc.addEventListener('input', (e) => {
+        const target = e.target as HTMLInputElement
+        if (target.classList.contains('inline-field-input')) {
+          const fieldKey = target.getAttribute('data-field')
+          if (fieldKey) {
+            const newVals = { ...valuesRef.current, [fieldKey]: target.value }
+            onValuesChange(newVals)
+          }
+        }
+      })
+
+      // Handle blur for monetary formatting
+      contentDoc.addEventListener('focusout', (e) => {
+        const target = e.target as HTMLInputElement
+        if (target.classList.contains('inline-field-input') &&
+            target.getAttribute('data-monetary') === 'true') {
+          const formatted = formatMoney(target.value)
+          target.value = formatted
+          const fieldKey = target.getAttribute('data-field')
+          if (fieldKey) {
+            const newVals = { ...valuesRef.current, [fieldKey]: formatted }
+            onValuesChange(newVals)
+          }
+        }
+      })
+
+      // Listen for checkbox changes
+      contentDoc.addEventListener('change', (e) => {
+        const target = e.target as HTMLInputElement
+        if (target.classList.contains('inline-checkbox')) {
+          const fieldKey = target.getAttribute('data-field')
+          if (fieldKey) {
+            const newVals = {
+              ...valuesRef.current,
+              [fieldKey]: target.checked ? 'checked' : '',
+            }
+            onValuesChange(newVals)
+          }
+        }
+      })
+
+      // Cleanup
+      return () => resizeObserver.disconnect()
+    }, 100)
+  }, [htmlContent]) // Only re-setup when template HTML changes, not on every value change
+
+  useEffect(() => {
+    setupIframe()
+  }, [setupIframe])
+
+  return (
+    <div className="border border-[var(--gray-200)] rounded bg-white overflow-hidden">
+      <iframe
+        ref={iframeRef}
+        style={{
+          width: '100%',
+          height: `${iframeHeight}px`,
+          border: 'none',
+          display: 'block',
+        }}
+        sandbox="allow-same-origin"
+        title="Contract Editor"
+      />
+    </div>
+  )
 }
 
 const statusConfig: Record<string, { label: string; icon: typeof Clock; color: string; bgColor: string }> = {
@@ -247,6 +526,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     buyer_initials: '',
   })
   const [aiClauses, setAiClauses] = useState<AIClause[]>([])
+  const [inlineValues, setInlineValues] = useState<Record<string, string>>({})
+  const inlineIframeRef = useRef<HTMLIFrameElement>(null)
   const [signatureMode, setSignatureMode] = useState<'draw' | 'type'>('draw')
   const [typedSignature, setTypedSignature] = useState('')
   const [initialsMode, setInitialsMode] = useState<'draw' | 'type'>('draw')
@@ -748,6 +1029,52 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       buyer_initials: contract.custom_fields?.buyer_initials || '',
     })
     setAiClauses(contract.custom_fields?.ai_clauses || [])
+
+    // Initialize inline values from existing contract data for inline editor
+    if (template?.html_content) {
+      const vals: Record<string, string> = {}
+      // Map standard contract fields
+      if (contract.seller_name) vals.seller_name = contract.seller_name
+      if (contract.seller_email) vals.seller_email = contract.seller_email
+      if (contract.buyer_name) vals.buyer_name = contract.buyer_name
+      if (contract.buyer_email) vals.buyer_email = contract.buyer_email
+      if (contract.price) vals.purchase_price = contract.price.toLocaleString('en-US')
+
+      // Build full property address
+      const pa = contract.custom_fields?.property_address || contract.property?.address || ''
+      const pc = contract.custom_fields?.property_city || contract.property?.city || ''
+      const ps = contract.custom_fields?.property_state || contract.property?.state || ''
+      const pz = contract.custom_fields?.property_zip || contract.property?.zip || ''
+      if (pa) vals.property_address = pa
+      if (pc) vals.property_city = pc
+      if (ps) vals.property_state = ps
+      if (pz) vals.property_zip = pz
+      if (pa && pc) vals.full_property_address = `${pa}, ${pc}, ${ps} ${pz}`
+
+      // Map custom_fields
+      const cf = contract.custom_fields || {}
+      const standardContractKeys = new Set([
+        'ai_clauses', 'company_template_id', 'admin_template_id',
+        'purchase_template_id', 'assignment_template_id', 'contract_type',
+        'buyer_signature', 'buyer_initials',
+        'documenso_seller_document_id', 'documenso_buyer_document_id', 'seller_signed_at',
+      ])
+      for (const [key, value] of Object.entries(cf)) {
+        if (standardContractKeys.has(key)) continue
+        if (value != null && typeof value !== 'object') {
+          vals[key] = String(value)
+        }
+      }
+
+      // Map assignee fields (three-party templates use assignee_* but form stores as buyer_*)
+      if (contract.buyer_name) vals.assignee_name = contract.buyer_name
+      if (contract.buyer_email) vals.assignee_email = contract.buyer_email
+      if (cf.buyer_phone) vals.assignee_phone = String(cf.buyer_phone)
+      if (cf.assignee_address) vals.assignee_address = String(cf.assignee_address)
+
+      setInlineValues(vals)
+    }
+
     setIsEditing(true)
   }
 
@@ -881,6 +1208,107 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
             ai_clauses: aiClauses,
           },
         }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to save contract')
+      }
+
+      await fetchContract()
+      setIsEditing(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save contract')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Save handler for inline document editor
+  const handleInlineSave = async () => {
+    setSaving(true)
+    setError(null)
+
+    const parseCurrency = (value: string) => {
+      const num = parseFloat(value.replace(/,/g, ''))
+      return isNaN(num) ? undefined : num
+    }
+
+    try {
+      // Separate inline values into contract-level fields vs custom_fields
+      const contractLevelMap: Record<string, string> = {
+        seller_name: 'seller_name',
+        seller_email: 'seller_email',
+        buyer_name: 'buyer_name',
+        buyer_email: 'buyer_email',
+      }
+      // Assignee fields map to contract-level buyer fields
+      const assigneeToContractMap: Record<string, string> = {
+        assignee_name: 'buyer_name',
+        assignee_email: 'buyer_email',
+      }
+
+      const customFieldsMap: Record<string, string> = {
+        seller_phone: 'seller_phone',
+        seller_address: 'seller_address',
+        buyer_phone: 'buyer_phone',
+        assignee_phone: 'buyer_phone',
+        assignee_address: 'assignee_address',
+        property_address: 'property_address',
+        property_city: 'property_city',
+        property_state: 'property_state',
+        property_zip: 'property_zip',
+        apn: 'apn',
+        escrow_agent_name: 'escrow_agent_name',
+        escrow_agent_address: 'escrow_agent_address',
+        escrow_officer: 'escrow_officer',
+        escrow_agent_email: 'escrow_agent_email',
+        close_of_escrow: 'close_of_escrow',
+        inspection_period: 'inspection_period',
+        personal_property: 'personal_property',
+        additional_terms: 'additional_terms',
+      }
+
+      const numericCustomFields = new Set([
+        'earnest_money', 'assignment_fee',
+      ])
+
+      const body: Record<string, unknown> = {}
+      const newCustomFields: Record<string, unknown> = { ...contract?.custom_fields }
+
+      for (const [key, value] of Object.entries(inlineValues)) {
+        if (contractLevelMap[key]) {
+          body[contractLevelMap[key]] = value
+        } else if (assigneeToContractMap[key]) {
+          body[assigneeToContractMap[key]] = value
+        } else if (key === 'purchase_price') {
+          body.price = parseCurrency(value) || 0
+        } else if (customFieldsMap[key]) {
+          newCustomFields[customFieldsMap[key]] = value
+        } else if (numericCustomFields.has(key)) {
+          newCustomFields[key] = parseCurrency(value)
+        } else if (key === 'full_property_address' || key === 'contract_date' ||
+                   key === 'buyer_signature_img' || key === 'buyer_initials_img' ||
+                   key === 'ai_clauses' || key === 'company_name' ||
+                   key === 'company_full_address' || key === 'company_signer_name' ||
+                   key === 'company_email' || key === 'company_phone') {
+          // Skip computed/auto-generated fields, company fields handled separately
+          if (key === 'company_name' || key === 'company_signer_name' ||
+              key === 'company_email' || key === 'company_phone') {
+            newCustomFields[key] = value
+          }
+        } else {
+          // Non-standard field — store as-is in custom_fields
+          newCustomFields[key] = value
+        }
+      }
+
+      body.custom_fields = newCustomFields
+
+      const res = await fetch(`/api/contracts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {
@@ -1065,7 +1493,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     Cancel
                   </Button>
                   <Button
-                    onClick={handleSave}
+                    onClick={template?.html_content ? handleInlineSave : handleSave}
                     disabled={saving}
                     size="sm"
                     className="text-xs bg-[var(--primary-900)] hover:bg-[var(--primary-800)] text-white"
@@ -1082,7 +1510,15 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
             </div>
             <div className="p-4">
               {isEditing ? (
-                /* Edit Mode */
+                template?.html_content ? (
+                  /* Inline Document Editor for admin templates */
+                  <InlineDocumentEditor
+                    htmlContent={template.html_content}
+                    values={inlineValues}
+                    onValuesChange={setInlineValues}
+                  />
+                ) : (
+                /* Traditional Edit Mode */
                 <div className="space-y-6">
                   {/* Property Section */}
                   {isGroupVisible(['property_address', 'property_city', 'property_state', 'property_zip', 'apn']) && (
@@ -1583,6 +2019,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     onClausesChange={setAiClauses}
                   />
                 </div>
+                )
               ) : (
                 /* View Mode */
                 <div className="space-y-4">

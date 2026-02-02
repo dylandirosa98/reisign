@@ -79,6 +79,9 @@ export interface ContractData {
 
   // Buyer initials (base64 image) - auto-applied to all pages
   buyer_initials?: string
+
+  // Extra fields from AI-generated templates (non-standard placeholders)
+  extra_fields?: Record<string, string>
 }
 
 export type TemplateType = 'purchase-agreement' | 'assignment-contract'
@@ -161,16 +164,18 @@ class PDFGeneratorService {
   /**
    * Load an HTML template - priority order:
    * 1. Company template (if companyTemplateId provided)
-   * 2. State-specific template from database
-   * 3. General template from database
-   * 4. File-based template
+   * 2. Admin template with state override (if adminTemplateId provided)
+   * 3. State-specific template from database
+   * 4. General template from database
+   * 5. File-based template
    *
-   * Returns the HTML content and optional signature layout for company templates
+   * Returns the HTML content and optional signature layout
    */
   private async loadTemplate(
     templateType: TemplateType,
     stateCode?: string,
-    companyTemplateId?: string
+    companyTemplateId?: string,
+    adminTemplateId?: string
   ): Promise<{ html: string; signatureLayout?: string }> {
     // If company template ID is provided, load from company_templates
     if (companyTemplateId) {
@@ -200,6 +205,76 @@ class PDFGeneratorService {
         // Fall through to other template sources
       }
     }
+    // If admin template ID is provided, load from admin_templates (with state override)
+    if (adminTemplateId) {
+      try {
+        const supabase = createAdminClient()
+
+        // Normalize state code for override lookup
+        const stateCodeMapForAdmin: Record<string, string> = {
+          'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+          'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+          'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
+          'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+          'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+          'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+          'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+          'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+          'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+          'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+          'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+          'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+          'Wisconsin': 'WI', 'Wyoming': 'WY'
+        }
+        const normalizedState = stateCode
+          ? (stateCodeMapForAdmin[stateCode] || stateCode.toUpperCase())
+          : null
+
+        // First check for state-specific override
+        if (normalizedState) {
+          const { data: override } = await supabase
+            .from('admin_template_overrides')
+            .select('html_content')
+            .eq('admin_template_id', adminTemplateId)
+            .eq('state_code', normalizedState)
+            .single()
+
+          if (override?.html_content) {
+            // Get the signature layout from the admin template
+            const { data: adminTemplate } = await supabase
+              .from('admin_templates')
+              .select('name, signature_layout')
+              .eq('id', adminTemplateId)
+              .single()
+
+            console.log('[PDF Generator] Using admin template state override:', adminTemplate?.name, 'state:', normalizedState, 'layout:', adminTemplate?.signature_layout)
+            return {
+              html: override.html_content,
+              signatureLayout: adminTemplate?.signature_layout
+            }
+          }
+        }
+
+        // No state override — use base admin template
+        const { data: adminTemplate } = await supabase
+          .from('admin_templates')
+          .select('html_content, name, signature_layout')
+          .eq('id', adminTemplateId)
+          .single()
+
+        if (adminTemplate?.html_content) {
+          console.log('[PDF Generator] Using admin template:', adminTemplate.name, 'with signature layout:', adminTemplate.signature_layout)
+          return {
+            html: adminTemplate.html_content,
+            signatureLayout: adminTemplate.signature_layout
+          }
+        }
+      } catch (error) {
+        console.error('Error loading admin template:', error)
+        // Fall through to other template sources
+      }
+    }
+
     // Convert state name to state code if needed (e.g., "Florida" -> "FL")
     const stateCodeMap: Record<string, string> = {
       'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
@@ -392,6 +467,18 @@ class PDFGeneratorService {
       const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g')
       result = result.replace(regex, value)
     }
+
+    // Second pass: replace any remaining placeholders with extra_fields values
+    if (data.extra_fields) {
+      for (const [key, value] of Object.entries(data.extra_fields)) {
+        const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g')
+        result = result.replace(regex, value)
+      }
+    }
+
+    // Final cleanup: replace any still-unfilled {{placeholder}} with empty string
+    // (skip conditional tags like {{#if ...}} and {{/if}})
+    result = result.replace(/\{\{(?!#|\/)[^}]+\}\}/g, '')
 
     // Handle conditional AI clauses section
     const hasAiClauses = data.ai_clauses && (
@@ -600,15 +687,16 @@ class PDFGeneratorService {
 
   /**
    * Generate PDF from HTML template with data
-   * Priority: company template > state-specific template > general template > file
+   * Priority: company template > admin template (with state override) > state-specific template > general template > file
    */
   async generatePDF(
     templateType: TemplateType,
     data: ContractData,
-    companyTemplateId?: string
+    companyTemplateId?: string,
+    adminTemplateId?: string
   ): Promise<{ pdfBuffer: Buffer; signatureLayout?: string }> {
-    // Load and interpolate template (pass company template ID and state for lookup)
-    const { html: templateHtml, signatureLayout } = await this.loadTemplate(templateType, data.property_state, companyTemplateId)
+    // Load and interpolate template (pass company/admin template ID and state for lookup)
+    const { html: templateHtml, signatureLayout } = await this.loadTemplate(templateType, data.property_state, companyTemplateId, adminTemplateId)
     let html = this.interpolateTemplate(templateHtml, data)
 
     // Inject fonts for consistent rendering

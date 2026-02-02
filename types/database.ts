@@ -346,6 +346,77 @@ export type Database = {
           },
         ]
       }
+      admin_templates: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          html_content: string
+          signature_layout: string
+          is_active: boolean | null
+          sort_order: number | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          html_content?: string
+          signature_layout?: string
+          is_active?: boolean | null
+          sort_order?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          html_content?: string
+          signature_layout?: string
+          is_active?: boolean | null
+          sort_order?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      admin_template_overrides: {
+        Row: {
+          id: string
+          admin_template_id: string
+          state_code: string
+          html_content: string
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          admin_template_id: string
+          state_code: string
+          html_content: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          admin_template_id?: string
+          state_code?: string
+          html_content?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_template_overrides_admin_template_id_fkey"
+            columns: ["admin_template_id"]
+            isOneToOne: false
+            referencedRelation: "admin_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       state_templates: {
         Row: {
           assignment_contract_file_name: string | null
@@ -640,6 +711,8 @@ export type Property = Database['public']['Tables']['properties']['Row']
 export type Contract = Database['public']['Tables']['contracts']['Row']
 export type ContractStatusHistory = Database['public']['Tables']['contract_status_history']['Row']
 export type StateTemplate = Database['public']['Tables']['state_templates']['Row']
+export type AdminTemplate = Database['public']['Tables']['admin_templates']['Row']
+export type AdminTemplateOverride = Database['public']['Tables']['admin_template_overrides']['Row']
 
 // Company Templates (user-created)
 export interface CustomField {

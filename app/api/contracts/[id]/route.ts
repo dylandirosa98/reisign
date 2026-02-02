@@ -58,16 +58,66 @@ export async function GET(
   let template = null
   const customFields = contract.custom_fields as Record<string, unknown> | null
   const companyTemplateId = customFields?.company_template_id as string | undefined
+  const adminTemplateId = customFields?.admin_template_id as string | undefined
 
   if (companyTemplateId) {
     const { data: templateData } = await adminSupabase
       .from('company_templates' as any)
-      .select('id, name, signature_layout, field_config, custom_fields')
+      .select('id, name, signature_layout, html_content, field_config, custom_fields')
       .eq('id', companyTemplateId)
       .single()
 
     if (templateData) {
       template = templateData
+    }
+  } else if (adminTemplateId) {
+    const { data: templateData } = await adminSupabase
+      .from('admin_templates')
+      .select('id, name, signature_layout, html_content')
+      .eq('id', adminTemplateId)
+      .single()
+
+    if (templateData) {
+      let htmlContent = (templateData as any).html_content as string || ''
+
+      // Check for state-specific override
+      const contractState = contract.property?.state || (customFields?.property_state as string)
+      if (contractState) {
+        const stateCodeMap: Record<string, string> = {
+          'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+          'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+          'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
+          'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+          'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+          'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+          'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+          'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+          'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+          'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+          'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+          'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+          'Wisconsin': 'WI', 'Wyoming': 'WY'
+        }
+        const normalizedState = stateCodeMap[contractState] || contractState.toUpperCase()
+
+        const { data: override } = await adminSupabase
+          .from('admin_template_overrides')
+          .select('html_content')
+          .eq('admin_template_id', adminTemplateId)
+          .eq('state_code', normalizedState)
+          .single()
+
+        if (override?.html_content) {
+          htmlContent = override.html_content
+        }
+      }
+
+      template = {
+        id: (templateData as any).id,
+        name: (templateData as any).name,
+        signature_layout: (templateData as any).signature_layout,
+        html_content: htmlContent,
+      }
     }
   }
 

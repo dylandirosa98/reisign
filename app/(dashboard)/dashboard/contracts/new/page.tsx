@@ -186,7 +186,10 @@ export default function NewContractPage() {
 
   // Template state
   const [selectedTemplate, setSelectedTemplate] = useState<CompanyTemplate | null>(null)
+  const [selectedAdminTemplate, setSelectedAdminTemplate] = useState<{ id: string; name: string; description: string | null; signature_layout: string } | null>(null)
+  const [templateSource, setTemplateSource] = useState<'company' | 'admin' | null>(null)
   const [availableTemplates, setAvailableTemplates] = useState<CompanyTemplate[]>([])
+  const [adminTemplates, setAdminTemplates] = useState<{ id: string; name: string; description: string | null; signature_layout: string }[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(true)
   const [showTemplateSelector, setShowTemplateSelector] = useState(false)
 
@@ -194,15 +197,31 @@ export default function NewContractPage() {
   useEffect(() => {
     const fetchTemplates = async () => {
       try {
-        const res = await fetch('/api/company-templates')
-        const data = await res.json()
-        if (data.templates) {
-          setAvailableTemplates(data.templates)
-          // If templateId is in URL, select that template
-          if (templateId) {
-            const template = data.templates.find((t: CompanyTemplate) => t.id === templateId)
-            if (template) {
-              setSelectedTemplate(template)
+        const [companyRes, adminRes] = await Promise.all([
+          fetch('/api/company-templates'),
+          fetch('/api/admin-templates/available'),
+        ])
+        const companyData = await companyRes.json()
+        const adminData = await adminRes.json()
+
+        if (companyData.templates) {
+          setAvailableTemplates(companyData.templates)
+        }
+        if (Array.isArray(adminData)) {
+          setAdminTemplates(adminData)
+        }
+
+        // If templateId is in URL, find it in company or admin templates
+        if (templateId) {
+          const companyMatch = companyData.templates?.find((t: CompanyTemplate) => t.id === templateId)
+          if (companyMatch) {
+            setSelectedTemplate(companyMatch)
+            setTemplateSource('company')
+          } else if (Array.isArray(adminData)) {
+            const adminMatch = adminData.find((t: { id: string }) => t.id === templateId)
+            if (adminMatch) {
+              setSelectedAdminTemplate(adminMatch)
+              setTemplateSource('admin')
             }
           }
         }
@@ -216,8 +235,11 @@ export default function NewContractPage() {
   }, [templateId])
 
   // Check if template is three-party or assignment (for UI hints)
-  const isThreeParty = selectedTemplate?.signature_layout === 'three-party'
-  const isAssignment = selectedTemplate?.signature_layout === 'two-column-assignment'
+  const activeSignatureLayout = templateSource === 'admin'
+    ? selectedAdminTemplate?.signature_layout
+    : selectedTemplate?.signature_layout
+  const isThreeParty = activeSignatureLayout === 'three-party'
+  const isAssignment = activeSignatureLayout === 'two-column-assignment'
   const sellerLabel = isAssignment ? 'Assignee' : 'Seller'
 
   const updateField = (field: keyof FormData, value: string) => {
@@ -285,7 +307,8 @@ export default function NewContractPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          templateId: selectedTemplate?.id,
+          templateId: templateSource === 'company' ? selectedTemplate?.id : undefined,
+          adminTemplateId: templateSource === 'admin' ? selectedAdminTemplate?.id : undefined,
           property: {
             address: formData.property_address,
             city: formData.property_city,
@@ -357,9 +380,14 @@ export default function NewContractPage() {
             </div>
             <div>
               <label className="text-sm font-medium text-[var(--gray-900)]">Template</label>
-              {selectedTemplate ? (
+              {templateSource === 'company' && selectedTemplate ? (
                 <p className="text-sm text-[var(--gray-600)]">
                   Using: <span className="font-medium">{selectedTemplate.name}</span>
+                </p>
+              ) : templateSource === 'admin' && selectedAdminTemplate ? (
+                <p className="text-sm text-[var(--gray-600)]">
+                  Using: <span className="font-medium">{selectedAdminTemplate.name}</span>
+                  <span className="ml-1 text-xs text-[var(--gray-500)]">(General)</span>
                 </p>
               ) : (
                 <p className="text-sm text-[var(--gray-500)]">No template selected - all fields shown</p>
@@ -376,32 +404,70 @@ export default function NewContractPage() {
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  {selectedTemplate ? 'Change Template' : 'Select Template'}
+                  {templateSource ? 'Change Template' : 'Select Template'}
                   <ChevronDown className="h-4 w-4" />
                 </>
               )}
             </button>
             {showTemplateSelector && !loadingTemplates && (
-              <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-[var(--gray-200)] rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
-                {availableTemplates.map((template) => (
-                  <button
-                    key={template.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedTemplate(template)
-                      setShowTemplateSelector(false)
-                    }}
-                    className={`w-full px-3 py-2 text-left text-sm hover:bg-[var(--gray-50)] ${
-                      selectedTemplate?.id === template.id ? 'bg-[var(--primary-50)]' : ''
-                    }`}
-                  >
-                    <div className="font-medium">{template.name}</div>
-                    {template.description && (
-                      <div className="text-xs text-[var(--gray-500)] truncate">{template.description}</div>
-                    )}
-                  </button>
-                ))}
-                {availableTemplates.length === 0 && (
+              <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-[var(--gray-200)] rounded-lg shadow-lg z-10 max-h-80 overflow-y-auto">
+                {/* Admin Templates (General) */}
+                {adminTemplates.length > 0 && (
+                  <>
+                    <div className="px-3 py-1.5 bg-[var(--gray-50)] text-xs font-semibold text-[var(--gray-600)] sticky top-0 border-b border-[var(--gray-100)]">
+                      General Templates
+                    </div>
+                    {adminTemplates.map((template) => (
+                      <button
+                        key={template.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedAdminTemplate(template)
+                          setSelectedTemplate(null)
+                          setTemplateSource('admin')
+                          setShowTemplateSelector(false)
+                        }}
+                        className={`w-full px-3 py-2 text-left text-sm hover:bg-[var(--gray-50)] ${
+                          templateSource === 'admin' && selectedAdminTemplate?.id === template.id ? 'bg-[var(--primary-50)]' : ''
+                        }`}
+                      >
+                        <div className="font-medium">{template.name}</div>
+                        {template.description && (
+                          <div className="text-xs text-[var(--gray-500)] truncate">{template.description}</div>
+                        )}
+                      </button>
+                    ))}
+                  </>
+                )}
+                {/* Company Templates (My Templates) */}
+                {availableTemplates.length > 0 && (
+                  <>
+                    <div className="px-3 py-1.5 bg-[var(--gray-50)] text-xs font-semibold text-[var(--gray-600)] sticky top-0 border-b border-[var(--gray-100)]">
+                      My Templates
+                    </div>
+                    {availableTemplates.map((template) => (
+                      <button
+                        key={template.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTemplate(template)
+                          setSelectedAdminTemplate(null)
+                          setTemplateSource('company')
+                          setShowTemplateSelector(false)
+                        }}
+                        className={`w-full px-3 py-2 text-left text-sm hover:bg-[var(--gray-50)] ${
+                          templateSource === 'company' && selectedTemplate?.id === template.id ? 'bg-[var(--primary-50)]' : ''
+                        }`}
+                      >
+                        <div className="font-medium">{template.name}</div>
+                        {template.description && (
+                          <div className="text-xs text-[var(--gray-500)] truncate">{template.description}</div>
+                        )}
+                      </button>
+                    ))}
+                  </>
+                )}
+                {availableTemplates.length === 0 && adminTemplates.length === 0 && (
                   <div className="px-3 py-2 text-sm text-[var(--gray-500)]">
                     No templates available.{' '}
                     <Link href="/dashboard/templates" className="text-[var(--primary-600)] hover:underline">
@@ -426,7 +492,7 @@ export default function NewContractPage() {
       )}
 
       {/* Form - Only show if template is selected */}
-      {!selectedTemplate && !loadingTemplates ? (
+      {!templateSource && !loadingTemplates ? (
         <div className="bg-white border border-[var(--gray-200)] rounded p-8 text-center">
           <FileText className="w-12 h-12 text-[var(--gray-400)] mx-auto mb-4" />
           <h3 className="text-lg font-medium text-[var(--gray-900)] mb-2">Select a Template</h3>

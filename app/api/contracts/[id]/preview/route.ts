@@ -154,6 +154,7 @@ export async function GET(
     ai_clauses?: Array<{ id: string; title: string; content: string; editedContent?: string }>
     // Template references
     company_template_id?: string
+    admin_template_id?: string
     purchase_template_id?: string
     assignment_template_id?: string
   } | null
@@ -221,9 +222,36 @@ export async function GET(
       buyer_initials: customFields?.buyer_initials,
     }
 
-    // Generate PDF - use company template if available
+    // Collect non-standard custom_fields into extra_fields for arbitrary placeholder replacement
+    const standardKeys = new Set([
+      'property_address', 'property_city', 'property_state', 'property_zip',
+      'assignment_fee', 'seller_phone', 'seller_address', 'buyer_phone',
+      'assignee_address', 'earnest_money', 'escrow_agent_name', 'escrow_agent_address',
+      'escrow_officer', 'escrow_agent_email', 'close_of_escrow', 'inspection_period',
+      'apn', 'personal_property', 'additional_terms', 'escrow_fees_split',
+      'title_policy_paid_by', 'hoa_fees_split', 'company_name', 'company_signer_name',
+      'company_email', 'company_phone', 'buyer_signature', 'buyer_initials',
+      'ai_clauses', 'company_template_id', 'admin_template_id',
+      'purchase_template_id', 'assignment_template_id', 'contract_type',
+      'documenso_seller_document_id', 'documenso_buyer_document_id', 'seller_signed_at',
+    ])
+
+    if (customFields) {
+      const extraFields: Record<string, string> = {}
+      for (const [key, value] of Object.entries(customFields)) {
+        if (!standardKeys.has(key) && value != null && typeof value !== 'object') {
+          extraFields[key] = String(value)
+        }
+      }
+      if (Object.keys(extraFields).length > 0) {
+        contractData.extra_fields = extraFields
+      }
+    }
+
+    // Generate PDF - use company template or admin template if available
     const companyTemplateId = customFields?.company_template_id
-    const { pdfBuffer } = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
+    const adminTemplateId = customFields?.admin_template_id
+    const { pdfBuffer } = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId, adminTemplateId)
 
     // Return PDF
     return new NextResponse(new Uint8Array(pdfBuffer), {
