@@ -528,12 +528,12 @@ class PDFGeneratorService {
       <div style="width: 100%; font-size: 9px; font-family: 'Tinos', 'Times New Roman', Times, serif; padding: 0 0.5in;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #ccc; padding-top: 8px; margin-top: 5px;">
           <div style="display: flex; align-items: center; gap: 5px;">
-            <span>${leftLabel}</span>
+            <span style="width: 75px; display: inline-block;">${leftLabel}</span>
             <div style="width: 50px; height: 22px; border: 1px solid #000;"></div>
           </div>
           <div>Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>
           <div style="display: flex; align-items: center; gap: 5px;">
-            <span>${rightLabel}</span>
+            <span style="width: 75px; display: inline-block; text-align: right;">${rightLabel}</span>
             <div style="width: 50px; height: 22px; border: 1px solid #000; display: flex; align-items: center; justify-content: center;">
               ${rightContent}
             </div>
