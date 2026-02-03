@@ -374,7 +374,7 @@ export async function POST(
       }
     } else {
       // Generate fresh PDF for seller or non-three-party contracts
-      const result = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId)
+      const result = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId, adminTemplateId)
       pdfBuffer = result.pdfBuffer
       signatureLayout = result.signatureLayout
     }
