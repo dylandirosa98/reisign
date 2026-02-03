@@ -517,11 +517,10 @@ class PDFGeneratorService {
     const isThreeParty = signatureLayout === 'three-party'
     const isAssignment = signatureLayout === 'two-column-assignment'
 
-    // For three-party, use "Assignee Initials" label and empty box (Documenso will fill)
-    // For assignment, use "Assignor Initials" with pre-filled image from form
-    // For other layouts, use "Buyer Initials" with pre-filled image from form
-    const leftLabel = isAssignment ? 'Assignee Initials:' : 'Seller Initials:'
-    const rightLabel = isThreeParty ? 'Assignee Initials:' : isAssignment ? 'Assignor Initials:' : 'Buyer Initials:'
+    // Use generic "Initials:" label padded with nbsp to match the character width
+    // of the original "Seller Initials:" (17 chars) so Documenso field coordinates stay aligned
+    const leftLabel = 'Initials:\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0'
+    const rightLabel = 'Initials:\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0'
     const rightContent = isThreeParty ? '' : buyerInitialsImg
 
     return `
