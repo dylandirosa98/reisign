@@ -251,6 +251,7 @@ export async function GET(
     // Generate PDF - use company template or admin template if available
     const companyTemplateId = customFields?.company_template_id
     const adminTemplateId = customFields?.admin_template_id
+    console.log(`[Preview] Template IDs - company: ${companyTemplateId || 'NONE'}, admin: ${adminTemplateId || 'NONE'}`)
     const { pdfBuffer } = await pdfGenerator.generatePDF(templateType, contractData, companyTemplateId, adminTemplateId)
 
     // Return PDF

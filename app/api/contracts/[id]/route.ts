@@ -105,7 +105,7 @@ export async function GET(
           .select('html_content')
           .eq('admin_template_id', adminTemplateId)
           .eq('state_code', normalizedState)
-          .single()
+          .maybeSingle()
 
         if (override?.html_content) {
           htmlContent = override.html_content

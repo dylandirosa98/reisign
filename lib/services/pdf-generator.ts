@@ -207,6 +207,7 @@ class PDFGeneratorService {
     }
     // If admin template ID is provided, load from admin_templates (with state override)
     if (adminTemplateId) {
+      console.log('[PDF Generator] Loading admin template:', adminTemplateId, 'state:', stateCode)
       try {
         const supabase = createAdminClient()
 
@@ -230,14 +231,18 @@ class PDFGeneratorService {
           ? (stateCodeMapForAdmin[stateCode] || stateCode.toUpperCase())
           : null
 
-        // First check for state-specific override
+        // First check for state-specific override (use maybeSingle to avoid error when no row)
         if (normalizedState) {
-          const { data: override } = await supabase
+          const { data: override, error: overrideError } = await supabase
             .from('admin_template_overrides')
             .select('html_content')
             .eq('admin_template_id', adminTemplateId)
             .eq('state_code', normalizedState)
-            .single()
+            .maybeSingle()
+
+          if (overrideError) {
+            console.log('[PDF Generator] No state override found for', normalizedState, '(this is normal)')
+          }
 
           if (override?.html_content) {
             // Get the signature layout from the admin template
@@ -256,11 +261,15 @@ class PDFGeneratorService {
         }
 
         // No state override — use base admin template
-        const { data: adminTemplate } = await supabase
+        const { data: adminTemplate, error: adminError } = await supabase
           .from('admin_templates')
           .select('html_content, name, signature_layout')
           .eq('id', adminTemplateId)
           .single()
+
+        if (adminError) {
+          console.error('[PDF Generator] Error fetching admin template:', adminError)
+        }
 
         if (adminTemplate?.html_content) {
           console.log('[PDF Generator] Using admin template:', adminTemplate.name, 'with signature layout:', adminTemplate.signature_layout)
@@ -269,8 +278,10 @@ class PDFGeneratorService {
             signatureLayout: adminTemplate.signature_layout
           }
         }
+
+        console.warn('[PDF Generator] Admin template found but has no html_content, falling through')
       } catch (error) {
-        console.error('Error loading admin template:', error)
+        console.error('[PDF Generator] Error loading admin template:', error)
         // Fall through to other template sources
       }
     }
