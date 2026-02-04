@@ -90,14 +90,22 @@ export async function POST(
   const requestedClauses = body.clauses as ClauseType[] | undefined
 
   // Allow overriding signer info for sending (use provided values or fall back to contract values)
-  const sellerNameToSend = body.sellerName || contract.seller_name
-  const sellerEmailToSend = body.sellerEmail || contract.seller_email
+  const sellerNameToSend = (body.sellerName || contract.seller_name || '').trim()
+  const sellerEmailToSend = (body.sellerEmail || contract.seller_email || '').trim()
   const sellerPhoneToSend = body.sellerPhone || (contract.custom_fields as Record<string, unknown>)?.seller_phone || ''
   const sellerAddressToSend = body.sellerAddress || (contract.custom_fields as Record<string, unknown>)?.seller_address || ''
-  const assigneeNameToSend = body.assigneeName || contract.buyer_name
-  const assigneeEmailToSend = body.assigneeEmail || contract.buyer_email
+  const assigneeNameToSend = (body.assigneeName || contract.buyer_name || '').trim()
+  const assigneeEmailToSend = (body.assigneeEmail || contract.buyer_email || '').trim()
   const assigneePhoneToSend = body.assigneePhone || (contract.custom_fields as Record<string, unknown>)?.buyer_phone || ''
   const assigneeAddressToSend = body.assigneeAddress || (contract.custom_fields as Record<string, unknown>)?.assignee_address || ''
+
+  // Validate required recipient fields before proceeding
+  if (!sellerNameToSend) {
+    return NextResponse.json({ error: 'Seller name is required before sending.' }, { status: 400 })
+  }
+  if (!sellerEmailToSend) {
+    return NextResponse.json({ error: 'Seller email is required before sending.' }, { status: 400 })
+  }
 
   const customFields = contract.custom_fields as {
     property_address?: string
