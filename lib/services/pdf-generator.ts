@@ -577,6 +577,7 @@ class PDFGeneratorService {
       .signature-header {
         text-align: center;
         font-style: italic;
+        margin-top: 0;
         margin-bottom: 30pt;
         line-height: 1.4;
       }
@@ -627,6 +628,56 @@ class PDFGeneratorService {
     signatureHtml = this.interpolateTemplate(signatureHtml, data)
 
     return signatureHtml
+  }
+
+  /**
+   * Strip any embedded signature page from template HTML
+   * Templates may include their own signature page HTML which uses different
+   * CSS/layout than the standardized file-based signature pages.
+   * This ensures the file-based signature pages (with calibrated Documenso
+   * field coordinates) are always used.
+   */
+  private stripEmbeddedSignaturePage(html: string): string {
+    // Find <div class="signature-page"> and remove it by tracking div nesting
+    const marker = 'class="signature-page"'
+    const markerAlt = "class='signature-page'"
+    let startIdx = html.indexOf(marker)
+    if (startIdx === -1) startIdx = html.indexOf(markerAlt)
+    if (startIdx === -1) return html // No embedded signature page
+
+    // Find the opening <div that contains the marker
+    const divStart = html.lastIndexOf('<div', startIdx)
+    if (divStart === -1) return html
+
+    // Track nesting to find the matching closing </div>
+    const rest = html.substring(divStart)
+    let depth = 0
+    let endIdx = -1
+    const tagRe = /<\/?div[\s>]/gi
+    let match
+
+    while ((match = tagRe.exec(rest)) !== null) {
+      if (rest[match.index + 1] === '/') {
+        depth--
+        if (depth === 0) {
+          endIdx = match.index + '</div>'.length
+          break
+        }
+      } else {
+        depth++
+      }
+    }
+
+    if (endIdx === -1) return html // Couldn't find matching close
+
+    // Remove the signature page block
+    let result = html.substring(0, divStart) + html.substring(divStart + endIdx)
+
+    // Also remove any "[SIGNATURES ON THE FOLLOWING PAGE]" notice
+    result = result.replace(/<p[^>]*>\s*\[SIGNATURES ON THE FOLLOWING PAGE\]\s*<\/p>/gi, '')
+
+    console.log('[PDF Generator] Stripped embedded signature page from template HTML')
+    return result
   }
 
   /**
@@ -712,11 +763,14 @@ class PDFGeneratorService {
     // Inject fonts for consistent rendering
     html = this.injectFonts(html)
 
-    // Check if the template already has a signature page
-    const hasSignaturePage = html.includes('class="signature-page"') || html.includes('class=\'signature-page\'')
+    // If signatureLayout is provided, strip any embedded signature page from the HTML
+    // so the file-based signature page (with calibrated coordinates) is always used
+    if (signatureLayout) {
+      html = this.stripEmbeddedSignaturePage(html)
+    }
 
-    // If using a company template with a signature layout and no existing signature page, add one
-    if (signatureLayout && !hasSignaturePage) {
+    // Always add the file-based signature page when signatureLayout is provided
+    if (signatureLayout) {
       // Add "SIGNATURES ON FOLLOWING PAGE" notice
       const signaturesNotice = `
         <p class="center-text" style="text-align: center; margin-top: 30pt; font-weight: bold;">[SIGNATURES ON THE FOLLOWING PAGE]</p>
