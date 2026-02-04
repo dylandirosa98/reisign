@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Mail, CheckCircle, RefreshCw, AlertCircle, Building2, Loader2 } from 'lucide-react'
+import { Mail, CheckCircle, RefreshCw, AlertCircle, Building2, Loader2, Eye, EyeOff } from 'lucide-react'
 
 interface InviteData {
   email: string
@@ -50,6 +50,9 @@ function SignupForm() {
   const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -124,6 +127,12 @@ function SignupForm() {
 
     if (password.length < 8) {
       setError('Password must be at least 8 characters')
+      setLoading(false)
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
       setLoading(false)
       return
     }
@@ -384,16 +393,26 @@ function SignupForm() {
           <Label htmlFor="password" className="text-sm font-medium text-[var(--gray-700)]">
             Password
           </Label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="Min. 8 characters"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-            className="border-[var(--gray-300)] rounded"
-          />
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Min. 8 characters"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+              className="border-[var(--gray-300)] rounded pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--gray-400)] hover:text-[var(--gray-600)]"
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
 
           {/* Password strength indicator */}
           {password.length > 0 && (
@@ -420,6 +439,39 @@ function SignupForm() {
                 {passwordStrength.score < 3 && ' - Try adding uppercase, numbers, or symbols'}
               </p>
             </div>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="confirmPassword" className="text-sm font-medium text-[var(--gray-700)]">
+            Confirm Password
+          </Label>
+          <div className="relative">
+            <Input
+              id="confirmPassword"
+              type={showConfirmPassword ? 'text' : 'password'}
+              placeholder="Re-enter your password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={8}
+              className={`border-[var(--gray-300)] rounded pr-10 ${
+                confirmPassword.length > 0 && password !== confirmPassword
+                  ? 'border-red-500 focus-visible:ring-red-500'
+                  : ''
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--gray-400)] hover:text-[var(--gray-600)]"
+              tabIndex={-1}
+            >
+              {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+          {confirmPassword.length > 0 && password !== confirmPassword && (
+            <p className="text-xs text-red-600">Passwords do not match</p>
           )}
         </div>
 
