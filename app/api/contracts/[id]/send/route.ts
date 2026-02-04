@@ -162,33 +162,35 @@ export async function POST(
     signatureLayoutFromDb = (templateData as any)?.signature_layout
   }
   const isThreeParty = signatureLayoutFromDb === 'three-party'
+  const isTwoSeller = signatureLayoutFromDb === 'two-seller'
+  const isTwoStageSending = isThreeParty || isTwoSeller
 
   // Validate contract status based on what we're trying to do
   // Allow both 'draft' and 'ready' status for initial send (ready = wholesaler has signed)
   const canSendInitially = contract.status === 'draft' || contract.status === 'ready'
 
-  if (isThreeParty) {
-    // Three-party has two stages: seller first, then buyer
+  if (isTwoStageSending) {
+    // Two-stage has two stages: seller/seller1 first, then buyer/seller2
     if (sendTo === 'buyer') {
-      // Sending to buyer - contract should be in 'seller_signed' status
+      // Sending to buyer/seller2 - contract should be in 'seller_signed' status
       // Also allow 'sent' or 'viewed' in case webhook didn't update status
       // (UI validates signing status from Documenso before showing button)
       const allowedStatuses = ['seller_signed', 'sent', 'viewed']
       if (!contract.status || !allowedStatuses.includes(contract.status)) {
         return NextResponse.json({
-          error: 'Cannot send to buyer. Current status: ' + contract.status,
+          error: `Cannot send to ${isTwoSeller ? 'Seller 2' : 'buyer'}. Current status: ` + contract.status,
         }, { status: 400 })
       }
     } else {
-      // Sending to seller (first stage) - must be draft or ready
+      // Sending to seller/seller1 (first stage) - must be draft or ready
       if (!canSendInitially) {
         return NextResponse.json({
-          error: 'Contract has already been sent to seller. Current status: ' + contract.status,
+          error: `Contract has already been sent to ${isTwoSeller ? 'Seller 1' : 'seller'}. Current status: ` + contract.status,
         }, { status: 400 })
       }
     }
   } else {
-    // Non-three-party: standard single send - must be draft or ready
+    // Non-two-stage: standard single send - must be draft or ready
     if (!canSendInitially) {
       return NextResponse.json({
         error: 'Contract has already been sent. Current status: ' + contract.status,
@@ -340,7 +342,7 @@ export async function POST(
     console.log(`[Send Contract] Company template ID: ${companyTemplateId || 'NONE'}`)
     console.log(`[Send Contract] Admin template ID: ${adminTemplateId || 'NONE'}`)
     console.log(`[Send Contract] Template type: ${templateType}`)
-    console.log(`[Send Contract] Three-party: ${isThreeParty}, sendTo: ${sendTo || 'default'}`)
+    console.log(`[Send Contract] Three-party: ${isThreeParty}, Two-seller: ${isTwoSeller}, Two-stage: ${isTwoStageSending}, sendTo: ${sendTo || 'default'}`)
     console.log(`[Send Contract] Seller: ${sellerNameToSend} <${sellerEmailToSend}> | Phone: ${sellerPhoneToSend} | Address: ${sellerAddressToSend}`)
     console.log(`[Send Contract] Assignee: ${assigneeNameToSend} <${assigneeEmailToSend}> | Phone: ${assigneePhoneToSend} | Address: ${assigneeAddressToSend}`)
     console.log(`[Send Contract] Body received:`, JSON.stringify({ sellerName: body.sellerName, sellerEmail: body.sellerEmail, sellerPhone: body.sellerPhone, sellerAddress: body.sellerAddress, assigneeName: body.assigneeName, assigneeEmail: body.assigneeEmail, assigneePhone: body.assigneePhone, assigneeAddress: body.assigneeAddress }))
@@ -348,9 +350,9 @@ export async function POST(
     let pdfBuffer: Buffer
     let signatureLayout: string | undefined
 
-    // For three-party buyer stage, download the signed seller PDF from Documenso
-    // This way the buyer sees the seller's signatures on their document
-    if (isThreeParty && sendTo === 'buyer') {
+    // For two-stage buyer/seller2 stage, download the signed seller/seller1 PDF from Documenso
+    // This way the second signer sees the first signer's signatures on their document
+    if (isTwoStageSending && sendTo === 'buyer') {
       // Try documenso_seller_document_id first, fallback to main documenso_document_id
       const sellerDocId = (customFields?.documenso_seller_document_id as string | undefined) ||
                           contract.documenso_document_id
@@ -397,10 +399,10 @@ export async function POST(
     // For THREE-PARTY contracts, we use a TWO-DOCUMENT approach:
     // 1. First document: Send to seller with seller-only fields
     // 2. Second document: Send to buyer with buyer-only fields (after seller signs)
-    // Use isThreeParty (from DB) as source of truth, fallback to PDF generator layout
-    const isThreePartyTemplate = isThreeParty || signatureLayout === 'three-party'
+    // Use isTwoStageSending (from DB) as source of truth, fallback to PDF generator layout
+    const isThreePartyTemplate = isTwoStageSending || signatureLayout === 'three-party' || signatureLayout === 'two-seller'
 
-    console.log(`[Send Contract] isThreeParty (from DB): ${isThreeParty}`)
+    console.log(`[Send Contract] isTwoStageSending (from DB): ${isTwoStageSending}`)
     console.log(`[Send Contract] isThreePartyTemplate (combined): ${isThreePartyTemplate}`)
 
     // Determine which layout to use for signature positions
@@ -411,18 +413,22 @@ export async function POST(
     let documentTitle: string
 
     if (isThreePartyTemplate) {
-      // Use three-party layout for signature positions
+      // Use three-party layout for signature positions (two-seller uses same coordinates)
       effectiveLayout = 'three-party'
       if (sendTo === 'buyer') {
-        // Second stage: sending to buyer only
-        recipientName = assigneeNameToSend || 'Buyer'
+        // Second stage: sending to buyer/seller2 only
+        recipientName = assigneeNameToSend || (isTwoSeller ? 'Seller 2' : 'Buyer')
         recipientEmail = assigneeEmailToSend
-        documentTitle = `Assignment Contract (Buyer) - ${propertyAddress}`
+        documentTitle = isTwoSeller
+          ? `Purchase Agreement (Seller 2) - ${propertyAddress}`
+          : `Assignment Contract (Buyer) - ${propertyAddress}`
       } else {
-        // First stage: sending to seller only
+        // First stage: sending to seller/seller1 only
         recipientName = sellerNameToSend
         recipientEmail = sellerEmailToSend
-        documentTitle = `Assignment Contract (Seller) - ${propertyAddress}`
+        documentTitle = isTwoSeller
+          ? `Purchase Agreement (Seller 1) - ${propertyAddress}`
+          : `Assignment Contract (Seller) - ${propertyAddress}`
       }
     } else {
       // Non-three-party: use the template's layout as-is

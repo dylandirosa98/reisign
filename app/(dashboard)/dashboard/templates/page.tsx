@@ -209,7 +209,8 @@ export default function TemplatesPage() {
                   Signature: {template.signature_layout === 'two-column' ? 'Two Column Purchase' :
                     template.signature_layout === 'two-column-assignment' ? 'Two Column Assignment' :
                     template.signature_layout === 'seller-only' ? 'Seller Only' :
-                    template.signature_layout === 'three-party' ? 'Three Party' : template.signature_layout}
+                    template.signature_layout === 'three-party' ? 'Three Party' :
+                    template.signature_layout === 'two-seller' ? 'Two Seller' : template.signature_layout}
                 </div>
 
                 {/* Actions */}
@@ -450,6 +451,8 @@ function TemplateEditor({
   const [tagInput, setTagInput] = useState('')
   const [htmlContent, setHtmlContent] = useState(template?.html_content || getStarterHtml())
   const [signatureLayout, setSignatureLayout] = useState(template?.signature_layout || 'two-column')
+  const [signatureLayouts, setSignatureLayouts] = useState<CompanyTemplate['signature_layout'][]>([template?.signature_layout || 'two-column'])
+  const isNewTemplate = !template
   const [customFields, setCustomFields] = useState<CustomField[]>(template?.custom_fields || [])
   const [fieldConfig, setFieldConfig] = useState<TemplateFieldConfig>(
     template?.field_config || DEFAULT_FIELD_CONFIG
@@ -598,33 +601,54 @@ function TemplateEditor({
       return
     }
 
+    const layoutsToCreate = isNewTemplate ? signatureLayouts : [signatureLayout]
+    if (layoutsToCreate.length === 0) {
+      alert('Please select at least one signature layout')
+      return
+    }
+
     setSaving(true)
     try {
-      const url = template
-        ? `/api/company-templates/${template.id}`
-        : '/api/company-templates'
-      const method = template ? 'PUT' : 'POST'
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          description,
-          tags,
-          html_content: htmlContent,
-          signature_layout: signatureLayout,
-          custom_fields: customFields.filter((f) => f.label.trim()),
-          field_config: fieldConfig,
-        }),
-      })
-
-      if (res.ok) {
-        onSave()
-      } else {
-        const data = await res.json()
-        alert(data.error || 'Failed to save template')
+      const layoutLabels: Record<string, string> = {
+        'two-column': 'Two Column Purchase',
+        'two-column-assignment': 'Two Column Assignment',
+        'seller-only': 'Seller Only',
+        'three-party': 'Three Party',
+        'two-seller': 'Two Seller',
       }
+
+      for (const layout of layoutsToCreate) {
+        const templateName = isNewTemplate && layoutsToCreate.length > 1
+          ? `${name} (${layoutLabels[layout] || layout})`
+          : name
+
+        const url = template
+          ? `/api/company-templates/${template.id}`
+          : '/api/company-templates'
+        const method = template ? 'PUT' : 'POST'
+
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: templateName,
+            description,
+            tags,
+            html_content: htmlContent,
+            signature_layout: layout,
+            custom_fields: customFields.filter((f) => f.label.trim()),
+            field_config: fieldConfig,
+          }),
+        })
+
+        if (!res.ok) {
+          const data = await res.json()
+          alert(data.error || `Failed to save template for ${layoutLabels[layout] || layout}`)
+          return
+        }
+      }
+
+      onSave()
     } catch (error) {
       console.error('Failed to save template:', error)
       alert('Failed to save template')
@@ -733,24 +757,71 @@ function TemplateEditor({
               {/* Signature Layout */}
               <div>
                 <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
-                  Signature Page Layout *
+                  Signature Page Layout{isNewTemplate ? 's' : ''} *
                 </label>
-                <select
-                  value={signatureLayout}
-                  onChange={(e) => setSignatureLayout(e.target.value as CompanyTemplate['signature_layout'])}
-                  className="w-full px-3 py-2 border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
-                >
-                  <option value="two-column">Two Column Purchase (Seller + Buyer)</option>
-                  <option value="two-column-assignment">Two Column Assignment (Assignee + Assignor)</option>
-                  <option value="seller-only">Seller Only</option>
-                  <option value="three-party">Three Party (Seller + Assignor + Assignee)</option>
-                </select>
-                <p className="text-xs text-[var(--gray-500)] mt-1">
-                  {signatureLayout === 'two-column' && 'Standard layout with Seller and Buyer signatures side by side'}
-                  {signatureLayout === 'two-column-assignment' && 'Assignment layout with Assignee and Assignor signatures side by side'}
-                  {signatureLayout === 'seller-only' && 'Only Seller signs via Documenso. Buyer pre-signs.'}
-                  {signatureLayout === 'three-party' && 'For assignments: Seller and Assignee sign via Documenso'}
-                </p>
+                {isNewTemplate ? (
+                  <>
+                    <p className="text-xs text-[var(--gray-500)] mb-2">
+                      Select one or more layouts. A separate template will be created for each.
+                    </p>
+                    <div className="space-y-1">
+                      {([
+                        { value: 'two-column' as CompanyTemplate['signature_layout'], label: 'Two Column Purchase (Seller + Buyer)' },
+                        { value: 'two-column-assignment' as CompanyTemplate['signature_layout'], label: 'Two Column Assignment (Assignee + Assignor)' },
+                        { value: 'seller-only' as CompanyTemplate['signature_layout'], label: 'Seller Only' },
+                        { value: 'three-party' as CompanyTemplate['signature_layout'], label: 'Three Party (Seller + Assignor + Assignee)' },
+                        { value: 'two-seller' as CompanyTemplate['signature_layout'], label: 'Two Seller (Seller 1 + Buyer + Seller 2)' },
+                      ]).map((opt) => (
+                        <label key={opt.value} className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-[var(--gray-50)] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={signatureLayouts.includes(opt.value)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSignatureLayouts(prev => [...prev, opt.value])
+                                setSignatureLayout(opt.value)
+                              } else {
+                                setSignatureLayouts(prev => {
+                                  const next = prev.filter(l => l !== opt.value)
+                                  if (next.length > 0) setSignatureLayout(next[0])
+                                  return next
+                                })
+                              }
+                            }}
+                            className="rounded border-[var(--gray-300)] text-[var(--primary-600)] focus:ring-[var(--primary-500)]"
+                          />
+                          <span className="text-sm text-[var(--gray-700)]">{opt.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {signatureLayouts.length > 1 && (
+                      <p className="text-xs text-[var(--primary-600)] mt-2">
+                        {signatureLayouts.length} templates will be created, each with the layout name appended.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <select
+                      value={signatureLayout}
+                      onChange={(e) => setSignatureLayout(e.target.value as CompanyTemplate['signature_layout'])}
+                      className="w-full px-3 py-2 border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
+                    >
+                      <option value="two-column">Two Column Purchase (Seller + Buyer)</option>
+                      <option value="two-column-assignment">Two Column Assignment (Assignee + Assignor)</option>
+                      <option value="seller-only">Seller Only</option>
+                      <option value="three-party">Three Party (Seller + Assignor + Assignee)</option>
+                      <option value="two-seller">Two Seller (Seller 1 + Buyer + Seller 2)</option>
+                    </select>
+                    <p className="text-xs text-[var(--gray-500)] mt-1">
+                      {signatureLayout === 'two-column' && 'Standard layout with Seller and Buyer signatures side by side'}
+                      {signatureLayout === 'two-column-assignment' && 'Assignment layout with Assignee and Assignor signatures side by side'}
+                      {signatureLayout === 'seller-only' && 'Only Seller signs via Documenso. Buyer pre-signs.'}
+                      {signatureLayout === 'three-party' && 'For assignments: Seller and Assignee sign via Documenso'}
+                      {signatureLayout === 'two-seller' && 'For two sellers: Seller 1 and Seller 2 sign via Documenso'}
+                    </p>
+                  </>
+                )}
               </div>
 
               {/* Auto-generated Elements Info */}
@@ -1096,7 +1167,7 @@ The closing shall occur on [Date]..."
             disabled={saving}
             className="px-4 py-2 bg-[var(--primary-600)] text-white rounded-lg hover:bg-[var(--primary-700)] disabled:opacity-50"
           >
-            {saving ? 'Saving...' : template ? 'Save Changes' : 'Create Template'}
+            {saving ? 'Saving...' : template ? 'Save Changes' : signatureLayouts.length > 1 ? `Create ${signatureLayouts.length} Templates` : 'Create Template'}
           </button>
         </div>
       </div>
@@ -1396,6 +1467,114 @@ function TemplatePreview({
             <p style="text-align: center; font-size: 10pt; color: #666;">
               Buyer has pre-signed this agreement. Contract date: January 15, 2025
             </p>
+          </div>
+        </div>
+      `
+    } else if (layout === 'two-seller') {
+      // two-seller - same structure as three-party but different labels
+      return `
+        <div class="signature-page">
+          <p style="text-align: center; font-size: 9pt; margin-bottom: 12pt; line-height: 1.3;">
+            All parties acknowledge and agree that they have read and fully understand the terms and conditions of this Purchase Agreement and are entering into this Contract voluntarily.
+          </p>
+          <div style="margin-bottom: 12pt;">
+            <div style="font-size: 10pt; font-weight: bold; margin-bottom: 6pt; border-bottom: 1px solid #000; padding-bottom: 3pt;">SELLER 1</div>
+            <div class="signature-columns">
+              <div class="signature-column">
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">SELLER 1 SIGNATURE:</div>
+                  <div class="signature-box" style="min-height: 30pt;"></div>
+                </div>
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">PRINTED NAME:</div>
+                  <div class="signature-line">John Doe</div>
+                </div>
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">DATE:</div>
+                  <div class="signature-line"></div>
+                </div>
+              </div>
+              <div class="signature-column">
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">EMAIL:</div>
+                  <div class="signature-line">seller@example.com</div>
+                </div>
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">PHONE:</div>
+                  <div class="signature-line">(555) 123-4567</div>
+                </div>
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">ADDRESS:</div>
+                  <div class="signature-line">123 Main St, City, ST 12345</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-bottom: 12pt;">
+            <div style="font-size: 10pt; font-weight: bold; margin-bottom: 6pt; border-bottom: 1px solid #000; padding-bottom: 3pt;">BUYER (WHOLESALER)</div>
+            <div class="signature-columns">
+              <div class="signature-column">
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">BUYER SIGNATURE:</div>
+                  <div class="signature-box" style="display: flex; align-items: center; justify-content: center; font-style: italic; color: #666; min-height: 30pt;">[Pre-signed]</div>
+                </div>
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">COMPANY NAME:</div>
+                  <div class="signature-line">Acme Investments LLC</div>
+                </div>
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">SIGNER NAME:</div>
+                  <div class="signature-line">John Smith</div>
+                </div>
+              </div>
+              <div class="signature-column">
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">DATE:</div>
+                  <div class="signature-line">January 15, 2025</div>
+                </div>
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">EMAIL:</div>
+                  <div class="signature-line">buyer@company.com</div>
+                </div>
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">PHONE:</div>
+                  <div class="signature-line">(555) 987-6543</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 10pt; font-weight: bold; margin-bottom: 6pt; border-bottom: 1px solid #000; padding-bottom: 3pt;">SELLER 2</div>
+            <div class="signature-columns">
+              <div class="signature-column">
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">SELLER 2 SIGNATURE:</div>
+                  <div class="signature-box" style="min-height: 30pt;"></div>
+                </div>
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">PRINTED NAME:</div>
+                  <div class="signature-line">Jane Doe</div>
+                </div>
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">DATE:</div>
+                  <div class="signature-line"></div>
+                </div>
+              </div>
+              <div class="signature-column">
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">EMAIL:</div>
+                  <div class="signature-line">seller2@example.com</div>
+                </div>
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">PHONE:</div>
+                  <div class="signature-line">(555) 555-5555</div>
+                </div>
+                <div style="margin-bottom: 8pt;">
+                  <div class="signature-label">ADDRESS:</div>
+                  <div class="signature-line">123 Main St, City, ST 12345</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       `
@@ -1933,7 +2112,8 @@ function TemplatePreview({
               {template.signature_layout === 'two-column' ? 'Two Column Purchase (Seller + Buyer)' :
                template.signature_layout === 'two-column-assignment' ? 'Two Column Assignment (Assignee + Assignor)' :
                template.signature_layout === 'seller-only' ? 'Seller Only' :
-               template.signature_layout === 'three-party' ? 'Three Party (Assignment)' : template.signature_layout}
+               template.signature_layout === 'three-party' ? 'Three Party (Assignment)' :
+               template.signature_layout === 'two-seller' ? 'Two Seller (Seller 1 + Buyer + Seller 2)' : template.signature_layout}
             </span>
           </div>
           <div className="flex items-center gap-3">

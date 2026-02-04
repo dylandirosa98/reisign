@@ -14,6 +14,7 @@ export type SignaturePageLayout =
   | 'two-column-assignment' // Assignment: Assignee + Assignor side by side
   | 'seller-only'       // Just seller signature
   | 'three-party'       // Seller + Assignor (pre-signed) + Assignee
+  | 'two-seller'        // Seller 1 + Buyer/Wholesaler (pre-signed) + Seller 2
 
 export interface SignaturePosition {
   recipientRole: 'seller' | 'buyer' | 'assignee'
@@ -119,6 +120,35 @@ export const SIGNATURE_PAGE_LAYOUTS: Record<SignaturePageLayout, LayoutConfig> =
         fieldType: 'signature',
         x: 6,         // Left column
         y: 68,        // Third section - Assignee
+        width: 32,
+        height: 4.5,
+      },
+    ],
+  },
+
+  'two-seller': {
+    id: 'two-seller',
+    name: 'Two Seller',
+    description: 'Seller 1, Buyer/Wholesaler (pre-signs), and Seller 2. Both sellers sign via Documenso.',
+    recipients: [
+      { role: 'seller', label: 'Seller 1', signsViaDocumenso: true },
+      { role: 'buyer', label: 'Buyer (Wholesaler)', signsViaDocumenso: false },
+      { role: 'assignee', label: 'Seller 2', signsViaDocumenso: true },
+    ],
+    signaturePositions: [
+      {
+        recipientRole: 'seller',
+        fieldType: 'signature',
+        x: 6,         // Left column
+        y: 18,        // First section - Seller 1
+        width: 32,
+        height: 4.5,
+      },
+      {
+        recipientRole: 'assignee',
+        fieldType: 'signature',
+        x: 6,         // Left column
+        y: 68,        // Third section - Seller 2
         width: 32,
         height: 4.5,
       },

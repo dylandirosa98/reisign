@@ -718,8 +718,9 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     return fieldNames.some(name => isFieldVisible(name))
   }
 
-  // Check if this is a three-party contract (check template layout or contract_type in custom_fields)
-  const isThreeParty = template?.signature_layout === 'three-party' ||
+  // Check if this is a two-stage contract (three-party or two-seller)
+  const isTwoSeller = template?.signature_layout === 'two-seller'
+  const isThreeParty = isTwoSeller || template?.signature_layout === 'three-party' ||
     contract?.custom_fields?.contract_type === 'three-party' ||
     contract?.custom_fields?.contract_type === 'assignment'
   const isAssignment = template?.signature_layout === 'two-column-assignment'
@@ -797,11 +798,11 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     // For three-party, also require all assignee/buyer info
     if (isThreeParty) {
       if (!sendToAssigneeName.trim()) {
-        setError('Please enter the buyer/assignee name before sending.')
+        setError(`Please enter the ${isTwoSeller ? 'Seller 2' : 'buyer/assignee'} name before sending.`)
         return
       }
       if (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)) {
-        setError('Please enter a valid buyer/assignee email address before sending.')
+        setError(`Please enter a valid ${isTwoSeller ? 'Seller 2' : 'buyer/assignee'} email address before sending.`)
         return
       }
     }
@@ -1410,6 +1411,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   // Determine contract type from template signature_layout
   const signatureLayout = template?.signature_layout
   const contractType = signatureLayout === 'three-party' ? 'assignment' : 'purchase'
+  const secondSignerLabel = isTwoSeller ? 'Seller 2' : 'Assignee'
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -1667,10 +1669,12 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     <div>
                       <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
                         <User className="w-4 h-4 text-[var(--gray-400)]" />
-                        {isThreeParty ? 'Assignee (End Buyer)' : 'End Buyer (for Assignment)'}
+                        {isTwoSeller ? 'Seller 2' : isThreeParty ? 'Assignee (End Buyer)' : 'End Buyer (for Assignment)'}
                       </h3>
                       <p className="text-xs text-[var(--gray-500)] mb-3">
-                        {isThreeParty
+                        {isTwoSeller
+                          ? 'Required for two-seller purchase agreements'
+                          : isThreeParty
                           ? 'Required for three-party assignment contracts'
                           : 'Optional - only needed if assigning the contract'}
                       </p>
@@ -1700,7 +1704,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                             />
                             {isThreeParty && (
                               <p className="text-xs text-[var(--primary-600)] mt-1">
-                                Signing document will be sent here via Documenso (Signs 2nd, after Seller)
+                                Signing document will be sent here via Documenso (Signs 2nd, after {isTwoSeller ? 'Seller 1' : 'Seller'})
                               </p>
                             )}
                           </div>
@@ -2160,7 +2164,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   Wholesaler Signature
                 </h2>
                 <p className="text-xs text-[var(--gray-500)] mt-1">
-                  {isThreeParty ? 'Assignor (wholesaler) signature required before sending' : 'Buyer signature required before sending to seller'}
+                  {isTwoSeller ? 'Buyer (wholesaler) signature required before sending' : isThreeParty ? 'Assignor (wholesaler) signature required before sending' : 'Buyer signature required before sending to seller'}
                 </p>
               </div>
               <div className="p-4">
@@ -2519,26 +2523,26 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     let partyLabel = ''
                     if (isThreeParty) {
                       if (metadata.party === 'seller') {
-                        partyLabel = 'Seller'
+                        partyLabel = isTwoSeller ? 'Seller 1' : 'Seller'
                       } else if (metadata.party === 'assignee') {
-                        partyLabel = 'Assignee'
+                        partyLabel = secondSignerLabel
                       } else if (metadata.action === 'sent_for_signing') {
-                        partyLabel = 'Seller' // Initial send is to seller
+                        partyLabel = isTwoSeller ? 'Seller 1' : 'Seller' // Initial send is to seller/seller1
                       } else if (metadata.action === 'sent_to_assignee' || metadata.action === 'assignee_added_after_seller_signed') {
-                        partyLabel = 'Assignee'
+                        partyLabel = secondSignerLabel
                       }
                     }
 
                     // Build display label
                     let displayLabel = itemStatus.label
                     if (metadata.action === 'sent_to_assignee') {
-                      displayLabel = 'Sent to Assignee'
+                      displayLabel = `Sent to ${secondSignerLabel}`
                     } else if (metadata.action === 'assignee_added_after_seller_signed') {
-                      displayLabel = 'Assignee Added'
+                      displayLabel = `${secondSignerLabel} Added`
                     } else if (metadata.action === 'recipient_signed') {
                       displayLabel = 'Signed'
                     } else if (metadata.action === 'seller_document_completed') {
-                      displayLabel = 'Signed (Ready for Buyer)'
+                      displayLabel = `Signed (Ready for ${isTwoSeller ? 'Seller 2' : 'Buyer'})`
                     } else if (metadata.action === 'buyer_document_completed') {
                       displayLabel = 'Signed'
                     } else if (metadata.action === 'recipient_viewed') {
@@ -2798,7 +2802,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium text-[var(--gray-700)] flex items-center gap-2">
                     <User className="w-4 h-4" />
-                    {sellerLabel} {isThreeParty && <span className="text-xs text-[var(--primary-600)]">(Signs 1st)</span>}
+                    {isTwoSeller ? 'Seller 1' : sellerLabel} {isThreeParty && <span className="text-xs text-[var(--primary-600)]">(Signs 1st)</span>}
                   </h3>
                   <div className="grid grid-cols-1 gap-2">
                     <div>
@@ -2842,12 +2846,12 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   </div>
                 </div>
 
-                {/* Assignee Section - only for three-party */}
+                {/* Assignee/Seller 2 Section - only for two-stage contracts */}
                 {isThreeParty && (
                   <div className="space-y-2 pt-2 border-t border-[var(--gray-200)]">
                     <h3 className="text-sm font-medium text-[var(--gray-700)] flex items-center gap-2">
                       <User className="w-4 h-4" />
-                      Assignee <span className="text-xs text-[var(--primary-600)]">(Signs 2nd)</span>
+                      {secondSignerLabel} <span className="text-xs text-[var(--primary-600)]">(Signs 2nd)</span>
                     </h3>
                     <div className="grid grid-cols-1 gap-2">
                       <div>
@@ -2855,7 +2859,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                         <Input
                           value={sendToAssigneeName}
                           onChange={(e) => setSendToAssigneeName(e.target.value)}
-                          placeholder="Assignee name"
+                          placeholder={isTwoSeller ? "Seller 2 name" : "Assignee name"}
                           className="mt-1"
                         />
                       </div>
@@ -2865,7 +2869,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                           type="email"
                           value={sendToAssigneeEmail}
                           onChange={(e) => setSendToAssigneeEmail(e.target.value)}
-                          placeholder="assignee@email.com"
+                          placeholder={isTwoSeller ? "seller2@email.com" : "assignee@email.com"}
                           className="mt-1"
                         />
                       </div>
@@ -2931,10 +2935,10 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                         <li>Valid {sellerLabel.toLowerCase()} email address</li>
                       )}
                       {isThreeParty && !sendToAssigneeName.trim() && (
-                        <li>Assignee name</li>
+                        <li>{secondSignerLabel} name</li>
                       )}
                       {isThreeParty && (!sendToAssigneeEmail || !isValidEmail(sendToAssigneeEmail)) && (
-                        <li>Valid assignee email address</li>
+                        <li>Valid {secondSignerLabel.toLowerCase()} email address</li>
                       )}
                     </ul>
                   </div>
@@ -3033,7 +3037,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                           >
                             <div>
                               <span className="font-medium text-[var(--gray-700)]">
-                                {recipient.role === 'seller' ? 'Seller' : recipient.role === 'assignee' ? 'Assignee' : recipient.name}
+                                {recipient.role === 'seller' ? (isTwoSeller ? 'Seller 1' : 'Seller') : recipient.role === 'assignee' ? secondSignerLabel : recipient.name}
                               </span>
                               <span className="text-[var(--gray-500)] ml-1">
                                 ({recipient.email})
@@ -3108,10 +3112,10 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   <div className="mb-4 p-3 bg-[var(--success-100)] border border-[var(--success-200)] rounded">
                     <div className="flex items-center gap-2 text-[var(--success-700)] mb-2">
                       <CheckCircle className="w-5 h-5" />
-                      <span className="font-medium">Seller has signed!</span>
+                      <span className="font-medium">{isTwoSeller ? 'Seller 1' : 'Seller'} has signed!</span>
                     </div>
                     <p className="text-sm text-[var(--success-600)]">
-                      The seller has completed their signature. You can now send the contract to the buyer for their signature.
+                      {isTwoSeller ? 'Seller 1' : 'The seller'} has completed their signature. You can now send the contract to {isTwoSeller ? 'Seller 2' : 'the buyer'} for their signature.
                     </p>
                   </div>
 
@@ -3122,7 +3126,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                       Change the email below if needed. This only affects where the signing request is sent, not the contract document itself.
                     </p>
                     <div className="p-2 bg-[var(--gray-50)] rounded">
-                      <p className="text-sm font-medium text-[var(--gray-700)]">{sendToAssigneeName || 'Buyer'}</p>
+                      <p className="text-sm font-medium text-[var(--gray-700)]">{sendToAssigneeName || (isTwoSeller ? 'Seller 2' : 'Buyer')}</p>
                     </div>
                     <div>
                       <Label className="text-xs text-[var(--gray-600)]">Email Address *</Label>
@@ -3163,7 +3167,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                     ) : (
                       <Send className="w-4 h-4 mr-2" />
                     )}
-                    Send to Buyer for Signature
+                    Send to {isTwoSeller ? 'Seller 2' : 'Buyer'} for Signature
                   </Button>
                 </div>
               )}
@@ -3175,16 +3179,16 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                   <div className="mb-4 p-3 bg-[var(--info-100)] border border-[var(--info-200)] rounded">
                     <div className="flex items-center gap-2 text-[var(--info-700)] mb-2">
                       <Clock className="w-5 h-5" />
-                      <span className="font-medium">Waiting for Buyer</span>
+                      <span className="font-medium">Waiting for {isTwoSeller ? 'Seller 2' : 'Buyer'}</span>
                     </div>
                     <p className="text-sm text-[var(--info-600)]">
-                      The contract has been sent to the buyer. Waiting for their signature.
+                      The contract has been sent to the {isTwoSeller ? 'second seller' : 'buyer'}. Waiting for their signature.
                     </p>
                   </div>
 
                   {/* Buyer Info */}
                   <div className="mb-4 p-3 bg-[var(--gray-50)] rounded">
-                    <h4 className="text-sm font-medium text-[var(--gray-700)] mb-2">Buyer/Assignee</h4>
+                    <h4 className="text-sm font-medium text-[var(--gray-700)] mb-2">{isTwoSeller ? 'Seller 2' : 'Buyer/Assignee'}</h4>
                     <p className="text-sm text-[var(--gray-600)]">{sendToAssigneeName || 'Not set'}</p>
                     <p className="text-sm text-[var(--gray-500)]">{sendToAssigneeEmail || 'No email'}</p>
                   </div>

@@ -863,7 +863,7 @@ export interface CompanyTemplate {
   description: string | null
   tags: string[]
   html_content: string
-  signature_layout: 'two-column' | 'two-column-assignment' | 'seller-only' | 'three-party'
+  signature_layout: 'two-column' | 'two-column-assignment' | 'seller-only' | 'three-party' | 'two-seller'
   custom_fields: CustomField[]
   used_placeholders: string[]
   field_config: TemplateFieldConfig | null

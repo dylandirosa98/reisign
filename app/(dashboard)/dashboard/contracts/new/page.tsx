@@ -239,6 +239,7 @@ export default function NewContractPage() {
     ? selectedAdminTemplate?.signature_layout
     : selectedTemplate?.signature_layout
   const isThreeParty = activeSignatureLayout === 'three-party'
+  const isTwoSeller = activeSignatureLayout === 'two-seller'
   const isAssignment = activeSignatureLayout === 'two-column-assignment'
   const sellerLabel = isAssignment ? 'Assignee' : 'Seller'
 
@@ -277,16 +278,17 @@ export default function NewContractPage() {
     if (isNaN(parseFloat(formData.price.replace(/[,$]/g, '')))) {
       return 'Invalid purchase price format'
     }
-    // Buyer fields - required for three-party templates
-    if (isThreeParty) {
+    // Buyer/Seller 2 fields - required for three-party and two-seller templates
+    if (isThreeParty || isTwoSeller) {
+      const secondSignerLabel = isTwoSeller ? 'Seller 2' : 'Buyer/Assignee'
       if (!formData.buyer_name.trim()) {
-        return 'Buyer/Assignee name is required for this contract type'
+        return `${secondSignerLabel} name is required for this contract type`
       }
       if (!formData.buyer_email.trim()) {
-        return 'Buyer/Assignee email is required for this contract type'
+        return `${secondSignerLabel} email is required for this contract type`
       }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.buyer_email.trim())) {
-        return 'Invalid buyer email format'
+        return `Invalid ${secondSignerLabel.toLowerCase()} email format`
       }
     }
     return null
@@ -602,15 +604,17 @@ export default function NewContractPage() {
               </div>
             </div>
 
-            {/* Buyer/Assignee Section - Only show for three-party templates */}
-            {isThreeParty && (
+            {/* Buyer/Assignee/Seller 2 Section - Show for three-party and two-seller templates */}
+            {(isThreeParty || isTwoSeller) && (
               <div>
                 <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-3 flex items-center gap-2">
                   <User className="w-4 h-4 text-[var(--gray-400)]" />
-                  Assignee (End Buyer)
+                  {isTwoSeller ? 'Seller 2' : 'Assignee (End Buyer)'}
                 </h3>
                 <p className="text-xs text-[var(--gray-500)] mb-3">
-                  Required for three-party assignment contracts
+                  {isTwoSeller
+                    ? 'Required for two-seller purchase agreements'
+                    : 'Required for three-party assignment contracts'}
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -618,7 +622,7 @@ export default function NewContractPage() {
                     <Input
                       value={formData.buyer_name}
                       onChange={(e) => updateField('buyer_name', e.target.value)}
-                      placeholder="End buyer name"
+                      placeholder={isTwoSeller ? "Seller 2 name" : "End buyer name"}
                     />
                   </div>
                   <div>
@@ -627,7 +631,7 @@ export default function NewContractPage() {
                       type="email"
                       value={formData.buyer_email}
                       onChange={(e) => updateField('buyer_email', e.target.value)}
-                      placeholder="buyer@email.com"
+                      placeholder={isTwoSeller ? "seller2@email.com" : "buyer@email.com"}
                     />
                   </div>
                   <div>

@@ -514,7 +514,7 @@ class PDFGeneratorService {
    * For other layouts: Seller initials on left (Documenso), Buyer initials on right (pre-filled by wholesaler)
    */
   private generateFooterTemplate(buyerInitialsImg: string, signatureLayout?: string): string {
-    const isThreeParty = signatureLayout === 'three-party'
+    const isThreeParty = signatureLayout === 'three-party' || signatureLayout === 'two-seller'
     const isAssignment = signatureLayout === 'two-column-assignment'
 
     // Use generic "Initials:" label padded with nbsp to match the character width
@@ -551,6 +551,7 @@ class PDFGeneratorService {
       'two-column-assignment': 'two-column-assignment.html',
       'seller-only': 'seller-only.html',
       'three-party': 'three-party-assignment.html',
+      'two-seller': 'two-seller.html',
     }
 
     const fileName = templateMap[layout] || templateMap['two-column']
@@ -926,7 +927,7 @@ class PDFGeneratorService {
     // Signature field positions are determined by the TEMPLATE'S signature layout
     // This is independent of contract type (purchase vs assignment)
 
-    if (layout === 'three-party') {
+    if (layout === 'three-party' || layout === 'two-seller') {
       // THREE-PARTY LAYOUT: Seller + Assignee both sign
       // Seller signs first (signingOrder: 1), Assignee signs second (signingOrder: 2)
       // Template has 3 stacked sections: Seller (top), Assignor/Wholesaler (middle, pre-signed), Assignee (bottom)
@@ -1222,7 +1223,7 @@ export async function addSigningDateToPdf(
       const y = percentToY(20)
       lastPage.drawText(dateText, { x, y, size: fontSize, font, color: rgb(0, 0, 0) })
     }
-  } else if (signatureLayout === 'three-party') {
+  } else if (signatureLayout === 'three-party' || signatureLayout === 'two-seller') {
     // Three-party: Date is BELOW signature (in left column, third row)
     // Seller section: signature at y: 14.5%, date at y: 28.75%
     // Assignee section: signature at y: 79.5%, date at y: 93.75%

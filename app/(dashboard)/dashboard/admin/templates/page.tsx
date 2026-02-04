@@ -154,7 +154,7 @@ function fillPlaceholders(html: string): string {
   return result
 }
 
-type SignatureLayout = 'two-column' | 'two-column-assignment' | 'seller-only' | 'three-party'
+type SignatureLayout = 'two-column' | 'two-column-assignment' | 'seller-only' | 'three-party' | 'two-seller'
 
 // Paginated Template Preview Component
 function TemplatePreviewPane({ htmlContent, signatureLayout }: { htmlContent: string; signatureLayout: SignatureLayout }) {
@@ -315,6 +315,90 @@ function TemplatePreviewPane({ htmlContent, signatureLayout }: { htmlContent: st
             <p style="text-align: center; font-size: 10pt; color: #666;">
               Buyer has pre-signed this agreement. Contract date: January 15, 2025
             </p>
+          </div>
+        </div>
+      `
+    } else if (signatureLayout === 'two-seller') {
+      // two-seller - same structure as three-party but different labels
+      return `
+        <div class="signature-page">
+          <p class="signature-header">
+            All parties acknowledge and agree that they have read and fully understand the terms of this Purchase Agreement.
+          </p>
+          <div style="margin-bottom: 30pt;">
+            <h3 style="font-size: 11pt; font-weight: bold; margin-bottom: 10pt; border-bottom: 2px solid #000; padding-bottom: 5pt;">SELLER 1</h3>
+            <div class="signature-columns">
+              <div class="signature-column">
+                <div class="signature-row">
+                  <div class="signature-label">SELLER 1 SIGNATURE:</div>
+                  <div class="signature-box"></div>
+                </div>
+                <div class="signature-row">
+                  <div class="signature-label">PRINTED NAME:</div>
+                  <div class="signature-line">John Doe</div>
+                </div>
+              </div>
+              <div class="signature-column">
+                <div class="signature-row">
+                  <div class="signature-label">DATE:</div>
+                  <div class="signature-line"></div>
+                </div>
+                <div class="signature-row">
+                  <div class="signature-label">EMAIL:</div>
+                  <div class="signature-line">seller@example.com</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-bottom: 30pt;">
+            <h3 style="font-size: 11pt; font-weight: bold; margin-bottom: 10pt; border-bottom: 2px solid #000; padding-bottom: 5pt;">BUYER (WHOLESALER)</h3>
+            <div class="signature-columns">
+              <div class="signature-column">
+                <div class="signature-row">
+                  <div class="signature-label">BUYER SIGNATURE:</div>
+                  <div class="signature-box" style="display: flex; align-items: center; justify-content: center; font-style: italic; color: #666;">[Pre-signed]</div>
+                </div>
+                <div class="signature-row">
+                  <div class="signature-label">COMPANY NAME:</div>
+                  <div class="signature-line">Acme Investments LLC</div>
+                </div>
+              </div>
+              <div class="signature-column">
+                <div class="signature-row">
+                  <div class="signature-label">DATE:</div>
+                  <div class="signature-line">January 15, 2025</div>
+                </div>
+                <div class="signature-row">
+                  <div class="signature-label">EMAIL:</div>
+                  <div class="signature-line">buyer@company.com</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-bottom: 20pt;">
+            <h3 style="font-size: 11pt; font-weight: bold; margin-bottom: 10pt; border-bottom: 2px solid #000; padding-bottom: 5pt;">SELLER 2</h3>
+            <div class="signature-columns">
+              <div class="signature-column">
+                <div class="signature-row">
+                  <div class="signature-label">SELLER 2 SIGNATURE:</div>
+                  <div class="signature-box"></div>
+                </div>
+                <div class="signature-row">
+                  <div class="signature-label">PRINTED NAME:</div>
+                  <div class="signature-line">Jane Doe</div>
+                </div>
+              </div>
+              <div class="signature-column">
+                <div class="signature-row">
+                  <div class="signature-label">DATE:</div>
+                  <div class="signature-line"></div>
+                </div>
+                <div class="signature-row">
+                  <div class="signature-label">EMAIL:</div>
+                  <div class="signature-line">seller2@example.com</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       `
@@ -799,7 +883,7 @@ export default function AdminTemplatesPage() {
   const [showNewTemplateModal, setShowNewTemplateModal] = useState(false)
   const [newTemplateName, setNewTemplateName] = useState('')
   const [newTemplateDescription, setNewTemplateDescription] = useState('')
-  const [newTemplateLayout, setNewTemplateLayout] = useState<SignatureLayout>('two-column')
+  const [newTemplateLayouts, setNewTemplateLayouts] = useState<SignatureLayout[]>(['two-column'])
   const [isCreating, setIsCreating] = useState(false)
 
   // Edit template name/description
@@ -807,6 +891,7 @@ export default function AdminTemplatesPage() {
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [editLayout, setEditLayout] = useState<SignatureLayout>('two-column')
+  const [editLayouts, setEditLayouts] = useState<SignatureLayout[]>(['two-column'])
 
   useEffect(() => {
     fetchAdminTemplates()
@@ -1045,36 +1130,56 @@ export default function AdminTemplatesPage() {
   }
 
   const handleCreateTemplate = async () => {
-    if (!newTemplateName.trim()) return
+    if (!newTemplateName.trim() || newTemplateLayouts.length === 0) return
 
     setIsCreating(true)
     setError(null)
 
     try {
-      const res = await fetch('/api/admin-templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newTemplateName,
-          description: newTemplateDescription || null,
-          signature_layout: newTemplateLayout,
-        }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to create template')
+      const layoutLabels: Record<SignatureLayout, string> = {
+        'two-column': 'Two Column Purchase',
+        'two-column-assignment': 'Two Column Assignment',
+        'seller-only': 'Seller Only',
+        'three-party': 'Three Party',
+        'two-seller': 'Two Seller',
       }
 
-      const newTemplate: AdminTemplateData = await res.json()
-      setAdminTemplates(prev => [...prev, newTemplate])
+      let lastTemplate: AdminTemplateData | null = null
+
+      for (const layout of newTemplateLayouts) {
+        const templateName = newTemplateLayouts.length > 1
+          ? `${newTemplateName} (${layoutLabels[layout]})`
+          : newTemplateName
+
+        const res = await fetch('/api/admin-templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: templateName,
+            description: newTemplateDescription || null,
+            signature_layout: layout,
+          }),
+        })
+
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.error || `Failed to create template for ${layoutLabels[layout]}`)
+        }
+
+        const newTemplate: AdminTemplateData = await res.json()
+        setAdminTemplates(prev => [...prev, newTemplate])
+        lastTemplate = newTemplate
+      }
+
       setShowNewTemplateModal(false)
       setNewTemplateName('')
       setNewTemplateDescription('')
-      setNewTemplateLayout('two-column')
+      setNewTemplateLayouts(['two-column'])
 
-      // Select the new template
-      await selectAdminTemplate(newTemplate)
+      // Select the last created template
+      if (lastTemplate) {
+        await selectAdminTemplate(lastTemplate)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create template')
     } finally {
@@ -1102,16 +1207,26 @@ export default function AdminTemplatesPage() {
   }
 
   const handleEditTemplate = async () => {
-    if (!selectedAdminTemplate || !editName.trim()) return
+    if (!selectedAdminTemplate || !editName.trim() || editLayouts.length === 0) return
+
+    const layoutLabels: Record<SignatureLayout, string> = {
+      'two-column': 'Two Column Purchase',
+      'two-column-assignment': 'Two Column Assignment',
+      'seller-only': 'Seller Only',
+      'three-party': 'Three Party',
+      'two-seller': 'Two Seller',
+    }
 
     try {
+      // Update existing template with the first selected layout
+      const primaryLayout = editLayouts[0]
       const res = await fetch(`/api/admin-templates/${selectedAdminTemplate.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: editName,
+          name: editLayouts.length > 1 ? `${editName} (${layoutLabels[primaryLayout]})` : editName,
           description: editDescription || null,
-          signature_layout: editLayout,
+          signature_layout: primaryLayout,
         }),
       })
       if (!res.ok) throw new Error('Failed to update template')
@@ -1119,7 +1234,31 @@ export default function AdminTemplatesPage() {
       const updated = await res.json()
       setSelectedAdminTemplate({ ...selectedAdminTemplate, ...updated })
       setAdminTemplates(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t))
-      setSignatureLayout(editLayout)
+      setSignatureLayout(primaryLayout)
+
+      // Create new templates for additional selected layouts
+      for (let i = 1; i < editLayouts.length; i++) {
+        const layout = editLayouts[i]
+        const createRes = await fetch('/api/admin-templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: `${editName} (${layoutLabels[layout]})`,
+            description: editDescription || null,
+            signature_layout: layout,
+            html_content: selectedAdminTemplate.html_content || editorContent,
+          }),
+        })
+
+        if (!createRes.ok) {
+          const data = await createRes.json()
+          throw new Error(data.error || `Failed to create template for ${layoutLabels[layout]}`)
+        }
+
+        const newTemplate: AdminTemplateData = await createRes.json()
+        setAdminTemplates(prev => [...prev, newTemplate])
+      }
+
       setShowEditModal(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update template')
@@ -1130,7 +1269,9 @@ export default function AdminTemplatesPage() {
     if (!selectedAdminTemplate) return
     setEditName(selectedAdminTemplate.name)
     setEditDescription(selectedAdminTemplate.description || '')
-    setEditLayout(selectedAdminTemplate.signature_layout as SignatureLayout)
+    const currentLayout = selectedAdminTemplate.signature_layout as SignatureLayout
+    setEditLayout(currentLayout)
+    setEditLayouts([currentLayout])
     setShowEditModal(true)
   }
 
@@ -1420,12 +1561,14 @@ export default function AdminTemplatesPage() {
                             <option value="two-column-assignment">Two Column Assignment (Assignee + Assignor)</option>
                             <option value="seller-only">Seller Only</option>
                             <option value="three-party">Three Party (Seller + Assignor + Assignee)</option>
+                            <option value="two-seller">Two Seller (Seller 1 + Buyer + Seller 2)</option>
                           </select>
                           <p className="text-xs text-gray-500 mt-1">
                             {signatureLayout === 'two-column' && 'Standard layout with Seller and Buyer signatures side by side'}
                             {signatureLayout === 'two-column-assignment' && 'Assignment layout with Assignee and Assignor signatures side by side'}
                             {signatureLayout === 'seller-only' && 'Only Seller signs via Documenso. Buyer pre-signs.'}
                             {signatureLayout === 'three-party' && 'For assignments: Seller and Assignee sign via Documenso'}
+                            {signatureLayout === 'two-seller' && 'For two sellers: Seller 1 and Seller 2 sign via Documenso'}
                           </p>
                         </div>
                       )}
@@ -1579,17 +1722,40 @@ The closing shall occur on [Date]...`}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Signature Layout</label>
-                <select
-                  value={newTemplateLayout}
-                  onChange={(e) => setNewTemplateLayout(e.target.value as SignatureLayout)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="two-column">Two Column Purchase (Seller + Buyer)</option>
-                  <option value="two-column-assignment">Two Column Assignment (Assignee + Assignor)</option>
-                  <option value="seller-only">Seller Only</option>
-                  <option value="three-party">Three Party (Seller + Assignor + Assignee)</option>
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Signature Layouts *</label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Select one or more layouts. A separate template will be created for each.
+                </p>
+                <div className="space-y-2">
+                  {([
+                    { value: 'two-column' as SignatureLayout, label: 'Two Column Purchase (Seller + Buyer)' },
+                    { value: 'two-column-assignment' as SignatureLayout, label: 'Two Column Assignment (Assignee + Assignor)' },
+                    { value: 'seller-only' as SignatureLayout, label: 'Seller Only' },
+                    { value: 'three-party' as SignatureLayout, label: 'Three Party (Seller + Assignor + Assignee)' },
+                    { value: 'two-seller' as SignatureLayout, label: 'Two Seller (Seller 1 + Buyer + Seller 2)' },
+                  ]).map((opt) => (
+                    <label key={opt.value} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newTemplateLayouts.includes(opt.value)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setNewTemplateLayouts(prev => [...prev, opt.value])
+                          } else {
+                            setNewTemplateLayouts(prev => prev.filter(l => l !== opt.value))
+                          }
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {newTemplateLayouts.length > 1 && (
+                  <p className="text-xs text-blue-600 mt-2">
+                    {newTemplateLayouts.length} templates will be created, each with the layout name appended.
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
@@ -1601,10 +1767,10 @@ The closing shall occur on [Date]...`}
               </button>
               <button
                 onClick={handleCreateTemplate}
-                disabled={!newTemplateName.trim() || isCreating}
+                disabled={!newTemplateName.trim() || newTemplateLayouts.length === 0 || isCreating}
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
               >
-                {isCreating ? 'Creating...' : 'Create Template'}
+                {isCreating ? 'Creating...' : newTemplateLayouts.length > 1 ? `Create ${newTemplateLayouts.length} Templates` : 'Create Template'}
               </button>
             </div>
           </div>
@@ -1640,17 +1806,40 @@ The closing shall occur on [Date]...`}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Signature Layout</label>
-                <select
-                  value={editLayout}
-                  onChange={(e) => setEditLayout(e.target.value as SignatureLayout)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="two-column">Two Column Purchase (Seller + Buyer)</option>
-                  <option value="two-column-assignment">Two Column Assignment (Assignee + Assignor)</option>
-                  <option value="seller-only">Seller Only</option>
-                  <option value="three-party">Three Party (Seller + Assignor + Assignee)</option>
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Signature Layouts</label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Select layouts. Additional layouts will create new templates with the same content.
+                </p>
+                <div className="space-y-2">
+                  {([
+                    { value: 'two-column' as SignatureLayout, label: 'Two Column Purchase (Seller + Buyer)' },
+                    { value: 'two-column-assignment' as SignatureLayout, label: 'Two Column Assignment (Assignee + Assignor)' },
+                    { value: 'seller-only' as SignatureLayout, label: 'Seller Only' },
+                    { value: 'three-party' as SignatureLayout, label: 'Three Party (Seller + Assignor + Assignee)' },
+                    { value: 'two-seller' as SignatureLayout, label: 'Two Seller (Seller 1 + Buyer + Seller 2)' },
+                  ]).map((opt) => (
+                    <label key={opt.value} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editLayouts.includes(opt.value)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEditLayouts(prev => [...prev, opt.value])
+                          } else {
+                            setEditLayouts(prev => prev.filter(l => l !== opt.value))
+                          }
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {editLayouts.length > 1 && (
+                  <p className="text-xs text-blue-600 mt-2">
+                    This template will be updated to the first layout. {editLayouts.length - 1} new template{editLayouts.length > 2 ? 's' : ''} will be created for the additional layout{editLayouts.length > 2 ? 's' : ''}.
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
@@ -1662,10 +1851,10 @@ The closing shall occur on [Date]...`}
               </button>
               <button
                 onClick={handleEditTemplate}
-                disabled={!editName.trim()}
+                disabled={!editName.trim() || editLayouts.length === 0}
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
               >
-                Save Changes
+                {editLayouts.length > 1 ? `Save & Create ${editLayouts.length - 1} More` : 'Save Changes'}
               </button>
             </div>
           </div>
