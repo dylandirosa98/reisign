@@ -114,6 +114,9 @@ export async function GET(
           'Content-Type': 'application/pdf',
           'Content-Disposition': `inline; filename="${type}-${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}-signed.pdf"`,
           'Content-Length': pdfBuffer.length.toString(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
         },
       })
     } catch (downloadError) {
@@ -261,6 +264,9 @@ export async function GET(
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="${type}-${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf"`,
         'Content-Length': pdfBuffer.length.toString(),
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     })
   } catch (error) {

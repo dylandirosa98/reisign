@@ -375,10 +375,14 @@ function InlineDocumentEditor({
     doc.write(processedHtml)
     doc.close()
 
-    // Wait for content to render, then set up event listeners and resize
-    setTimeout(() => {
+    // Set up event listeners - use both immediate and fallback strategies
+    // to handle slower devices where content may not be ready immediately
+    let listenersAttached = false
+    const attachListeners = () => {
+      if (listenersAttached) return
       const contentDoc = iframe.contentDocument
-      if (!contentDoc) return
+      if (!contentDoc?.body) return
+      listenersAttached = true
 
       // Auto-resize iframe height
       const resizeObserver = new ResizeObserver(() => {
@@ -439,7 +443,14 @@ function InlineDocumentEditor({
 
       // Cleanup
       return () => resizeObserver.disconnect()
-    }, 100)
+    }
+
+    // Try attaching immediately (content is available after doc.close())
+    attachListeners()
+    // Also attach on load as fallback for slower browsers/devices
+    iframe.addEventListener('load', attachListeners, { once: true })
+    // Final fallback with longer timeout
+    setTimeout(attachListeners, 500)
   }, [htmlContent]) // Only re-setup when template HTML changes, not on every value change
 
   useEffect(() => {
@@ -894,7 +905,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
     try {
       // Open preview in new tab
-      window.open(`/api/contracts/${id}/preview?type=${type}`, '_blank')
+      // Timestamp busts browser cache to ensure fresh PDF
+      window.open(`/api/contracts/${id}/preview?type=${type}&t=${Date.now()}`, '_blank')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate preview')
     } finally {
@@ -1236,6 +1248,25 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     }
 
     try {
+      // Safety net: read current values directly from iframe inputs
+      // in case event listeners didn't propagate changes to inlineValues
+      const currentValues = { ...inlineValues }
+      const iframeEl = document.querySelector('iframe[title="Contract Editor"]') as HTMLIFrameElement
+      if (iframeEl?.contentDocument) {
+        iframeEl.contentDocument.querySelectorAll('.inline-field-input').forEach((el) => {
+          const fieldKey = el.getAttribute('data-field')
+          if (fieldKey) {
+            currentValues[fieldKey] = (el as HTMLInputElement).value
+          }
+        })
+        iframeEl.contentDocument.querySelectorAll('.inline-checkbox').forEach((el) => {
+          const fieldKey = el.getAttribute('data-field')
+          if (fieldKey) {
+            currentValues[fieldKey] = (el as HTMLInputElement).checked ? 'checked' : ''
+          }
+        })
+      }
+
       // Separate inline values into contract-level fields vs custom_fields
       const contractLevelMap: Record<string, string> = {
         seller_name: 'seller_name',
@@ -1277,7 +1308,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       const body: Record<string, unknown> = {}
       const newCustomFields: Record<string, unknown> = { ...contract?.custom_fields }
 
-      for (const [key, value] of Object.entries(inlineValues)) {
+      for (const [key, value] of Object.entries(currentValues)) {
         if (contractLevelMap[key]) {
           body[contractLevelMap[key]] = value
         } else if (assigneeToContractMap[key]) {
