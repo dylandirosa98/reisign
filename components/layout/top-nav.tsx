@@ -25,6 +25,7 @@ import {
   Shield,
   BarChart3,
   Activity,
+  LifeBuoy,
 } from 'lucide-react'
 import type { User, Company } from '@/types/database'
 
@@ -38,6 +39,7 @@ const navigation = [
   { name: 'Properties', href: '/dashboard/properties', icon: Building2 },
   { name: 'Templates', href: '/dashboard/templates', icon: FileText },
   { name: 'Team', href: '/dashboard/team', icon: Users },
+  { name: 'Support', href: '/dashboard/support', icon: LifeBuoy },
 ]
 
 const adminNavigation = [

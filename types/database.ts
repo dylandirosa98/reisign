@@ -417,6 +417,47 @@ export type Database = {
           },
         ]
       }
+      support_tickets: {
+        Row: {
+          id: string
+          user_id: string | null
+          company_id: string | null
+          subject: string
+          message: string
+          category: string
+          status: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          company_id?: string | null
+          subject: string
+          message: string
+          category?: string
+          status?: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          company_id?: string | null
+          subject?: string
+          message?: string
+          category?: string
+          status?: string
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       state_templates: {
         Row: {
           assignment_contract_file_name: string | null
@@ -713,6 +754,7 @@ export type ContractStatusHistory = Database['public']['Tables']['contract_statu
 export type StateTemplate = Database['public']['Tables']['state_templates']['Row']
 export type AdminTemplate = Database['public']['Tables']['admin_templates']['Row']
 export type AdminTemplateOverride = Database['public']['Tables']['admin_template_overrides']['Row']
+export type SupportTicket = Database['public']['Tables']['support_tickets']['Row']
 
 // Company Templates (user-created)
 export interface CustomField {
