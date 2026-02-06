@@ -448,12 +448,13 @@ class PDFGeneratorService {
       additional_terms: data.additional_terms || '',
 
       // Section 1.10 checkbox states (returns 'checked' or '' - all optional)
-      escrow_fees_split_check: data.escrow_fees_split === 'split' ? 'checked' : '',
-      escrow_fees_buyer_check: data.escrow_fees_split === 'buyer' ? 'checked' : '',
-      title_policy_seller_check: data.title_policy_paid_by === 'seller' ? 'checked' : '',
-      title_policy_buyer_check: data.title_policy_paid_by === 'buyer' ? 'checked' : '',
-      hoa_fees_split_check: data.hoa_fees_split === 'split' ? 'checked' : '',
-      hoa_fees_buyer_check: data.hoa_fees_split === 'buyer' ? 'checked' : '',
+      // Check extra_fields first for directly saved checkbox values from inline editor
+      escrow_fees_split_check: data.extra_fields?.escrow_fees_split_check || (data.escrow_fees_split === 'split' ? 'checked' : ''),
+      escrow_fees_buyer_check: data.extra_fields?.escrow_fees_buyer_check || (data.escrow_fees_split === 'buyer' ? 'checked' : ''),
+      title_policy_seller_check: data.extra_fields?.title_policy_seller_check || (data.title_policy_paid_by === 'seller' ? 'checked' : ''),
+      title_policy_buyer_check: data.extra_fields?.title_policy_buyer_check || (data.title_policy_paid_by === 'buyer' ? 'checked' : ''),
+      hoa_fees_split_check: data.extra_fields?.hoa_fees_split_check || (data.hoa_fees_split === 'split' ? 'checked' : ''),
+      hoa_fees_buyer_check: data.extra_fields?.hoa_fees_buyer_check || (data.hoa_fees_split === 'buyer' ? 'checked' : ''),
 
       // AI Clauses - convert array to HTML with auto-numbering based on position
       ai_clauses: this.formatAiClauses(data.ai_clauses, this.detectClausePosition(template)),
