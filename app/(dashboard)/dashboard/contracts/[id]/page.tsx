@@ -1208,6 +1208,20 @@ const InlineDocumentEditor = React.forwardRef<InlineDocumentEditorRef, {
     // Remove AI clause buttons
     html = html.replace(/<button[^>]*class="ai-clause-btn"[^>]*>[\s\S]*?<\/button>/g, '')
 
+    // Clean up browser-added font styling that contenteditable may have inserted
+    // Remove <font> tags but keep their content
+    html = html.replace(/<font[^>]*>([\s\S]*?)<\/font>/gi, '$1')
+
+    // Remove inline font-family styles from any element
+    html = html.replace(/\s*font-family:\s*[^;"}]+;?/gi, '')
+
+    // Remove inline font-size styles (except on inputs which may need them)
+    html = html.replace(/(<(?!input)[^>]*)\s*font-size:\s*[^;"}]+;?/gi, '$1')
+
+    // Remove empty style attributes left behind
+    html = html.replace(/\s+style="\s*"/g, '')
+    html = html.replace(/\s+style=''/g, '')
+
     return html
   }
 
