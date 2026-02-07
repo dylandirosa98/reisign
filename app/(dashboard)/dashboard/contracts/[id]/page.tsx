@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use, useRef, useCallback } from 'react'
+import React, { useState, useEffect, use, useRef, useCallback, useImperativeHandle } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -29,13 +29,21 @@ import {
   Sparkles,
   Mail,
   RefreshCw,
+  FileEdit,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import SignatureCanvas from 'react-signature-canvas'
 import { AIClauseSection } from '@/components/contracts/ai-clause-section'
+import { InlineAIClauseZone } from '@/components/contracts/inline-ai-clause-zone'
 import type { AIClause } from '@/components/contracts/clause-review-modal'
 import { PLANS, type PlanTier } from '@/lib/plans'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface CustomFields {
   buyer_phone?: string
@@ -71,6 +79,8 @@ interface CustomFields {
   buyer_initials?: string // Base64 initials image
   // AI-generated clauses
   ai_clauses?: AIClause[]
+  // Full document HTML override (from rich text editor)
+  html_override?: string
 }
 
 interface Contract {
@@ -200,19 +210,400 @@ const MONETARY_FIELDS = new Set([
   'repair_cost_limit', 'deposit_amount', 'option_fee',
 ])
 
-function InlineDocumentEditor({
-  htmlContent,
-  values,
-  onValuesChange,
-}: {
+export interface InlineDocumentEditorRef {
+  captureHtmlOverride: () => string | null
+  isInFullEditMode: () => boolean
+}
+
+const InlineDocumentEditor = React.forwardRef<InlineDocumentEditorRef, {
   htmlContent: string
   values: Record<string, string>
   onValuesChange: (values: Record<string, string>) => void
-}) {
+  aiClauses?: AIClause[]
+  onAiClausesChange?: (clauses: AIClause[]) => void
+  contractDetails?: {
+    property_address?: string
+    property_city?: string
+    property_state?: string
+    property_zip?: string
+    price?: string
+    seller_name?: string
+    close_of_escrow?: string
+    inspection_period?: string
+  }
+  existingHtmlOverride?: string
+  onHtmlOverrideChange?: (html: string | undefined) => void
+}>(({
+  htmlContent,
+  values,
+  onValuesChange,
+  aiClauses,
+  onAiClausesChange,
+  contractDetails,
+  existingHtmlOverride,
+  onHtmlOverrideChange,
+}, ref) => {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [iframeHeight, setIframeHeight] = useState(800)
+  const [activeAiZoneId, setActiveAiZoneId] = useState<string | null>(null)
+  // Full document edit mode - user can toggle this to edit all text
+  const [isFullDocumentEdit, setIsFullDocumentEdit] = useState(false)
+  const isFullDocumentEditRef = useRef(isFullDocumentEdit)
+  isFullDocumentEditRef.current = isFullDocumentEdit
   const valuesRef = useRef(values)
   valuesRef.current = values
+  const aiClausesRef = useRef(aiClauses)
+  aiClausesRef.current = aiClauses
+  // Local ref for html override - used when exiting full edit mode before parent re-renders
+  const localHtmlOverrideRef = useRef<string | undefined>(existingHtmlOverride)
+  // Sync local ref when prop changes (e.g., after save/reload)
+  if (existingHtmlOverride && existingHtmlOverride !== localHtmlOverrideRef.current) {
+    localHtmlOverrideRef.current = existingHtmlOverride
+  }
+
+  // Debounced value change handler for slower devices
+  // Batches rapid input changes to avoid excessive re-renders
+  const pendingValuesRef = useRef<Record<string, string>>({})
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const debouncedValuesChange = useCallback((field: string, value: string) => {
+    // Immediately update the ref so subsequent changes see the latest value
+    pendingValuesRef.current = { ...valuesRef.current, ...pendingValuesRef.current, [field]: value }
+
+    // Clear any existing timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current)
+    }
+
+    // Batch updates with a 50ms debounce - fast enough to feel responsive,
+    // slow enough to batch rapid changes on slower devices
+    debounceTimeoutRef.current = setTimeout(() => {
+      const newVals = { ...valuesRef.current, ...pendingValuesRef.current }
+      pendingValuesRef.current = {}
+      onValuesChange(newVals)
+    }, 50)
+  }, [onValuesChange])
+
+  // State for add content popover (Feature 3)
+  const [addContentPopover, setAddContentPopover] = useState<{
+    x: number
+    y: number
+    insertAfterElement: HTMLElement | null
+  } | null>(null)
+  const [showClauseInput, setShowClauseInput] = useState(false)
+  const [clauseNumber, setClauseNumber] = useState('')
+
+  // Selectors for block-level editing
+  const EDITABLE_SELECTORS = 'p, h1, h2, h3, h4, h5, h6, li, td, th'
+  // Elements that should never be made contenteditable themselves
+  const SKIP_EDIT_SELECTORS = '.ai-clause-zone-container, .ai-clause-btn, .add-content-btn'
+  // Elements inside editable blocks that should be protected from deletion
+  const PROTECTED_ELEMENTS = 'input, .inline-field-input, .inline-checkbox'
+
+  // Enable block-level editing (Feature 2)
+  const enableBlockEditing = (doc: Document) => {
+    // Inject block editing styles
+    const style = doc.createElement('style')
+    style.id = 'block-edit-styles'
+    style.textContent = `
+      .editable-block {
+        cursor: text;
+        transition: outline 0.15s;
+      }
+      .editable-block:hover {
+        outline: 1px dashed rgba(59, 130, 246, 0.4);
+        outline-offset: 2px;
+      }
+      .editable-block:focus {
+        outline: 2px solid rgba(59, 130, 246, 0.6);
+        outline-offset: 2px;
+        background: rgba(59, 130, 246, 0.03);
+      }
+      /* Make inputs inside editable blocks visually distinct and protected */
+      .editable-block input,
+      .editable-block .inline-field-input,
+      .editable-block .inline-checkbox {
+        pointer-events: auto;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .add-content-btn {
+        display: block;
+        width: 100%;
+        padding: 4px;
+        margin: 4px 0;
+        border: 1px dashed #ccc;
+        background: transparent;
+        color: #666;
+        font-size: 12px;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.15s;
+      }
+      .add-content-btn:hover {
+        opacity: 1;
+        border-color: #3b82f6;
+        color: #3b82f6;
+      }
+      body:has(.editable-block:focus) .add-content-btn,
+      body:has(.editable-block:hover) .add-content-btn {
+        opacity: 0.6;
+      }
+      body:has(.editable-block:focus) .add-content-btn:hover,
+      body:has(.editable-block:hover) .add-content-btn:hover {
+        opacity: 1;
+      }
+    `
+    doc.head?.appendChild(style)
+
+    // Make text blocks editable (including those with input fields)
+    doc.querySelectorAll(EDITABLE_SELECTORS).forEach(el => {
+      // Skip if is a container we don't want editable at all
+      if (el.closest(SKIP_EDIT_SELECTORS)) return
+
+      el.setAttribute('contenteditable', 'true')
+      el.classList.add('editable-block')
+
+      // Make any inputs inside non-editable so they can still be used
+      el.querySelectorAll(PROTECTED_ELEMENTS).forEach(input => {
+        input.setAttribute('contenteditable', 'false')
+      })
+    })
+
+    // Protect inputs from being deleted via backspace/delete
+    // This event listener prevents deletion of protected elements
+    const protectInputs = (e: Event) => {
+      const event = e as InputEvent
+      // Only care about delete operations
+      if (!event.inputType?.includes('delete')) return
+
+      const selection = doc.getSelection()
+      if (!selection || selection.rangeCount === 0) return
+
+      const range = selection.getRangeAt(0)
+
+      // Check if the selection includes any protected elements
+      const container = range.commonAncestorContainer
+      const parentEl = container.nodeType === Node.TEXT_NODE
+        ? container.parentElement
+        : container as Element
+
+      if (!parentEl) return
+
+      // If deleting backwards (backspace), check what's before cursor
+      if (event.inputType === 'deleteContentBackward') {
+        const prevSibling = range.startContainer.previousSibling ||
+          (range.startContainer.parentElement?.previousSibling)
+        if (prevSibling && (
+          (prevSibling as Element).matches?.(PROTECTED_ELEMENTS) ||
+          (prevSibling as Element).querySelector?.(PROTECTED_ELEMENTS)
+        )) {
+          e.preventDefault()
+          return
+        }
+      }
+
+      // If deleting forwards (delete key), check what's after cursor
+      if (event.inputType === 'deleteContentForward') {
+        const nextSibling = range.endContainer.nextSibling ||
+          (range.endContainer.parentElement?.nextSibling)
+        if (nextSibling && (
+          (nextSibling as Element).matches?.(PROTECTED_ELEMENTS) ||
+          (nextSibling as Element).querySelector?.(PROTECTED_ELEMENTS)
+        )) {
+          e.preventDefault()
+          return
+        }
+      }
+
+      // If there's a selection range, check if it contains protected elements
+      if (!range.collapsed) {
+        const fragment = range.cloneContents()
+        if (fragment.querySelector(PROTECTED_ELEMENTS)) {
+          e.preventDefault()
+          return
+        }
+      }
+    }
+
+    doc.addEventListener('beforeinput', protectInputs)
+    // Store the handler so we can remove it later
+    ;(doc as any).__protectInputsHandler = protectInputs
+  }
+
+  // Disable block-level editing
+  const disableBlockEditing = (doc: Document) => {
+    // Remove block editing styles
+    const style = doc.getElementById('block-edit-styles')
+    if (style) style.remove()
+
+    // Remove the input protection event listener
+    const handler = (doc as any).__protectInputsHandler
+    if (handler) {
+      doc.removeEventListener('beforeinput', handler)
+      delete (doc as any).__protectInputsHandler
+    }
+
+    // Remove contenteditable and class from blocks
+    doc.querySelectorAll('.editable-block').forEach(el => {
+      el.removeAttribute('contenteditable')
+      el.classList.remove('editable-block')
+    })
+
+    // Restore contenteditable on inputs that were set to false
+    doc.querySelectorAll('[contenteditable="false"]').forEach(el => {
+      el.removeAttribute('contenteditable')
+    })
+
+    // Remove add-content buttons
+    doc.querySelectorAll('.add-content-btn').forEach(btn => btn.remove())
+  }
+
+  // Inject add-content buttons between blocks (Feature 3)
+  const injectAddContentButtons = (doc: Document) => {
+    const blocks = Array.from(doc.querySelectorAll('.editable-block'))
+
+    blocks.forEach((block, index) => {
+      const btn = doc.createElement('button')
+      btn.className = 'add-content-btn'
+      btn.setAttribute('data-insert-after', String(index))
+      btn.textContent = '+ Add content here'
+      btn.type = 'button'
+      block.after(btn)
+    })
+
+    // Add button before first block too
+    if (blocks[0]) {
+      const btn = doc.createElement('button')
+      btn.className = 'add-content-btn'
+      btn.setAttribute('data-insert-before', '0')
+      btn.textContent = '+ Add content here'
+      btn.type = 'button'
+      blocks[0].before(btn)
+    }
+  }
+
+  // Insert new content at a position (Feature 3)
+  const insertContent = (type: 'paragraph' | 'clause', clauseNum?: string) => {
+    const iframe = iframeRef.current
+    const doc = iframe?.contentDocument
+    if (!doc || !addContentPopover) return
+
+    const newEl = doc.createElement('p')
+    newEl.className = 'paragraph editable-block'
+    newEl.setAttribute('contenteditable', 'true')
+    newEl.setAttribute('data-user-added', 'true')
+
+    if (type === 'clause' && clauseNum) {
+      newEl.innerHTML = `<strong>${clauseNum}.</strong> [Enter clause text]`
+    } else {
+      newEl.innerHTML = '[Enter text]'
+    }
+
+    // Insert after the trigger button
+    addContentPopover.insertAfterElement?.after(newEl)
+
+    // Focus and select placeholder
+    newEl.focus()
+    const sel = doc.getSelection()
+    const range = doc.createRange()
+    range.selectNodeContents(newEl)
+    sel?.removeAllRanges()
+    sel?.addRange(range)
+
+    setAddContentPopover(null)
+    setShowClauseInput(false)
+    setClauseNumber('')
+
+    // Resize iframe - use longer timeout for slower devices
+    setTimeout(() => {
+      if (doc.body) {
+        setIframeHeight(Math.max(doc.body.scrollHeight + 40, 400))
+      }
+    }, 150)
+  }
+
+  // Count how many AI clause zones exist in the template
+  const countAiZones = (): number => {
+    let count = 0
+    // Count {{#if ai_clauses}}...{{/if}} blocks
+    const ifPattern = /\{\{#if\s+ai_clauses\}\}[\s\S]*?\{\{\/if\}\}/g
+    let match
+    while ((match = ifPattern.exec(htmlContent)) !== null) count++
+    // Count standalone {{ai_clauses}} (not inside an #if block)
+    const standalonePattern = /\{\{ai_clauses\}\}/g
+    const stripped = htmlContent.replace(/\{\{#if\s+ai_clauses\}\}[\s\S]*?\{\{\/if\}\}/g, '')
+    while ((match = standalonePattern.exec(stripped)) !== null) count++
+    // Count <div class="ai-clause-zone"...>
+    const divPattern = /<div[^>]*class="ai-clause-zone"[^>]*>[\s\S]*?<\/div>/g
+    const stripped2 = stripped.replace(standalonePattern, '')
+    while ((match = divPattern.exec(stripped2)) !== null) count++
+    return count
+  }
+  const aiZoneCount = countAiZones()
+
+  // Extract section number from a specific zone
+  const extractSectionNumber = (zoneId?: string): string | undefined => {
+    const match = htmlContent.match(/data-section="([^"]+)"/)
+    if (match && match[1] !== 'auto') {
+      return match[1]
+    }
+    return undefined
+  }
+
+  // Get clauses for a specific zone
+  const getClausesForZone = (zoneId: string): AIClause[] => {
+    return (aiClauses || []).filter(c => c.zoneId === zoneId || (!c.zoneId && zoneId === 'zone-0'))
+  }
+
+  // Handle clauses changing for a specific zone
+  const handleZoneClausesChange = (zoneId: string, zoneClauses: AIClause[]) => {
+    if (!onAiClausesChange) return
+    // Tag new clauses with zoneId
+    const tagged = zoneClauses.map(c => ({ ...c, zoneId }))
+    // Replace clauses for this zone, keep others
+    const otherClauses = (aiClauses || []).filter(c => c.zoneId !== zoneId && !(!c.zoneId && zoneId === 'zone-0'))
+    const newClauses = [...otherClauses, ...tagged]
+
+    // Update the ref immediately so setupIframe will have the latest clauses
+    aiClausesRef.current = newClauses
+    onAiClausesChange(newClauses)
+
+    // Insert approved clauses into the iframe at this zone
+    // If updateZoneInIframe fails (element not found), re-setup the iframe
+    const success = updateZoneInIframe(zoneId, tagged)
+    if (!success) {
+      // Element not found - re-setup iframe to rebuild with latest clauses
+      setupIframe()
+    }
+  }
+
+  // Insert approved clause content into the iframe at a zone location
+  // Returns true if successful, false if element not found
+  const updateZoneInIframe = (zoneId: string, zoneClauses: AIClause[]): boolean => {
+    const iframe = iframeRef.current
+    if (!iframe?.contentDocument) return false
+    const contentEl = iframe.contentDocument.querySelector(`[data-ai-zone-content="${zoneId}"]`)
+    if (!contentEl) return false
+    if (zoneClauses.length === 0) {
+      contentEl.innerHTML = ''
+      return true
+    }
+    const clauseHtml = zoneClauses.map((c, idx) => {
+      const content = c.editedContent || c.content
+      // Match the document's paragraph styling
+      return `<p class="paragraph" style="text-align: justify; margin-bottom: 10pt; text-indent: 0.5in;">
+        <strong>12.${6 + idx}</strong> <em>${c.title}.</em> ${content}
+      </p>`
+    }).join('')
+    contentEl.innerHTML = clauseHtml
+    // Resize iframe - use longer timeout for slower devices
+    setTimeout(() => {
+      if (iframe.contentDocument?.body) {
+        setIframeHeight(Math.max(iframe.contentDocument.body.scrollHeight + 40, 400))
+      }
+    }, 150)
+    return true
+  }
 
   // Format monetary value with commas
   const formatMoney = (val: string): string => {
@@ -232,8 +623,264 @@ function InlineDocumentEditor({
     const doc = iframe.contentDocument
     if (!doc) return
 
-    // Process the HTML: replace {{placeholders}} with input elements
-    let processedHtml = htmlContent
+    // If there's an existing html_override and we're in full document edit mode, load it directly
+    const fullEditHtmlOverride = localHtmlOverrideRef.current || existingHtmlOverride
+    if (fullEditHtmlOverride && isFullDocumentEditRef.current) {
+      doc.open()
+      doc.write(fullEditHtmlOverride)
+      doc.close()
+
+      // Enable block-level editing instead of body-level contenteditable
+      if (doc.body) {
+        enableBlockEditing(doc)
+        injectAddContentButtons(doc)
+        // Set up click handler for add-content buttons
+        doc.addEventListener('click', handleIframeAddContentClick)
+      }
+
+      // Set up height observer - use longer timeout for slower devices
+      setTimeout(() => {
+        if (doc.body) {
+          setIframeHeight(Math.max(doc.body.scrollHeight + 40, 400))
+        }
+      }, 200)
+      return
+    }
+
+    // Use html_override as base if it exists (preserves text customizations from full doc edit)
+    // Otherwise use the template. Use local ref which may be more up-to-date than prop.
+    const htmlOverride = localHtmlOverrideRef.current || existingHtmlOverride
+    let processedHtml = htmlOverride || htmlContent
+
+    // If using html_override, convert .field-value spans back to input fields
+    if (htmlOverride && !isFullDocumentEditRef.current) {
+      // Check how many field-value spans exist and how many have data-field attribute
+      const fieldValueCount = (processedHtml.match(/class="field-value"/g) || []).length
+      const withDataField = (processedHtml.match(/<span[^>]*class="field-value"[^>]*data-field="[^"]*"[^>]*>/g) || []).length
+      const withDataField2 = (processedHtml.match(/<span[^>]*data-field="[^"]*"[^>]*class="field-value"[^>]*>/g) || []).length
+      const totalWithDataField = withDataField + withDataField2
+
+      // If NO spans have data-field, the html_override is from an old version
+      // Fall back to using the template instead and clear the old html_override
+      if (fieldValueCount > 0 && totalWithDataField === 0) {
+        processedHtml = htmlContent
+        // Clear the old html_override so user can re-do full document edits properly
+        localHtmlOverrideRef.current = undefined
+        if (onHtmlOverrideChange) {
+          onHtmlOverrideChange(undefined)
+        }
+      }
+      // The captureCleanHtml function replaces inputs with <span class="field-value" data-field="fieldname">value</span>
+      // We need to convert these back to input fields
+
+      // Convert field-value spans with data-field back to input fields
+      // Helper function to create input from field info
+      const createInputFromField = (field: string, value: string) => {
+        const isDate = DATE_FIELDS.has(field)
+        const isMoney = MONETARY_FIELDS.has(field) || field.includes('price') || field.includes('fee') || field.includes('cost') || field.includes('amount') || field.includes('deposit')
+        const inputType = isDate ? 'date' : 'text'
+        const label = field.replace(/_/g, ' ')
+        // Update values ref with current value from html_override
+        if (value && !valuesRef.current[field]) {
+          valuesRef.current[field] = value
+        }
+        const currentVal = valuesRef.current[field] || value || ''
+        return `<input type="${inputType}" ` +
+          `data-field="${field}" ` +
+          `data-monetary="${isMoney}" ` +
+          `value="${currentVal.replace(/"/g, '&quot;')}" ` +
+          `placeholder="${label}" ` +
+          `title="${label}" ` +
+          `class="inline-field-input" />`
+      }
+
+      // Pattern 1: class="field-value" comes before data-field
+      processedHtml = processedHtml.replace(
+        /<span[^>]*class="field-value"[^>]*data-field="([^"]*)"[^>]*>([^<]*)<\/span>/g,
+        (match, field, value) => createInputFromField(field, value)
+      )
+
+      // Pattern 2: data-field comes before class="field-value"
+      processedHtml = processedHtml.replace(
+        /<span[^>]*data-field="([^"]*)"[^>]*class="field-value"[^>]*>([^<]*)<\/span>/g,
+        (match, field, value) => createInputFromField(field, value)
+      )
+
+      // Convert checkbox spans back to checkbox inputs
+      const createCheckboxInput = (checked: string | undefined, field: string) => {
+        return `<input type="checkbox" ` +
+          `data-field="${field}" ` +
+          `${checked ? 'checked' : ''} ` +
+          `class="inline-checkbox" />`
+      }
+
+      // Pattern 1: class before data-field
+      processedHtml = processedHtml.replace(
+        /<span[^>]*class="checkbox\s*(checked)?\s*"[^>]*data-field="([^"]*)"[^>]*><\/span>/g,
+        (match, checked, field) => createCheckboxInput(checked, field)
+      )
+
+      // Pattern 2: data-field before class
+      processedHtml = processedHtml.replace(
+        /<span[^>]*data-field="([^"]*)"[^>]*class="checkbox\s*(checked)?\s*"[^>]*><\/span>/g,
+        (match, field, checked) => createCheckboxInput(checked, field)
+      )
+
+    }
+
+    // DEDUPLICATION: Remove ALL extra AI clause zones from html_override
+    // Keep only the FIRST zone of each type, remove all others
+    if (htmlOverride) {
+      // Helper to find and deduplicate div containers by class pattern
+      const deduplicateDivsByClass = (html: string, classPattern: RegExp): string => {
+        let result = html
+        let match
+        const allContainers: Array<{start: number, end: number}> = []
+
+        while ((match = classPattern.exec(html)) !== null) {
+          const startIndex = match.index
+          // Find matching closing </div> by counting
+          let depth = 1
+          let i = startIndex + match[0].length
+          while (i < html.length && depth > 0) {
+            if (html.substring(i, i + 4) === '<div') {
+              depth++
+              i += 4
+            } else if (html.substring(i, i + 6) === '</div>') {
+              depth--
+              if (depth === 0) {
+                allContainers.push({ start: startIndex, end: i + 6 })
+              }
+              i += 6
+            } else {
+              i++
+            }
+          }
+        }
+
+        // Keep only the FIRST container, remove ALL others
+        if (allContainers.length > 1) {
+          const toRemove = allContainers.slice(1)
+          for (let j = toRemove.length - 1; j >= 0; j--) {
+            const { start, end } = toRemove[j]
+            result = result.substring(0, start) + result.substring(end)
+          }
+        }
+
+        return result
+      }
+
+      // Deduplicate ai-clause-zone-container divs (already processed zones)
+      processedHtml = deduplicateDivsByClass(
+        processedHtml,
+        /<div[^>]*class="ai-clause-zone-container"[^>]*>/g
+      )
+
+      // Also deduplicate raw ai-clause-zone divs (unprocessed zones)
+      processedHtml = deduplicateDivsByClass(
+        processedHtml,
+        /<div[^>]*class="ai-clause-zone"[^>]*>/g
+      )
+    }
+
+    // Replace AI clause zone markers with interactive buttons
+    // IMPORTANT: Only create ONE zone button total to prevent duplicates
+    let zoneCreated = false
+    const usedZoneIds = new Set<string>()
+
+    const makeAiZoneButton = (existingZoneId?: string) => {
+      // If we already created a zone and this isn't regenerating an existing one, return empty
+      if (zoneCreated && !existingZoneId) {
+        return '' // Remove extra zone markers
+      }
+
+      const zoneId = existingZoneId || 'zone-0'
+
+      // Mark that we've created a zone
+      if (!existingZoneId) {
+        zoneCreated = true
+      }
+      usedZoneIds.add(zoneId)
+      const existingClauses = (aiClausesRef.current || []).filter(
+        (c: AIClause) => c.zoneId === zoneId || (!c.zoneId && zoneId === 'zone-0')
+      )
+      const clauseHtml = existingClauses.length > 0
+        ? existingClauses.map((c, idx) => {
+            const content = c.editedContent || c.content
+            // Match the document's paragraph styling
+            return `<p class="paragraph" style="text-align: justify; margin-bottom: 10pt; text-indent: 0.5in;">
+              <strong>12.${6 + idx}</strong> <em>${c.title}.</em> ${content}
+            </p>`
+          }).join('')
+        : ''
+      return `<div class="ai-clause-zone-container" data-zone-id="${zoneId}" style="margin: 12px 0;">
+        <div data-ai-zone-content="${zoneId}">${clauseHtml}</div>
+        <button class="ai-clause-btn" data-zone-id="${zoneId}" type="button">
+          ✨ ${existingClauses.length > 0 ? 'Add More AI Clauses' : 'Generate AI Clauses'}
+        </button>
+      </div>`
+    }
+
+    // Replace {{#if ai_clauses}}...{{/if}} blocks
+    processedHtml = processedHtml.replace(
+      /\{\{#if\s+ai_clauses\}\}[\s\S]*?\{\{\/if\}\}/g,
+      () => makeAiZoneButton()
+    )
+    // Replace standalone {{ai_clauses}} (not already handled by #if block)
+    processedHtml = processedHtml.replace(
+      /\{\{ai_clauses\}\}/g,
+      () => makeAiZoneButton()
+    )
+    // Replace <div class="ai-clause-zone"...>...</div>
+    processedHtml = processedHtml.replace(
+      /<div[^>]*class="ai-clause-zone"[^>]*>[\s\S]*?<\/div>/g,
+      () => makeAiZoneButton()
+    )
+
+    // Also handle existing ai-clause-zone-container divs from html_override
+    // These may have been saved with or without button content, so regenerate them
+    // Use a function to find and replace the containers since regex struggles with nested divs
+    const regenerateAiZoneContainer = (html: string): string => {
+      // Find all ai-clause-zone-container divs and regenerate them
+      let result = html
+      const containerStartPattern = /<div[^>]*class="ai-clause-zone-container"[^>]*data-zone-id="([^"]*)"[^>]*>/g
+      let match
+      const replacements: Array<{start: number, end: number, zoneId: string}> = []
+
+      while ((match = containerStartPattern.exec(html)) !== null) {
+        const startIndex = match.index
+        const zoneId = match[1]
+        // Find the matching closing </div> by counting div tags
+        let depth = 1
+        let i = startIndex + match[0].length
+        while (i < html.length && depth > 0) {
+          if (html.substring(i, i + 4) === '<div') {
+            depth++
+            i += 4
+          } else if (html.substring(i, i + 6) === '</div>') {
+            depth--
+            if (depth === 0) {
+              replacements.push({ start: startIndex, end: i + 6, zoneId })
+            }
+            i += 6
+          } else {
+            i++
+          }
+        }
+      }
+
+      // Replace from end to start to preserve indices
+      // Use makeAiZoneButton with the existing zone ID to prevent duplicate IDs
+      for (let j = replacements.length - 1; j >= 0; j--) {
+        const { start, end, zoneId } = replacements[j]
+        const newContent = makeAiZoneButton(zoneId)
+        result = result.substring(0, start) + newContent + result.substring(end)
+      }
+
+      return result
+    }
+
+    processedHtml = regenerateAiZoneContainer(processedHtml)
 
     // Replace field-line placeholders with input elements
     // Pattern: <span class="field-line">{{placeholder}}</span>
@@ -250,7 +897,7 @@ function InlineDocumentEditor({
         const isMoney = MONETARY_FIELDS.has(trimmedKey) || trimmedKey.includes('price') || trimmedKey.includes('fee') || trimmedKey.includes('cost') || trimmedKey.includes('amount') || trimmedKey.includes('deposit')
         const inputType = isDate ? 'date' : 'text'
         const label = trimmedKey.replace(/_/g, ' ')
-        return `<span class="field-line${classes}" style="position:relative;">` +
+        return `<span class="field-line${classes}" style="text-align:left;text-indent:0;">` +
           `<input type="${inputType}" ` +
           `data-field="${trimmedKey}" ` +
           `data-monetary="${isMoney}" ` +
@@ -258,6 +905,7 @@ function InlineDocumentEditor({
           `placeholder="${label}" ` +
           `title="${label}" ` +
           `class="inline-field-input" ` +
+          `style="text-align:left;" ` +
           `/></span>`
       }
     )
@@ -282,7 +930,8 @@ function InlineDocumentEditor({
           `value="${currentVal.replace(/"/g, '&quot;')}" ` +
           `placeholder="${label}" ` +
           `title="${label}" ` +
-          `class="inline-field-input standalone" />`
+          `class="inline-field-input standalone" ` +
+          `style="text-align:left;" />`
       }
     )
 
@@ -323,9 +972,26 @@ function InlineDocumentEditor({
           background: rgba(59, 130, 246, 0.08);
           outline: none;
           padding: 0 2px;
-          width: 100%;
-          min-width: 60px;
           box-sizing: border-box;
+          display: inline;
+          width: auto;
+          min-width: 80px;
+        }
+        /* Force left alignment on field-line spans to override paragraph justify */
+        .field-line {
+          text-align: left !important;
+        }
+        /* Inside field-line spans, fill the span width and remove padding (parent has padding) */
+        .field-line .inline-field-input {
+          display: inline-block;
+          width: 100%;
+          padding: 0;
+          border-bottom: none;
+          text-align: left !important;
+        }
+        /* Override any inherited text-align from parent paragraphs */
+        .inline-field-input {
+          text-align: left !important;
         }
         .inline-field-input:focus {
           background: rgba(59, 130, 246, 0.15);
@@ -343,7 +1009,6 @@ function InlineDocumentEditor({
           display: inline;
           width: auto;
           min-width: 100px;
-          border-bottom: 1px solid #000;
         }
         .inline-field-input[type="date"] {
           width: auto;
@@ -356,6 +1021,25 @@ function InlineDocumentEditor({
           vertical-align: middle;
           cursor: pointer;
           accent-color: #000;
+        }
+        /* AI Clause Zone Button */
+        .ai-clause-btn {
+          display: block;
+          width: 100%;
+          padding: 10px 16px;
+          border: 2px dashed #a78bfa;
+          border-radius: 8px;
+          background: #f5f3ff;
+          color: #6d28d9;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          text-align: center;
+          transition: background 0.15s, border-color 0.15s;
+        }
+        .ai-clause-btn:hover {
+          background: #ede9fe;
+          border-color: #7c3aed;
         }
         /* Hide the original body margin for continuous scroll */
         body {
@@ -400,13 +1084,14 @@ function InlineDocumentEditor({
       }
 
       // Listen for input changes on text fields
+      // Uses debounced handler for better performance on slower devices
       contentDoc.addEventListener('input', (e) => {
         const target = e.target as HTMLInputElement
         if (target.classList.contains('inline-field-input')) {
           const fieldKey = target.getAttribute('data-field')
           if (fieldKey) {
-            const newVals = { ...valuesRef.current, [fieldKey]: target.value }
-            onValuesChange(newVals)
+            // Use debounced handler to batch rapid changes
+            debouncedValuesChange(fieldKey, target.value)
           }
         }
       })
@@ -441,6 +1126,19 @@ function InlineDocumentEditor({
         }
       })
 
+      // Listen for AI clause zone button clicks
+      contentDoc.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement
+        if (target.classList.contains('ai-clause-btn')) {
+          const zoneId = target.getAttribute('data-zone-id')
+          if (zoneId) {
+            setActiveAiZoneId(zoneId)
+            // Scroll the button into view
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }
+      })
+
       // Cleanup
       return () => resizeObserver.disconnect()
     }
@@ -449,30 +1147,350 @@ function InlineDocumentEditor({
     attachListeners()
     // Also attach on load as fallback for slower browsers/devices
     iframe.addEventListener('load', attachListeners, { once: true })
-    // Final fallback with longer timeout
-    setTimeout(attachListeners, 500)
-  }, [htmlContent]) // Only re-setup when template HTML changes, not on every value change
+    // Multiple fallback timeouts for slower devices
+    // These are progressive fallbacks - if one succeeds, the rest are no-ops
+    setTimeout(attachListeners, 100)   // Fast device fallback
+    setTimeout(attachListeners, 500)   // Medium device fallback
+    setTimeout(attachListeners, 1500)  // Slow device fallback
+    setTimeout(attachListeners, 3000)  // Very slow device fallback
+  }, [htmlContent, existingHtmlOverride, debouncedValuesChange]) // Re-setup when template HTML or html_override changes
 
   useEffect(() => {
     setupIframe()
   }, [setupIframe])
 
+  // Cleanup debounce timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Capture clean HTML from the iframe (replacing inputs with their values)
+  const captureCleanHtml = (): string | null => {
+    const iframe = iframeRef.current
+    if (!iframe?.contentDocument) return null
+
+    // Get the current HTML and clean it up using string manipulation
+    let html = iframe.contentDocument.documentElement.outerHTML
+
+    // Remove editor-specific style blocks (both old full-edit-styles and new block-edit-styles)
+    html = html.replace(/<style id="full-edit-styles">[\s\S]*?<\/style>/g, '')
+    html = html.replace(/<style id="block-edit-styles">[\s\S]*?<\/style>/g, '')
+
+    // Remove add-content buttons
+    html = html.replace(/<button[^>]*class="add-content-btn"[^>]*>[\s\S]*?<\/button>/g, '')
+
+    // Remove contenteditable and editable-block class from elements
+    html = html.replace(/(<body[^>]*)\s+contenteditable="true"/g, '$1')
+    html = html.replace(/(<body[^>]*)\s+style="[^"]*cursor:\s*text[^"]*"/g, '$1')
+    // Remove contenteditable from individual blocks
+    html = html.replace(/\s+contenteditable="true"/g, '')
+    // Remove editable-block class
+    html = html.replace(/\s+class="([^"]*)\s*editable-block\s*([^"]*)"/g, (match, before, after) => {
+      const remaining = (before + ' ' + after).trim()
+      return remaining ? ` class="${remaining}"` : ''
+    })
+    html = html.replace(/\s+class="editable-block\s*([^"]*)"/g, (match, after) => {
+      const remaining = after.trim()
+      return remaining ? ` class="${remaining}"` : ''
+    })
+    html = html.replace(/\s+class="([^"]*)\s*editable-block"/g, (match, before) => {
+      const remaining = before.trim()
+      return remaining ? ` class="${remaining}"` : ''
+    })
+
+    // Replace input fields with their values
+    // First, collect all input values from the live DOM
+    const inputValues: Record<string, string> = {}
+    iframe.contentDocument.querySelectorAll('.inline-field-input').forEach((input) => {
+      const field = input.getAttribute('data-field')
+      if (field) {
+        inputValues[field] = (input as HTMLInputElement).value
+      }
+    })
+
+    // Replace input elements with spans containing the values
+    // Preserve data-field attribute so we can convert back to inputs later
+    // Use a single flexible regex that matches inputs with both class and data-field in any order
+    html = html.replace(
+      /<input[^>]*data-field="([^"]*)"[^>]*class="inline-field-input[^"]*"[^>]*\/?>/g,
+      (match, field) => {
+        const value = inputValues[field] || ''
+        return `<span class="field-value" data-field="${field}">${value}</span>`
+      }
+    )
+    // Also handle the reverse order (class before data-field)
+    html = html.replace(
+      /<input[^>]*class="inline-field-input[^"]*"[^>]*data-field="([^"]*)"[^>]*\/?>/g,
+      (match, field) => {
+        const value = inputValues[field] || ''
+        return `<span class="field-value" data-field="${field}">${value}</span>`
+      }
+    )
+
+
+    // Replace checkboxes
+    const checkboxValues: Record<string, boolean> = {}
+    iframe.contentDocument.querySelectorAll('.inline-checkbox').forEach((input) => {
+      const field = input.getAttribute('data-field')
+      if (field) {
+        checkboxValues[field] = (input as HTMLInputElement).checked
+      }
+    })
+
+    // Pattern 1: class before data-field
+    html = html.replace(
+      /<input[^>]*class="inline-checkbox"[^>]*data-field="([^"]*)"[^>]*\/?>/g,
+      (match, field) => {
+        const checked = checkboxValues[field] || false
+        return `<span class="checkbox ${checked ? 'checked' : ''}" data-field="${field}"></span>`
+      }
+    )
+    // Pattern 2: data-field before class (this is how checkboxes are created)
+    html = html.replace(
+      /<input[^>]*data-field="([^"]*)"[^>]*class="inline-checkbox"[^>]*\/?>/g,
+      (match, field) => {
+        const checked = checkboxValues[field] || false
+        return `<span class="checkbox ${checked ? 'checked' : ''}" data-field="${field}"></span>`
+      }
+    )
+
+    // Remove AI clause buttons
+    html = html.replace(/<button[^>]*class="ai-clause-btn"[^>]*>[\s\S]*?<\/button>/g, '')
+
+    return html
+  }
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    captureHtmlOverride: captureCleanHtml,
+    isInFullEditMode: () => isFullDocumentEditRef.current,
+  }))
+
+  // Toggle full document edit mode
+  const toggleFullDocumentEdit = () => {
+    const newMode = !isFullDocumentEdit
+    setIsFullDocumentEdit(newMode)
+
+    const iframe = iframeRef.current
+    if (!iframe?.contentDocument?.body) return
+
+    if (newMode) {
+      // If there's an existing html_override, load it into the iframe
+      if (existingHtmlOverride) {
+        const doc = iframe.contentDocument
+        doc.open()
+        doc.write(existingHtmlOverride)
+        doc.close()
+      }
+
+      // Enable block-level editing instead of body-level contenteditable
+      enableBlockEditing(iframe.contentDocument)
+      injectAddContentButtons(iframe.contentDocument)
+
+      // Set up click handler for add-content buttons
+      iframe.contentDocument.addEventListener('click', handleIframeAddContentClick)
+    } else {
+      // Close any open popover
+      setAddContentPopover(null)
+      setShowClauseInput(false)
+      setClauseNumber('')
+
+      // Disable block-level editing
+      disableBlockEditing(iframe.contentDocument)
+
+      // Remove click handler
+      iframe.contentDocument.removeEventListener('click', handleIframeAddContentClick)
+
+      // Capture the edited HTML (cleaned) and notify parent
+      const cleanHtml = captureCleanHtml()
+      if (cleanHtml) {
+        // Update local ref so setupIframe uses the latest HTML
+        localHtmlOverrideRef.current = cleanHtml
+        // Also notify parent
+        if (onHtmlOverrideChange) {
+          onHtmlOverrideChange(cleanHtml)
+        }
+      }
+
+      // Update the ref BEFORE calling setupIframe so it knows we're exiting full edit mode
+      isFullDocumentEditRef.current = false
+
+      // Reload the template with input fields
+      setupIframe()
+    }
+  }
+
+  // Handle click on add-content buttons in iframe
+  const handleIframeAddContentClick = (e: Event) => {
+    const target = e.target as HTMLElement
+    if (target.classList.contains('add-content-btn')) {
+      const iframe = iframeRef.current
+      if (!iframe) return
+
+      const rect = target.getBoundingClientRect()
+      const iframeRect = iframe.getBoundingClientRect()
+      setAddContentPopover({
+        x: iframeRect.left + rect.left,
+        y: iframeRect.top + rect.bottom + 4,
+        insertAfterElement: target,
+      })
+      setShowClauseInput(false)
+      setClauseNumber('')
+    }
+  }
+
   return (
-    <div className="border border-[var(--gray-200)] rounded bg-white overflow-hidden">
-      <iframe
-        ref={iframeRef}
-        style={{
-          width: '100%',
-          height: `${iframeHeight}px`,
-          border: 'none',
-          display: 'block',
-        }}
-        sandbox="allow-same-origin"
-        title="Contract Editor"
-      />
+    <div className="space-y-4">
+      {/* Full Document Edit Toggle */}
+      <div className="flex items-center justify-between bg-[var(--gray-50)] border border-[var(--gray-200)] rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleFullDocumentEdit}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors ${
+              isFullDocumentEdit
+                ? 'bg-[var(--primary-700)] text-white'
+                : 'bg-white border border-[var(--gray-300)] text-[var(--gray-700)] hover:bg-[var(--gray-100)]'
+            }`}
+          >
+            <FileEdit className="w-4 h-4" />
+            {isFullDocumentEdit ? 'Exit Full Edit' : 'Edit Full Document'}
+          </button>
+          {isFullDocumentEdit && (
+            <span className="text-xs text-[var(--gray-500)]">
+              Click anywhere to edit text. Changes are saved when you exit.
+            </span>
+          )}
+        </div>
+        {/* Reset to Template button - clears html_override */}
+        {existingHtmlOverride && !isFullDocumentEdit && (
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm('Reset document to original template? This will undo all text edits (field values will be preserved).')) {
+                localHtmlOverrideRef.current = undefined
+                onHtmlOverrideChange?.(undefined)
+                setupIframe()
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-white border border-[var(--gray-300)] text-[var(--gray-600)] hover:bg-[var(--gray-100)] hover:text-[var(--error-600)]"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Reset to Template
+          </button>
+        )}
+      </div>
+
+      {isFullDocumentEdit && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+          <p className="text-sm text-amber-800">
+            You are editing the full document. Changes only apply to this contract.
+          </p>
+        </div>
+      )}
+
+      <div className="border border-[var(--gray-200)] rounded bg-white overflow-hidden">
+        <iframe
+          ref={iframeRef}
+          style={{
+            width: '100%',
+            height: `${iframeHeight}px`,
+            border: 'none',
+            display: 'block',
+          }}
+          sandbox="allow-same-origin"
+          title="Contract Editor"
+        />
+      </div>
+
+      {/* AI Clause Zone Modal - shown when user clicks a zone button in the document */}
+      <Dialog open={!!activeAiZoneId} onOpenChange={(open) => !open && setActiveAiZoneId(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[var(--primary-700)]" />
+              Generate AI Clauses
+            </DialogTitle>
+          </DialogHeader>
+          {activeAiZoneId && aiClauses !== undefined && onAiClausesChange && contractDetails && (
+            <InlineAIClauseZone
+              key={activeAiZoneId}
+              contractDetails={contractDetails}
+              clauses={getClausesForZone(activeAiZoneId)}
+              onClausesChange={(newClauses) => handleZoneClausesChange(activeAiZoneId, newClauses)}
+              startingSection={extractSectionNumber(activeAiZoneId)}
+              onClose={() => setActiveAiZoneId(null)}
+              inModal={true}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Content Popover - shown when user clicks "+" button in full edit mode */}
+      {addContentPopover && (
+        <div
+          className="fixed z-50 bg-white shadow-lg border rounded-lg p-3 w-56"
+          style={{ left: addContentPopover.x, top: addContentPopover.y }}
+        >
+          <div className="flex gap-2 mb-2">
+            <button
+              type="button"
+              onClick={() => insertContent('paragraph')}
+              className="flex-1 py-2 border rounded text-sm hover:bg-gray-50"
+            >
+              Paragraph
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowClauseInput(true)}
+              className="flex-1 py-2 border rounded text-sm hover:bg-gray-50"
+            >
+              Clause
+            </button>
+          </div>
+          {showClauseInput && (
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="Clause # (e.g., 12.7)"
+                value={clauseNumber}
+                onChange={(e) => setClauseNumber(e.target.value)}
+                className="w-full px-2 py-1 border rounded text-sm"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => insertContent('clause', clauseNumber)}
+                disabled={!clauseNumber.trim()}
+                className="w-full py-1.5 bg-[var(--primary-700)] text-white rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add Clause
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setAddContentPopover(null)
+              setShowClauseInput(false)
+              setClauseNumber('')
+            }}
+            className="absolute top-1 right-1 p-1 text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </div>
   )
-}
+})
+
+InlineDocumentEditor.displayName = 'InlineDocumentEditor'
 
 const statusConfig: Record<string, { label: string; icon: typeof Clock; color: string; bgColor: string }> = {
   draft: { label: 'Draft', icon: FileText, color: 'var(--gray-700)', bgColor: 'var(--gray-100)' },
@@ -502,6 +1520,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const [previewLoading, setPreviewLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const inlineEditorRef = useRef<InlineDocumentEditorRef>(null)
   const [formData, setFormData] = useState<FormData>({
     seller_name: '',
     seller_email: '',
@@ -904,8 +1923,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     setError(null)
 
     try {
-      // Open preview in new tab
-      // Timestamp busts browser cache to ensure fresh PDF
+      // Open preview in new tab (timestamp busts browser cache)
       window.open(`/api/contracts/${id}/preview?type=${type}&t=${Date.now()}`, '_blank')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate preview')
@@ -1248,6 +2266,10 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     }
 
     try {
+      // Wait a moment for any pending debounced input changes to flush
+      // This ensures slow devices have time to propagate all changes
+      await new Promise(resolve => setTimeout(resolve, 100))
+
       // Safety net: read current values directly from iframe inputs
       // in case event listeners didn't propagate changes to inlineValues
       const currentValues = { ...inlineValues }
@@ -1333,6 +2355,21 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
           // Non-standard field — store as-is in custom_fields
           newCustomFields[key] = value
         }
+      }
+
+      // Add AI clauses if present
+      newCustomFields.ai_clauses = aiClauses
+
+      // Capture html_override if in full document edit mode
+      if (inlineEditorRef.current?.isInFullEditMode()) {
+        const capturedHtml = inlineEditorRef.current.captureHtmlOverride()
+        if (capturedHtml) {
+          newCustomFields.html_override = capturedHtml
+        }
+      } else {
+        // Not in full edit mode - clear any old html_override that doesn't have proper field markup
+        // This ensures old-format overrides get cleared when saving in regular edit mode
+        delete newCustomFields.html_override
       }
 
       body.custom_fields = newCustomFields
@@ -1546,9 +2583,35 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                 template?.html_content ? (
                   /* Inline Document Editor for admin templates */
                   <InlineDocumentEditor
+                    ref={inlineEditorRef}
                     htmlContent={template.html_content}
                     values={inlineValues}
                     onValuesChange={setInlineValues}
+                    aiClauses={aiClauses}
+                    onAiClausesChange={setAiClauses}
+                    contractDetails={{
+                      property_address: inlineValues.property_address || formData.property_address,
+                      property_city: inlineValues.property_city || formData.property_city,
+                      property_state: inlineValues.property_state || formData.property_state,
+                      property_zip: inlineValues.property_zip || formData.property_zip,
+                      price: inlineValues.purchase_price || formData.price,
+                      seller_name: inlineValues.seller_name || formData.seller_name,
+                      close_of_escrow: inlineValues.close_of_escrow || formData.close_of_escrow,
+                      inspection_period: inlineValues.inspection_period || formData.inspection_period,
+                    }}
+                    existingHtmlOverride={contract?.custom_fields?.html_override}
+                    onHtmlOverrideChange={(html) => {
+                      // Update the contract's html_override in state
+                      if (contract) {
+                        setContract({
+                          ...contract,
+                          custom_fields: {
+                            ...contract.custom_fields,
+                            html_override: html,
+                          }
+                        })
+                      }
+                    }}
                   />
                 ) : (
                 /* Traditional Edit Mode */

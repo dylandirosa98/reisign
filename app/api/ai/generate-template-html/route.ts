@@ -156,24 +156,47 @@ IMPORTANT RULES:
 8. Return ONLY the HTML code, no explanation
 9. ALWAYS add a $ symbol before price/money placeholders (e.g., $\{\{purchase_price\}\}, $\{\{earnest_money\}\}, $\{\{assignment_fee\}\}) - the form only accepts numbers so the $ must be in the template
 
+AI CLAUSES ZONE:
+10. If you see "(ai clauses)", "(AI Clauses)", "[ai clauses]", or similar markers in the text, replace it with the AI clause zone HTML block. Determine the correct section number based on the surrounding sections (if the previous section was 8.3, the AI clauses should start at 8.4 or 9.1 depending on context).
+11. The AI clause zone should be formatted as:
+<!-- AI_CLAUSES_START section="X.X" -->
+<div class="ai-clause-zone" data-section="X.X">
+  {{ai_clauses}}
+</div>
+<!-- AI_CLAUSES_END -->
+Where X.X is the appropriate section number based on surrounding context.
+
 CRITICAL PLACEHOLDER RULES:
-10. Every <span class="field-line"> MUST contain a {{placeholder}} — NEVER leave one empty.
+10. Every <span class="field-line"> MUST contain ONLY a {{placeholder}} — NEVER leave one empty, and NEVER put label text inside it.
 11. For fields matching the standard list below, use the standard name (e.g., {{seller_name}}, {{purchase_price}}).
 12. For ALL OTHER blank/fill-in lines, create a descriptive snake_case placeholder from the surrounding context (e.g., {{repair_deadline_days}}, {{mortgage_type_from}}, {{title_company_name}}, {{closing_date_extension}}).
 13. Prefix monetary placeholders with $ in the template (e.g., $\{\{repair_cost_limit\}\}).
 14. For yes/no options, multiple-choice selections, or anywhere a checkmark/checkbox makes sense, put the placeholder in the CLASS attribute: <span class="checkbox {{field_name_check}}"></span> — the _check suffix indicates a checkbox placeholder. The value will be "checked" or "" which toggles the CSS class.
 15. When the plain text has a label followed by a colon and then a blank line, underscores, dashes, or whitespace (e.g., "Buyer Name: ___________", "Phone: ", "Address:                "), that colon signals a fill-in field — ALWAYS place a <span class="field-line">{{placeholder}}</span> after the colon. Derive the placeholder name from the label (e.g., "Buyer Name:" → {{buyer_name}}, "License #:" → {{license_number}}, "Title Company:" → {{title_company_name}}).
 
+SUPER CRITICAL - LABEL TEXT MUST BE OUTSIDE THE SPAN:
+16. The <span class="field-line"> must contain ONLY the {{placeholder}} tag and nothing else.
+17. All label text, colons, underscores, and descriptive text MUST be OUTSIDE the span as regular text.
+18. NEVER put "Label:", "Name:", or any text inside the field-line span.
+19. If the original text has "Label: _____", the output MUST be "Label: <span class="field-line">{{placeholder}}</span>" — the "Label:" part stays as regular text OUTSIDE the span.
+
 EXAMPLES:
 
-CORRECT text field:
+CORRECT text field (label OUTSIDE span):
   Seller agrees to complete repairs within <span class="field-line">{{repair_deadline_days}}</span> days.
 
-CORRECT colon field (label followed by colon and blank):
+CORRECT colon field (label OUTSIDE span, only placeholder inside):
   Buyer Name: <span class="field-line">{{buyer_name}}</span>
   Phone: <span class="field-line">{{seller_phone}}</span>
   Title Company: <span class="field-line">{{title_company_name}}</span>
   License #: <span class="field-line">{{license_number}}</span>
+
+INCORRECT (label text INSIDE span — NEVER do this):
+  <span class="field-line">Buyer Name: {{buyer_name}}</span>
+  <span class="field-line">Phone: {{seller_phone}}</span>
+
+INCORRECT (underscores inside span — NEVER do this):
+  Buyer Name: <span class="field-line">____{{buyer_name}}</span>
 
 INCORRECT (empty field-line — NEVER do this):
   Seller agrees to complete repairs within <span class="field-line"></span> days.
@@ -231,7 +254,7 @@ Return a complete HTML document:
       messages: [
         {
           role: 'system',
-          content: 'You are a legal document HTML formatter specializing in real estate contracts. You convert plain text contracts into properly formatted HTML using a specific CSS framework. You MUST use the exact CSS classes provided (like .paragraph, .section-header, .subsection, .field-line) - never create your own styles. You preserve the exact text while adding proper structure. You use placeholders like {{seller_name}} for dynamic values. CRITICAL: Every blank fill-in line MUST get a {{placeholder}} — never leave a field-line empty. When you see a label followed by a colon and a blank/underscores (e.g., "Buyer Name: ___", "Phone: "), that is ALWAYS a fill-in field — place a <span class="field-line">{{placeholder}}</span> after the colon. The output should look like a professional legal document with Times New Roman font, proper section numbering, and justified text.',
+          content: 'You are a legal document HTML formatter specializing in real estate contracts. You convert plain text contracts into properly formatted HTML using a specific CSS framework. You MUST use the exact CSS classes provided (like .paragraph, .section-header, .subsection, .field-line) - never create your own styles. You preserve the exact text while adding proper structure. You use placeholders like {{seller_name}} for dynamic values. CRITICAL: Every blank fill-in line MUST get a {{placeholder}} — never leave a field-line empty. When you see a label followed by a colon and a blank/underscores (e.g., "Buyer Name: ___", "Phone: "), that is ALWAYS a fill-in field — place a <span class="field-line">{{placeholder}}</span> after the colon. SUPER IMPORTANT: The label text (like "Buyer Name:") must stay OUTSIDE the span as regular editable text. The span must contain ONLY the {{placeholder}} tag. WRONG: <span class="field-line">Buyer Name: {{name}}</span>. CORRECT: Buyer Name: <span class="field-line">{{name}}</span>. The output should look like a professional legal document with Times New Roman font, proper section numbering, and justified text. When you see "(ai clauses)" or similar markers, replace them with the AI clause zone HTML block with proper section numbering based on context.',
         },
         {
           role: 'user',
@@ -252,8 +275,45 @@ Return a complete HTML document:
       html = '<!DOCTYPE html>\n<html>\n<head>\n<style>\nbody { font-family: "Times New Roman", serif; font-size: 11pt; line-height: 1.4; }\n</style>\n</head>\n<body>\n' + html + '\n</body>\n</html>'
     }
 
-    // Post-processing: warn about any empty field-line spans and fix them
-    const emptyFieldLineRegex = /<span class="field-line">\s*<\/span>/g
+    // Post-processing: Fix field-line spans that have label text inside them
+    // Pattern: <span class="field-line">Label Text: {{placeholder}}</span>
+    // Should be: Label Text: <span class="field-line">{{placeholder}}</span>
+    html = html.replace(
+      /<span class="field-line([^"]*)">([^<{]+?)(\{\{[^}]+\}\})<\/span>/g,
+      (match, classes, labelText, placeholder) => {
+        const trimmedLabel = labelText.trim()
+        if (trimmedLabel) {
+          console.log(`[AI HTML] Fixed label inside span: "${trimmedLabel}" moved outside`)
+          return `${trimmedLabel} <span class="field-line${classes}">${placeholder}</span>`
+        }
+        return match
+      }
+    )
+
+    // Post-processing: Fix field-line spans that have underscores before the placeholder
+    // Pattern: <span class="field-line">___{{placeholder}}</span>
+    // Should be: <span class="field-line">{{placeholder}}</span>
+    html = html.replace(
+      /<span class="field-line([^"]*)">[\s_-]+(\{\{[^}]+\}\})<\/span>/g,
+      (match, classes, placeholder) => {
+        console.log(`[AI HTML] Removed underscores/dashes from inside field-line span`)
+        return `<span class="field-line${classes}">${placeholder}</span>`
+      }
+    )
+
+    // Post-processing: Fix field-line spans that have underscores after the placeholder
+    // Pattern: <span class="field-line">{{placeholder}}___</span>
+    // Should be: <span class="field-line">{{placeholder}}</span>
+    html = html.replace(
+      /<span class="field-line([^"]*)">(\{\{[^}]+\}\})[\s_-]+<\/span>/g,
+      (match, classes, placeholder) => {
+        console.log(`[AI HTML] Removed trailing underscores/dashes from inside field-line span`)
+        return `<span class="field-line${classes}">${placeholder}</span>`
+      }
+    )
+
+    // Post-processing: warn about any empty field-line spans
+    const emptyFieldLineRegex = /<span class="field-line[^"]*">\s*<\/span>/g
     const emptyFieldLines = html.match(emptyFieldLineRegex)
     if (emptyFieldLines) {
       console.warn(`[AI HTML] WARNING: ${emptyFieldLines.length} empty field-line spans found. These should contain {{placeholder}} tags.`)

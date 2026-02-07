@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   FileText,
@@ -16,7 +16,16 @@ import {
   Eye,
   ExternalLink,
   FileSearch,
+  Wand2,
 } from 'lucide-react'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 import {
   CompanyTemplate,
   CustomField,
@@ -468,6 +477,20 @@ function TemplateEditor({
   const [showHtmlEditor, setShowHtmlEditor] = useState(!!template?.html_content) // Show HTML editor if editing existing template
   const [hasGeneratedHtml, setHasGeneratedHtml] = useState(!!template?.html_content)
 
+  // AI Clause Zone insert
+  const [aiClauseSection, setAiClauseSection] = useState('')
+  const [aiClausePopoverOpen, setAiClausePopoverOpen] = useState(false)
+  const htmlTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // AI Clause Zone modal for preview mode
+  const [showAiClauseModal, setShowAiClauseModal] = useState(false)
+  const [aiClauseSectionNumber, setAiClauseSectionNumber] = useState('')
+  const [isInsertingAiClause, setIsInsertingAiClause] = useState(false)
+  const [aiClauseError, setAiClauseError] = useState('')
+
+  // Check if template already has AI clause zone
+  const hasAiClauseZone = htmlContent.includes('{{ai_clauses}}') || htmlContent.includes('class="ai-clause-zone"')
+
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim().toLowerCase())) {
       setTags([...tags, tagInput.trim().toLowerCase()])
@@ -549,6 +572,90 @@ function TemplateEditor({
     const placeholder = `{{${key}}}`
     setHtmlContent(htmlContent + placeholder)
     setShowPlaceholderPicker(false)
+  }
+
+  const handleInsertAIClauseZone = useCallback(() => {
+    const textarea = htmlTextareaRef.current
+    if (!textarea) return
+
+    const sectionAttr = aiClauseSection.trim() || 'auto'
+    const htmlToInsert = `
+<!-- AI_CLAUSES_START section="${sectionAttr}" -->
+<div class="ai-clause-zone" data-section="${sectionAttr}">
+  {{ai_clauses}}
+</div>
+<!-- AI_CLAUSES_END -->
+`
+
+    // Get cursor position
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const before = htmlContent.substring(0, start)
+    const after = htmlContent.substring(end)
+
+    // Insert at cursor
+    const newContent = before + htmlToInsert + after
+    setHtmlContent(newContent)
+
+    // Reset and close popover
+    setAiClauseSection('')
+    setAiClausePopoverOpen(false)
+
+    // Focus textarea and set cursor after inserted content
+    setTimeout(() => {
+      textarea.focus()
+      const newCursorPos = start + htmlToInsert.length
+      textarea.setSelectionRange(newCursorPos, newCursorPos)
+    }, 0)
+  }, [aiClauseSection, htmlContent])
+
+  // Insert AI Clause Zone via AI (for preview mode)
+  const handleInsertAiClauseViaAi = async () => {
+    if (!aiClauseSectionNumber.trim()) {
+      setAiClauseError('Please enter a section number')
+      return
+    }
+
+    setIsInsertingAiClause(true)
+    setAiClauseError('')
+
+    try {
+      const res = await fetch('/api/ai/insert-ai-clause-zone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          html: htmlContent,
+          sectionNumber: aiClauseSectionNumber.trim(),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to insert AI clause zone')
+      }
+
+      setHtmlContent(data.html)
+      setShowAiClauseModal(false)
+      setAiClauseSectionNumber('')
+    } catch (error) {
+      setAiClauseError(error instanceof Error ? error.message : 'Failed to insert AI clause zone')
+    } finally {
+      setIsInsertingAiClause(false)
+    }
+  }
+
+  // Remove AI Clause Zone
+  const handleRemoveAiClauseZone = () => {
+    // Remove the AI clause zone from HTML
+    let newHtml = htmlContent
+    // Remove the full block with comments
+    newHtml = newHtml.replace(/<!-- AI_CLAUSES_START[^>]*-->[\s\S]*?<!-- AI_CLAUSES_END -->\n?/g, '')
+    // Also remove just the div if no comments
+    newHtml = newHtml.replace(/<div class="ai-clause-zone"[^>]*>[\s\S]*?<\/div>\n?/g, '')
+    // Also remove standalone placeholder
+    newHtml = newHtml.replace(/\{\{ai_clauses\}\}\n?/g, '')
+    setHtmlContent(newHtml)
   }
 
   // Generate HTML from plain text using AI
@@ -1121,17 +1228,46 @@ The closing shall occur on [Date]..."
                         className="w-full h-[300px] px-3 py-2 font-mono text-xs border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)] bg-[var(--gray-50)]"
                       />
 
-                      {/* AI Clauses Documentation */}
+                      {/* AI Clauses Section */}
                       <div className="mt-3 p-3 bg-[var(--primary-50)] border border-[var(--primary-200)] rounded-lg">
-                        <h4 className="text-xs font-semibold text-[var(--primary-800)] mb-1">AI-Generated Clauses</h4>
-                        <p className="text-xs text-[var(--primary-700)] mb-2">
-                          Use <code className="bg-[var(--primary-100)] px-1 rounded">{'{{ai_clauses}}'}</code> to mark where AI-generated clauses should appear.
-                        </p>
-                        <ul className="text-xs text-[var(--primary-700)] space-y-1 ml-3 list-disc">
-                          <li>Clauses will be auto-numbered based on their position in the document</li>
-                          <li>Place this placeholder after the section where you want clauses to appear</li>
-                          <li>Users can generate and customize clauses when creating contracts</li>
-                        </ul>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs font-semibold text-[var(--primary-800)]">AI-Generated Clauses</h4>
+                          {hasAiClauseZone ? (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Added
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {hasAiClauseZone ? (
+                          <div>
+                            <p className="text-xs text-[var(--primary-700)] mb-2">
+                              AI clause zone is included in this template. Users can generate custom clauses when creating contracts.
+                            </p>
+                            <button
+                              onClick={handleRemoveAiClauseZone}
+                              className="text-xs text-red-600 hover:text-red-700 underline"
+                            >
+                              Remove AI Clause Zone
+                            </button>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="text-xs text-[var(--primary-700)] mb-3">
+                              Add AI-generated clauses to let users create custom contract terms based on their specific situation.
+                            </p>
+                            <button
+                              onClick={() => setShowAiClauseModal(true)}
+                              className="w-full px-3 py-2 bg-[var(--primary-600)] text-white text-sm rounded-lg hover:bg-[var(--primary-700)] flex items-center justify-center gap-2"
+                            >
+                              <Wand2 className="w-4 h-4" />
+                              Add AI Clause Zone
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1172,6 +1308,92 @@ The closing shall occur on [Date]..."
         </div>
       </div>
 
+      {/* AI Clause Zone Modal */}
+      {showAiClauseModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--gray-200)]">
+              <div className="flex items-center gap-2">
+                <Wand2 className="w-5 h-5 text-[var(--primary-600)]" />
+                <h3 className="text-lg font-semibold text-[var(--gray-900)]">Add AI Clause Zone</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAiClauseModal(false)
+                  setAiClauseError('')
+                }}
+                className="text-[var(--gray-400)] hover:text-[var(--gray-600)]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-sm text-[var(--gray-600)] mb-4">
+                  AI-generated clauses let users add custom contract terms based on their specific situation. Enter the section number where you want AI clauses to appear.
+                </p>
+
+                <div>
+                  <label className="block text-sm font-medium text-[var(--gray-900)] mb-1">
+                    Section Number
+                  </label>
+                  <p className="text-xs text-[var(--gray-500)] mb-2">
+                    Be specific with the section number (e.g., 5.1, 8, 12.3). The AI will insert the clause zone at that section.
+                  </p>
+                  <input
+                    type="text"
+                    value={aiClauseSectionNumber}
+                    onChange={(e) => setAiClauseSectionNumber(e.target.value)}
+                    placeholder="e.g., 5.1"
+                    className="w-full px-3 py-2 text-sm border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
+                    autoFocus
+                  />
+                  <p className="text-xs text-[var(--gray-400)] mt-2">
+                    Example: If you enter &quot;5.1&quot;, the AI clause zone will be added as section 5.1, and clauses will be numbered 5.1, 5.2, 5.3, etc.
+                  </p>
+                </div>
+              </div>
+
+              {aiClauseError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                  {aiClauseError}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 p-4 border-t border-[var(--gray-200)]">
+              <button
+                onClick={() => {
+                  setShowAiClauseModal(false)
+                  setAiClauseError('')
+                  setAiClauseSectionNumber('')
+                }}
+                className="px-4 py-2 text-[var(--gray-700)] hover:bg-[var(--gray-100)] rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleInsertAiClauseViaAi}
+                disabled={isInsertingAiClause || !aiClauseSectionNumber.trim()}
+                className="px-4 py-2 bg-[var(--primary-600)] text-white rounded-lg hover:bg-[var(--primary-700)] disabled:opacity-50 flex items-center gap-2"
+              >
+                {isInsertingAiClause ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-4 h-4" />
+                    Add AI Clause Zone
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

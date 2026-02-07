@@ -1,4 +1,5 @@
-import puppeteer from 'puppeteer-core'
+import puppeteerCore from 'puppeteer-core'
+import puppeteer from 'puppeteer'
 import chromium from '@sparticuz/chromium-min'
 import fs from 'fs/promises'
 import path from 'path'
@@ -10,6 +11,11 @@ const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'pro
 
 // Remote chromium URL for serverless environments
 const CHROMIUM_REMOTE_URL = 'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
+
+// Get the puppeteer module to use based on environment
+// In production, use puppeteer-core with @sparticuz/chromium-min
+// In development, use puppeteer with its bundled Chromium
+const getPuppeteer = () => isProduction ? puppeteerCore : puppeteer
 
 export interface ContractData {
   // Property fields
@@ -82,6 +88,9 @@ export interface ContractData {
 
   // Extra fields from AI-generated templates (non-standard placeholders)
   extra_fields?: Record<string, string>
+
+  // Full document HTML override (from rich text editor, replaces template)
+  html_override?: string
 }
 
 export type TemplateType = 'purchase-agreement' | 'assignment-contract'
@@ -100,8 +109,26 @@ class PDFGeneratorService {
   /**
    * Detect the section number that precedes the {{ai_clauses}} placeholder
    * Returns the starting number for AI clauses (e.g., if after section 8.3, returns { major: 8, minor: 4 })
+   *
+   * Priority:
+   * 1. Check for explicit data-section attribute in AI clause zone div
+   * 2. Auto-detect from preceding section numbers
+   * 3. Default fallback to 12.6
    */
   private detectClausePosition(template: string): { major: number; minor: number } {
+    // First, check for explicit data-section attribute in AI clause zone
+    const dataSectionMatch = template.match(/data-section="([^"]+)"/)
+    if (dataSectionMatch && dataSectionMatch[1] !== 'auto') {
+      const parts = dataSectionMatch[1].split('.')
+      if (parts.length >= 2) {
+        const major = parseInt(parts[0], 10)
+        const minor = parseInt(parts[1], 10)
+        if (!isNaN(major) && !isNaN(minor)) {
+          return { major, minor }
+        }
+      }
+    }
+
     // Find where {{ai_clauses}} appears in the template
     const placeholderIndex = template.indexOf('{{ai_clauses}}')
     if (placeholderIndex === -1) {
@@ -456,8 +483,8 @@ class PDFGeneratorService {
       hoa_fees_split_check: data.extra_fields?.hoa_fees_split_check || (data.hoa_fees_split === 'split' ? 'checked' : ''),
       hoa_fees_buyer_check: data.extra_fields?.hoa_fees_buyer_check || (data.hoa_fees_split === 'buyer' ? 'checked' : ''),
 
-      // AI Clauses - convert array to HTML with auto-numbering based on position
-      ai_clauses: this.formatAiClauses(data.ai_clauses, this.detectClausePosition(template)),
+      // AI Clauses - handled separately at the end to ensure correct positioning
+      ai_clauses: '',
 
       // Date
       contract_date: contractDate,
@@ -497,13 +524,24 @@ class PDFGeneratorService {
       (typeof data.ai_clauses === 'string' && data.ai_clauses.trim()) ||
       (Array.isArray(data.ai_clauses) && data.ai_clauses.length > 0)
     )
+
+    // IMPORTANT: Remove ALL AI clause placeholders from wherever they appear
+    // We'll insert clauses at the correct position below
+    result = result.replace(/\{\{#if ai_clauses\}\}[\s\S]*?\{\{\/if\}\}/g, '')
+    result = result.replace(/\{\{ai_clauses\}\}/g, '')
+    result = result.replace(/<div[^>]*class="ai-clause-zone"[^>]*>[\s\S]*?<\/div>/g, '')
+    // Also remove any ai-clause-zone-container divs (from inline editor)
+    result = result.replace(/<div[^>]*class="ai-clause-zone-container"[^>]*>[\s\S]*?<\/div>\s*<\/div>/g, '')
+
+    // If there are AI clauses, insert them at the correct position (before </body>)
     if (hasAiClauses) {
-      // Remove the conditional tags, keep the content
-      result = result.replace(/\{\{#if ai_clauses\}\}/g, '')
-      result = result.replace(/\{\{\/if\}\}/g, '')
-    } else {
-      // Remove the entire AI clauses block if empty
-      result = result.replace(/\{\{#if ai_clauses\}\}[\s\S]*?\{\{\/if\}\}/g, '')
+      const aiClausesHtml = this.formatAiClauses(data.ai_clauses, this.detectClausePosition(template))
+      // Insert before </body> tag
+      if (result.includes('</body>')) {
+        result = result.replace('</body>', `${aiClausesHtml}</body>`)
+      } else {
+        result = result + aiClausesHtml
+      }
     }
 
     return result
@@ -758,9 +796,23 @@ class PDFGeneratorService {
     companyTemplateId?: string,
     adminTemplateId?: string
   ): Promise<{ pdfBuffer: Buffer; signatureLayout?: string }> {
-    // Load and interpolate template (pass company/admin template ID and state for lookup)
-    const { html: templateHtml, signatureLayout } = await this.loadTemplate(templateType, data.property_state, companyTemplateId, adminTemplateId)
-    let html = this.interpolateTemplate(templateHtml, data)
+    // If contract has an html_override from full document editing, use it directly
+    let html: string
+    let signatureLayout: string | undefined
+
+    if (data.html_override) {
+      console.log('[PDF Generator] Using html_override from contract')
+      // Wrap body content in a basic HTML document
+      html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${data.html_override}</body></html>`
+      // Still need to load the template for signature layout
+      const templateResult = await this.loadTemplate(templateType, data.property_state, companyTemplateId, adminTemplateId)
+      signatureLayout = templateResult.signatureLayout
+    } else {
+      // Load and interpolate template (pass company/admin template ID and state for lookup)
+      const templateResult = await this.loadTemplate(templateType, data.property_state, companyTemplateId, adminTemplateId)
+      signatureLayout = templateResult.signatureLayout
+      html = this.interpolateTemplate(templateResult.html, data)
+    }
 
     // Inject fonts for consistent rendering
     html = this.injectFonts(html)
@@ -811,20 +863,23 @@ class PDFGeneratorService {
     const footerTemplate = this.generateFooterTemplate(buyerInitialsImg, signatureLayout)
 
     // Launch Puppeteer with appropriate chromium for environment
-    const browser = await puppeteer.launch({
+    // In production: use puppeteer-core with @sparticuz/chromium-min (serverless-compatible)
+    // In development: use puppeteer with its bundled Chromium (no separate install needed)
+    const puppeteerInstance = getPuppeteer()
+    const launchOptions: Parameters<typeof puppeteerInstance.launch>[0] = {
       args: isProduction
         ? chromium.args
         : ['--no-sandbox', '--disable-setuid-sandbox'],
       defaultViewport: { width: 1920, height: 1080 },
-      executablePath: isProduction
-        ? await chromium.executablePath(CHROMIUM_REMOTE_URL)
-        : process.platform === 'win32'
-          ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
-          : process.platform === 'darwin'
-            ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-            : '/usr/bin/google-chrome',
       headless: true,
-    })
+    }
+
+    // Only set executablePath in production (puppeteer in dev uses bundled Chromium)
+    if (isProduction) {
+      launchOptions.executablePath = await chromium.executablePath(CHROMIUM_REMOTE_URL)
+    }
+
+    const browser = await puppeteerInstance.launch(launchOptions)
 
     let pdfBytes: Uint8Array
 

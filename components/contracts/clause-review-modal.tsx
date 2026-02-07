@@ -19,6 +19,7 @@ export interface AIClause {
   content: string
   status: 'pending' | 'approved' | 'rejected' | 'edited'
   editedContent?: string
+  zoneId?: string  // Which AI clause zone this belongs to (for multi-zone support)
 }
 
 interface ClauseReviewModalProps {

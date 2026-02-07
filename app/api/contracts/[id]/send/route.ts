@@ -137,6 +137,10 @@ export async function POST(
     company_phone?: string
     buyer_signature?: string
     buyer_initials?: string
+    // AI-generated clauses (saved from inline editor)
+    ai_clauses?: Array<{ id: string; title: string; content: string; editedContent?: string }>
+    // Full document HTML override
+    html_override?: string
     company_template_id?: string
     admin_template_id?: string
     // Three-party document IDs
@@ -305,8 +309,11 @@ export async function POST(
       buyer_signature: customFields?.buyer_signature,
       buyer_initials: customFields?.buyer_initials,
 
-      // AI Clauses
-      ai_clauses: aiClausesHtml,
+      // AI Clauses - use saved clauses from custom_fields if available, otherwise use generated ones
+      ai_clauses: customFields?.ai_clauses || aiClausesHtml || undefined,
+
+      // Full document HTML override
+      html_override: customFields?.html_override,
     }
 
     // Collect non-standard custom_fields into extra_fields for arbitrary placeholder replacement
@@ -321,6 +328,7 @@ export async function POST(
       'ai_clauses', 'company_template_id', 'admin_template_id',
       'purchase_template_id', 'assignment_template_id', 'contract_type',
       'documenso_seller_document_id', 'documenso_buyer_document_id', 'seller_signed_at',
+      'html_override',
     ])
 
     if (customFields) {

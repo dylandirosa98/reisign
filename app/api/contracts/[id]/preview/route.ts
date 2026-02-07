@@ -155,6 +155,8 @@ export async function GET(
     buyer_signature?: string
     buyer_initials?: string
     ai_clauses?: Array<{ id: string; title: string; content: string; editedContent?: string }>
+    // Full document HTML override
+    html_override?: string
     // Template references
     company_template_id?: string
     admin_template_id?: string
@@ -223,6 +225,7 @@ export async function GET(
       hoa_fees_split: customFields?.hoa_fees_split,
       buyer_signature: customFields?.buyer_signature,
       buyer_initials: customFields?.buyer_initials,
+      html_override: customFields?.html_override,
     }
 
     // Collect non-standard custom_fields into extra_fields for arbitrary placeholder replacement
@@ -237,6 +240,7 @@ export async function GET(
       'ai_clauses', 'company_template_id', 'admin_template_id',
       'purchase_template_id', 'assignment_template_id', 'contract_type',
       'documenso_seller_document_id', 'documenso_buyer_document_id', 'seller_signed_at',
+      'html_override',
     ])
 
     if (customFields) {

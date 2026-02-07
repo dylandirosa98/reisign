@@ -39,6 +39,7 @@
     "pg": "^8.17.1",
     "puppeteer": "^24.35.0",
     "puppeteer-core": "^24.35.0",
+    "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.1",
