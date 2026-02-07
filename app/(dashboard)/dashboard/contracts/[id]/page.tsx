@@ -305,6 +305,19 @@ const InlineDocumentEditor = React.forwardRef<InlineDocumentEditorRef, {
     const style = doc.createElement('style')
     style.id = 'block-edit-styles'
     style.textContent = `
+      /* Force font inheritance on all elements to prevent style loss when editing */
+      .editable-block,
+      .editable-block *,
+      .editable-block span,
+      .editable-block div,
+      .editable-block b,
+      .editable-block i,
+      .editable-block font {
+        font-family: inherit !important;
+        font-size: inherit !important;
+        line-height: inherit !important;
+        color: inherit !important;
+      }
       .editable-block {
         cursor: text;
         transition: outline 0.15s;
@@ -369,64 +382,8 @@ const InlineDocumentEditor = React.forwardRef<InlineDocumentEditorRef, {
       })
     })
 
-    // Protect inputs from accidental deletion via backspace/delete at edges
-    // But allow deleting entire blocks or selections - user knows what they're doing
-    const protectInputs = (e: Event) => {
-      const event = e as InputEvent
-      // Only care about delete operations
-      if (!event.inputType?.includes('delete')) return
-
-      const selection = doc.getSelection()
-      if (!selection || selection.rangeCount === 0) return
-
-      const range = selection.getRangeAt(0)
-
-      // Allow selections - user intentionally selected content to delete
-      if (!range.collapsed) return
-
-      // For single cursor, only prevent if cursor is RIGHT AT the edge of an input
-      const container = range.startContainer
-      const offset = range.startOffset
-
-      // If deleting backwards (backspace), only block if cursor is at position 0
-      // AND the previous sibling is a protected element
-      if (event.inputType === 'deleteContentBackward') {
-        if (offset === 0) {
-          const prevSibling = container.previousSibling ||
-            (container.nodeType === Node.TEXT_NODE && container.parentElement?.previousSibling)
-          if (prevSibling && (
-            (prevSibling as Element).matches?.(PROTECTED_ELEMENTS) ||
-            (prevSibling as Element).querySelector?.(PROTECTED_ELEMENTS)
-          )) {
-            e.preventDefault()
-            return
-          }
-        }
-      }
-
-      // If deleting forwards (delete key), only block if cursor is at end of text
-      // AND the next sibling is a protected element
-      if (event.inputType === 'deleteContentForward') {
-        const atEnd = container.nodeType === Node.TEXT_NODE
-          ? offset === (container as Text).length
-          : offset === container.childNodes.length
-        if (atEnd) {
-          const nextSibling = container.nextSibling ||
-            (container.nodeType === Node.TEXT_NODE && container.parentElement?.nextSibling)
-          if (nextSibling && (
-            (nextSibling as Element).matches?.(PROTECTED_ELEMENTS) ||
-            (nextSibling as Element).querySelector?.(PROTECTED_ELEMENTS)
-          )) {
-            e.preventDefault()
-            return
-          }
-        }
-      }
-    }
-
-    doc.addEventListener('beforeinput', protectInputs)
-    // Store the handler so we can remove it later
-    ;(doc as any).__protectInputsHandler = protectInputs
+    // No deletion protection - let users edit freely
+    // The font inheritance CSS above will maintain styling
   }
 
   // Disable block-level editing
@@ -434,13 +391,6 @@ const InlineDocumentEditor = React.forwardRef<InlineDocumentEditorRef, {
     // Remove block editing styles
     const style = doc.getElementById('block-edit-styles')
     if (style) style.remove()
-
-    // Remove the input protection event listener
-    const handler = (doc as any).__protectInputsHandler
-    if (handler) {
-      doc.removeEventListener('beforeinput', handler)
-      delete (doc as any).__protectInputsHandler
-    }
 
     // Remove contenteditable and class from blocks
     doc.querySelectorAll('.editable-block').forEach(el => {
