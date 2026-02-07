@@ -369,8 +369,8 @@ const InlineDocumentEditor = React.forwardRef<InlineDocumentEditorRef, {
       })
     })
 
-    // Protect inputs from being deleted via backspace/delete
-    // This event listener prevents deletion of protected elements
+    // Protect inputs from accidental deletion via backspace/delete at edges
+    // But allow deleting entire blocks or selections - user knows what they're doing
     const protectInputs = (e: Event) => {
       const event = e as InputEvent
       // Only care about delete operations
@@ -381,46 +381,45 @@ const InlineDocumentEditor = React.forwardRef<InlineDocumentEditorRef, {
 
       const range = selection.getRangeAt(0)
 
-      // Check if the selection includes any protected elements
-      const container = range.commonAncestorContainer
-      const parentEl = container.nodeType === Node.TEXT_NODE
-        ? container.parentElement
-        : container as Element
+      // Allow selections - user intentionally selected content to delete
+      if (!range.collapsed) return
 
-      if (!parentEl) return
+      // For single cursor, only prevent if cursor is RIGHT AT the edge of an input
+      const container = range.startContainer
+      const offset = range.startOffset
 
-      // If deleting backwards (backspace), check what's before cursor
+      // If deleting backwards (backspace), only block if cursor is at position 0
+      // AND the previous sibling is a protected element
       if (event.inputType === 'deleteContentBackward') {
-        const prevSibling = range.startContainer.previousSibling ||
-          (range.startContainer.parentElement?.previousSibling)
-        if (prevSibling && (
-          (prevSibling as Element).matches?.(PROTECTED_ELEMENTS) ||
-          (prevSibling as Element).querySelector?.(PROTECTED_ELEMENTS)
-        )) {
-          e.preventDefault()
-          return
+        if (offset === 0) {
+          const prevSibling = container.previousSibling ||
+            (container.nodeType === Node.TEXT_NODE && container.parentElement?.previousSibling)
+          if (prevSibling && (
+            (prevSibling as Element).matches?.(PROTECTED_ELEMENTS) ||
+            (prevSibling as Element).querySelector?.(PROTECTED_ELEMENTS)
+          )) {
+            e.preventDefault()
+            return
+          }
         }
       }
 
-      // If deleting forwards (delete key), check what's after cursor
+      // If deleting forwards (delete key), only block if cursor is at end of text
+      // AND the next sibling is a protected element
       if (event.inputType === 'deleteContentForward') {
-        const nextSibling = range.endContainer.nextSibling ||
-          (range.endContainer.parentElement?.nextSibling)
-        if (nextSibling && (
-          (nextSibling as Element).matches?.(PROTECTED_ELEMENTS) ||
-          (nextSibling as Element).querySelector?.(PROTECTED_ELEMENTS)
-        )) {
-          e.preventDefault()
-          return
-        }
-      }
-
-      // If there's a selection range, check if it contains protected elements
-      if (!range.collapsed) {
-        const fragment = range.cloneContents()
-        if (fragment.querySelector(PROTECTED_ELEMENTS)) {
-          e.preventDefault()
-          return
+        const atEnd = container.nodeType === Node.TEXT_NODE
+          ? offset === (container as Text).length
+          : offset === container.childNodes.length
+        if (atEnd) {
+          const nextSibling = container.nextSibling ||
+            (container.nodeType === Node.TEXT_NODE && container.parentElement?.nextSibling)
+          if (nextSibling && (
+            (nextSibling as Element).matches?.(PROTECTED_ELEMENTS) ||
+            (nextSibling as Element).querySelector?.(PROTECTED_ELEMENTS)
+          )) {
+            e.preventDefault()
+            return
+          }
         }
       }
     }
