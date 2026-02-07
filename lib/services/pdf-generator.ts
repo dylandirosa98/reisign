@@ -802,8 +802,15 @@ class PDFGeneratorService {
 
     if (data.html_override) {
       console.log('[PDF Generator] Using html_override from contract')
-      // Wrap body content in a basic HTML document
-      html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${data.html_override}</body></html>`
+      // Check if html_override is already a full HTML document or just body content
+      if (data.html_override.trim().toLowerCase().startsWith('<!doctype') ||
+          data.html_override.trim().toLowerCase().startsWith('<html')) {
+        // Already a full document, use as-is
+        html = data.html_override
+      } else {
+        // Just body content, wrap in HTML document
+        html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${data.html_override}</body></html>`
+      }
       // Still need to load the template for signature layout
       const templateResult = await this.loadTemplate(templateType, data.property_state, companyTemplateId, adminTemplateId)
       signatureLayout = templateResult.signatureLayout
