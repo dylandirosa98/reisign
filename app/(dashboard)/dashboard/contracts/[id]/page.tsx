@@ -305,18 +305,16 @@ const InlineDocumentEditor = React.forwardRef<InlineDocumentEditorRef, {
     const style = doc.createElement('style')
     style.id = 'block-edit-styles'
     style.textContent = `
-      /* Force font inheritance on all elements to prevent style loss when editing */
-      .editable-block,
-      .editable-block *,
-      .editable-block span,
-      .editable-block div,
-      .editable-block b,
-      .editable-block i,
-      .editable-block font {
-        font-family: inherit !important;
-        font-size: inherit !important;
-        line-height: inherit !important;
-        color: inherit !important;
+      /* Force Times New Roman on ALL elements to prevent font change when editing */
+      body, body *, p, span, div, b, i, strong, em, font,
+      .editable-block, .editable-block * {
+        font-family: 'Times New Roman', Times, serif !important;
+      }
+      /* Preserve font size and line height */
+      .editable-block, .editable-block * {
+        font-size: 11pt !important;
+        line-height: 1.4 !important;
+        color: #000 !important;
       }
       .editable-block {
         cursor: text;
