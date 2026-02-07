@@ -381,8 +381,9 @@ class PDFGeneratorService {
 
   /**
    * Interpolate template variables with actual data
+   * @param skipAiClauses - If true, skip AI clause processing (used for signature page)
    */
-  private interpolateTemplate(template: string, data: ContractData): string {
+  private interpolateTemplate(template: string, data: ContractData, skipAiClauses = false): string {
     // Format number with commas (NO dollar sign - it's in the template)
     const formatNumber = (value: number | undefined) =>
       value ? value.toLocaleString() : ''
@@ -519,28 +520,30 @@ class PDFGeneratorService {
     // (skip conditional tags like {{#if ...}} and {{/if}})
     result = result.replace(/\{\{(?!#|\/)[^}]+\}\}/g, '')
 
-    // Handle conditional AI clauses section
-    const hasAiClauses = data.ai_clauses && (
-      (typeof data.ai_clauses === 'string' && data.ai_clauses.trim()) ||
-      (Array.isArray(data.ai_clauses) && data.ai_clauses.length > 0)
-    )
+    // Handle AI clauses (skip for signature page to avoid duplication)
+    if (!skipAiClauses) {
+      const hasAiClauses = data.ai_clauses && (
+        (typeof data.ai_clauses === 'string' && data.ai_clauses.trim()) ||
+        (Array.isArray(data.ai_clauses) && data.ai_clauses.length > 0)
+      )
 
-    // IMPORTANT: Remove ALL AI clause placeholders from wherever they appear
-    // We'll insert clauses at the correct position below
-    result = result.replace(/\{\{#if ai_clauses\}\}[\s\S]*?\{\{\/if\}\}/g, '')
-    result = result.replace(/\{\{ai_clauses\}\}/g, '')
-    result = result.replace(/<div[^>]*class="ai-clause-zone"[^>]*>[\s\S]*?<\/div>/g, '')
-    // Also remove any ai-clause-zone-container divs (from inline editor)
-    result = result.replace(/<div[^>]*class="ai-clause-zone-container"[^>]*>[\s\S]*?<\/div>\s*<\/div>/g, '')
+      // IMPORTANT: Remove ALL AI clause placeholders from wherever they appear
+      // We'll insert clauses at the correct position below
+      result = result.replace(/\{\{#if ai_clauses\}\}[\s\S]*?\{\{\/if\}\}/g, '')
+      result = result.replace(/\{\{ai_clauses\}\}/g, '')
+      result = result.replace(/<div[^>]*class="ai-clause-zone"[^>]*>[\s\S]*?<\/div>/g, '')
+      // Also remove any ai-clause-zone-container divs (from inline editor)
+      result = result.replace(/<div[^>]*class="ai-clause-zone-container"[^>]*>[\s\S]*?<\/div>\s*<\/div>/g, '')
 
-    // If there are AI clauses, insert them at the correct position (before </body>)
-    if (hasAiClauses) {
-      const aiClausesHtml = this.formatAiClauses(data.ai_clauses, this.detectClausePosition(template))
-      // Insert before </body> tag
-      if (result.includes('</body>')) {
-        result = result.replace('</body>', `${aiClausesHtml}</body>`)
-      } else {
-        result = result + aiClausesHtml
+      // If there are AI clauses, insert them at the correct position (before </body>)
+      if (hasAiClauses) {
+        const aiClausesHtml = this.formatAiClauses(data.ai_clauses, this.detectClausePosition(template))
+        // Insert before </body> tag
+        if (result.includes('</body>')) {
+          result = result.replace('</body>', `${aiClausesHtml}</body>`)
+        } else {
+          result = result + aiClausesHtml
+        }
       }
     }
 
@@ -664,8 +667,8 @@ class PDFGeneratorService {
     // Load the signature page template
     let signatureHtml = await this.loadSignaturePageTemplate(layout)
 
-    // Interpolate the template with data
-    signatureHtml = this.interpolateTemplate(signatureHtml, data)
+    // Interpolate the template with data (skip AI clauses - they go in main content only)
+    signatureHtml = this.interpolateTemplate(signatureHtml, data, true)
 
     return signatureHtml
   }
