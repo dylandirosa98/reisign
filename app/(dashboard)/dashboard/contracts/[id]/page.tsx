@@ -1304,29 +1304,9 @@ const InlineDocumentEditor = React.forwardRef<InlineDocumentEditorRef, {
 
   return (
     <div className="space-y-4">
-      {/* Full Document Edit Toggle */}
-      <div className="flex items-center justify-between bg-[var(--gray-50)] border border-[var(--gray-200)] rounded-lg px-3 py-2">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={toggleFullDocumentEdit}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors ${
-              isFullDocumentEdit
-                ? 'bg-[var(--primary-700)] text-white'
-                : 'bg-white border border-[var(--gray-300)] text-[var(--gray-700)] hover:bg-[var(--gray-100)]'
-            }`}
-          >
-            <FileEdit className="w-4 h-4" />
-            {isFullDocumentEdit ? 'Exit Full Edit' : 'Edit Full Document'}
-          </button>
-          {isFullDocumentEdit && (
-            <span className="text-xs text-[var(--gray-500)]">
-              Click anywhere to edit text. Changes are saved when you exit.
-            </span>
-          )}
-        </div>
-        {/* Reset to Template button - clears html_override */}
-        {existingHtmlOverride && !isFullDocumentEdit && (
+      {/* Reset to Template button - only shown if there's a saved html_override */}
+      {existingHtmlOverride && (
+        <div className="flex items-center justify-end bg-[var(--gray-50)] border border-[var(--gray-200)] rounded-lg px-3 py-2">
           <button
             type="button"
             onClick={() => {
@@ -1341,15 +1321,6 @@ const InlineDocumentEditor = React.forwardRef<InlineDocumentEditorRef, {
             <RotateCcw className="w-4 h-4" />
             Reset to Template
           </button>
-        )}
-      </div>
-
-      {isFullDocumentEdit && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-          <p className="text-sm text-amber-800">
-            You are editing the full document. Changes only apply to this contract.
-          </p>
         </div>
       )}
 
@@ -1390,61 +1361,6 @@ const InlineDocumentEditor = React.forwardRef<InlineDocumentEditorRef, {
         </DialogContent>
       </Dialog>
 
-      {/* Add Content Popover - shown when user clicks "+" button in full edit mode */}
-      {addContentPopover && (
-        <div
-          className="fixed z-50 bg-white shadow-lg border rounded-lg p-3 w-56"
-          style={{ left: addContentPopover.x, top: addContentPopover.y }}
-        >
-          <div className="flex gap-2 mb-2">
-            <button
-              type="button"
-              onClick={() => insertContent('paragraph')}
-              className="flex-1 py-2 border rounded text-sm hover:bg-gray-50"
-            >
-              Paragraph
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowClauseInput(true)}
-              className="flex-1 py-2 border rounded text-sm hover:bg-gray-50"
-            >
-              Clause
-            </button>
-          </div>
-          {showClauseInput && (
-            <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="Clause # (e.g., 12.7)"
-                value={clauseNumber}
-                onChange={(e) => setClauseNumber(e.target.value)}
-                className="w-full px-2 py-1 border rounded text-sm"
-                autoFocus
-              />
-              <button
-                type="button"
-                onClick={() => insertContent('clause', clauseNumber)}
-                disabled={!clauseNumber.trim()}
-                className="w-full py-1.5 bg-[var(--primary-700)] text-white rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Add Clause
-              </button>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              setAddContentPopover(null)
-              setShowClauseInput(false)
-              setClauseNumber('')
-            }}
-            className="absolute top-1 right-1 p-1 text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
     </div>
   )
 })
