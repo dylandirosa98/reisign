@@ -1378,6 +1378,54 @@ const statusConfig: Record<string, { label: string; icon: typeof Clock; color: s
   cancelled: { label: 'Cancelled', icon: XCircle, color: 'var(--error-700)', bgColor: 'var(--error-100)' },
 }
 
+/**
+ * Safari-friendly fetch wrapper
+ * - Adds credentials for cookie handling
+ * - Adds timeout to prevent hanging requests
+ * - Sanitizes JSON body to remove undefined values
+ */
+async function safariFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+
+  try {
+    // Sanitize body - remove undefined values that can cause issues in Safari
+    let body = options.body
+    if (typeof body === 'string') {
+      try {
+        const parsed = JSON.parse(body)
+        // Remove undefined values recursively
+        const sanitize = (obj: Record<string, unknown>): Record<string, unknown> => {
+          const result: Record<string, unknown> = {}
+          for (const [key, value] of Object.entries(obj)) {
+            if (value !== undefined) {
+              if (value && typeof value === 'object' && !Array.isArray(value)) {
+                result[key] = sanitize(value as Record<string, unknown>)
+              } else {
+                result[key] = value
+              }
+            }
+          }
+          return result
+        }
+        body = JSON.stringify(sanitize(parsed))
+      } catch {
+        // Not valid JSON, use as-is
+      }
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      body,
+      credentials: 'same-origin', // Important for Safari cookie handling
+      signal: controller.signal,
+    })
+    return response
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 export default function ContractDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
@@ -1485,7 +1533,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
   const fetchContract = async () => {
     try {
-      const res = await fetch(`/api/contracts/${id}`)
+      const res = await fetch(`/api/contracts/${id}`, { credentials: 'same-origin' })
       if (!res.ok) {
         throw new Error('Contract not found')
       }
@@ -1522,7 +1570,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
   const fetchUsageInfo = async () => {
     try {
-      const res = await fetch('/api/settings')
+      const res = await fetch('/api/settings', { credentials: 'same-origin' })
       if (res.ok) {
         const data = await res.json()
         const contractsUsed = data.company?.contracts_used_this_period || 0
@@ -1550,7 +1598,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     if (!contract?.documenso_document_id) return
     setStatusLoading(true)
     try {
-      const res = await fetch(`/api/contracts/${id}/status`)
+      const res = await fetch(`/api/contracts/${id}/status`, { credentials: 'same-origin' })
       if (res.ok) {
         const data = await res.json()
         setRecipientStatuses(data.recipients || [])
@@ -1569,6 +1617,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/contracts/${id}/resend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({}),
       })
       const data = await res.json()
@@ -1741,6 +1790,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/contracts/${id}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           type,
           sendTo, // For three-party: 'seller' or 'buyer'
@@ -1779,7 +1829,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
     setDeleting(true)
     try {
-      const res = await fetch(`/api/contracts/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/contracts/${id}`, { method: 'DELETE', credentials: 'same-origin' })
 
       if (!res.ok) {
         const data = await res.json()
@@ -1818,6 +1868,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/contracts/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           buyer_email: sendToAssigneeEmail,
         }),
@@ -1846,6 +1897,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/contracts/${id}/notify-manager`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
       })
 
       const data = await res.json()
@@ -1871,6 +1923,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/contracts/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           custom_fields: {
             ...contract.custom_fields,
@@ -2076,6 +2129,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/contracts/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           seller_name: formData.seller_name,
           seller_email: formData.seller_email,
@@ -2252,6 +2306,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/contracts/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify(body),
       })
 
@@ -2297,6 +2352,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/contracts/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify(payload),
       })
 

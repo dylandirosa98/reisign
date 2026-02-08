@@ -198,8 +198,8 @@ export default function NewContractPage() {
     const fetchTemplates = async () => {
       try {
         const [companyRes, adminRes] = await Promise.all([
-          fetch('/api/company-templates'),
-          fetch('/api/admin-templates/available'),
+          fetch('/api/company-templates', { credentials: 'same-origin' }),
+          fetch('/api/admin-templates/available', { credentials: 'same-origin' }),
         ])
         const companyData = await companyRes.json()
         const adminData = await adminRes.json()
@@ -308,6 +308,7 @@ export default function NewContractPage() {
       const response = await fetch('/api/contracts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           templateId: templateSource === 'company' ? selectedTemplate?.id : undefined,
           adminTemplateId: templateSource === 'admin' ? selectedAdminTemplate?.id : undefined,

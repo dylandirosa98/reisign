@@ -101,7 +101,7 @@ export default function TeamPage() {
   async function fetchPendingInvites() {
     setLoadingInvites(true)
     try {
-      const response = await fetch('/api/team/invite')
+      const response = await fetch('/api/team/invite', { credentials: 'same-origin' })
       if (response.ok) {
         const data = await response.json()
         setPendingInvites(data.invites || [])
@@ -116,7 +116,7 @@ export default function TeamPage() {
   async function fetchTeam() {
     try {
       setLoading(true)
-      const response = await fetch('/api/team')
+      const response = await fetch('/api/team', { credentials: 'same-origin' })
       if (!response.ok) {
         throw new Error('Failed to fetch team')
       }
@@ -132,7 +132,7 @@ export default function TeamPage() {
 
   async function fetchPlanInfo() {
     try {
-      const response = await fetch('/api/settings')
+      const response = await fetch('/api/settings', { credentials: 'same-origin' })
       if (response.ok) {
         const data = await response.json()
         // Get plan limits from the company's actual plan
@@ -164,6 +164,7 @@ export default function TeamPage() {
       const response = await fetch('/api/team/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           email: addForm.email,
           role: addForm.role,
@@ -210,6 +211,7 @@ export default function TeamPage() {
       const response = await fetch(`/api/team/${memberId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           full_name: editForm.full_name || null,
           role: editForm.role,
@@ -241,6 +243,7 @@ export default function TeamPage() {
     try {
       const response = await fetch(`/api/team/${deletingMember.id}`, {
         method: 'DELETE',
+        credentials: 'same-origin',
       })
 
       if (!response.ok) {
@@ -267,6 +270,7 @@ export default function TeamPage() {
     try {
       const response = await fetch(`/api/team/invite?id=${deletingInvite.id}`, {
         method: 'DELETE',
+        credentials: 'same-origin',
       })
 
       if (!response.ok) {

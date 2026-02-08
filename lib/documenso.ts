@@ -170,6 +170,7 @@ class DocumensoClient {
       headers: {
         'Authorization': this.apiKey,
       },
+      credentials: 'same-origin',
       body: formData,
     })
 
@@ -465,6 +466,7 @@ class DocumensoClient {
       headers: {
         'Authorization': this.apiKey,
       },
+      credentials: 'same-origin',
       body: formData,
     })
 

@@ -74,6 +74,7 @@ export function InlineAIClauseZone({
       const res = await fetch('/api/ai/generate-clauses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           situation,
           contractDetails,
