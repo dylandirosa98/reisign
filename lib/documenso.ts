@@ -489,9 +489,30 @@ class DocumensoClient {
     documentId: number,
     recipient: DocumentRecipient
   ): Promise<AddRecipientResponse> {
+    // Sanitize email to remove invisible Unicode characters that can cause Documenso to reject
+    const sanitizedEmail = recipient.email
+      .trim()
+      .toLowerCase()
+      .normalize('NFKC')
+      .replace(/[^\x20-\x7E]/g, '') // Remove all non-printable ASCII characters
+
+    // Sanitize name similarly
+    const sanitizedName = recipient.name
+      .trim()
+      .normalize('NFKC')
+      .replace(/[^\x20-\x7E]/g, '')
+
+    // Log diagnostic info to detect invisible characters
+    console.log(`[Documenso] addRecipient: original email="${recipient.email}" (${recipient.email.length} chars)`)
+    console.log(`[Documenso] addRecipient: sanitized email="${sanitizedEmail}" (${sanitizedEmail.length} chars)`)
+    if (recipient.email.length !== sanitizedEmail.length) {
+      console.log(`[Documenso] WARNING: Email had ${recipient.email.length - sanitizedEmail.length} invisible characters removed!`)
+      console.log(`[Documenso] Original email bytes:`, Array.from(recipient.email).map(c => c.charCodeAt(0)))
+    }
+
     const payload: Record<string, unknown> = {
-      email: recipient.email,
-      name: recipient.name,
+      email: sanitizedEmail,
+      name: sanitizedName,
       role: recipient.role || 'SIGNER',
       signingOrder: recipient.signingOrder,
     }
