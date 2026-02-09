@@ -265,9 +265,9 @@ export async function DELETE(
     return NextResponse.json({ error: 'Contract not found' }, { status: 404 })
   }
 
-  if (contract.status !== 'draft') {
+  if (contract.status !== 'draft' && contract.status !== 'ready') {
     return NextResponse.json({
-      error: 'Only draft contracts can be deleted',
+      error: 'Only draft or ready contracts can be deleted',
     }, { status: 400 })
   }
 
