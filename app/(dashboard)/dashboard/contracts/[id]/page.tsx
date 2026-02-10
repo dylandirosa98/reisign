@@ -1439,6 +1439,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  const sendingRef = useRef(false) // Guard against duplicate send requests
   const [deleting, setDeleting] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -1783,6 +1784,12 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   }
 
   const handleSend = async (type: 'purchase' | 'assignment' = 'purchase', sendTo?: 'seller' | 'buyer') => {
+    // Guard against duplicate requests (prevents double-click race condition)
+    if (sendingRef.current) {
+      console.log('[Send Contract] Duplicate request blocked')
+      return
+    }
+    sendingRef.current = true
     setSending(true)
     setError(null)
 
@@ -1820,6 +1827,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send contract')
     } finally {
+      sendingRef.current = false
       setSending(false)
     }
   }
