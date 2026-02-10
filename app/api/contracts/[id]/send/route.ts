@@ -17,6 +17,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+
   const supabase = await createClient()
   const adminSupabase = createAdminClient()
 
@@ -82,6 +83,31 @@ export async function POST(
   if (contractError || !contract) {
     return NextResponse.json({ error: 'Contract not found' }, { status: 404 })
   }
+
+  // Attempt to acquire send lock atomically using database-level coordination
+  // Only succeeds if sending_at is NULL or stale (>5 minutes = timeout safety)
+  // This prevents duplicate sends across serverless function instances
+  const LOCK_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+  const lockCutoff = new Date(Date.now() - LOCK_TIMEOUT_MS).toISOString()
+
+  const { data: lockAcquired, error: lockError } = await adminSupabase
+    .from('contracts')
+    .update({ sending_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('company_id', userData.company_id)
+    .or(`sending_at.is.null,sending_at.lt.${lockCutoff}`)
+    .select('id')
+    .single()
+
+  if (lockError || !lockAcquired) {
+    console.log(`[Send Contract] Lock not acquired for ${id} - another send in progress`)
+    return NextResponse.json(
+      { error: 'This contract is currently being sent. Please wait a moment.' },
+      { status: 409 }
+    )
+  }
+
+  console.log(`[Send Contract] Lock acquired for contract ${id}`)
 
   // Get the body to determine which contract type to send and AI clauses
   const body = await request.json().catch(() => ({}))
@@ -656,5 +682,12 @@ export async function POST(
       { error: error instanceof Error ? error.message : 'Failed to send contract' },
       { status: 500 }
     )
+  } finally {
+    // Always release the send lock
+    await adminSupabase
+      .from('contracts')
+      .update({ sending_at: null })
+      .eq('id', id)
+    console.log(`[Send Contract] Lock released for contract ${id}`)
   }
 }

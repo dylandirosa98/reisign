@@ -130,6 +130,7 @@ export type Database = {
           property_id: string | null
           seller_email: string
           seller_name: string
+          sending_at: string | null
           sent_at: string | null
           signed_pdf_url: string | null
           status: string | null
@@ -152,6 +153,7 @@ export type Database = {
           property_id?: string | null
           seller_email: string
           seller_name: string
+          sending_at?: string | null
           sent_at?: string | null
           signed_pdf_url?: string | null
           status?: string | null
@@ -174,6 +176,7 @@ export type Database = {
           property_id?: string | null
           seller_email?: string
           seller_name?: string
+          sending_at?: string | null
           sent_at?: string | null
           signed_pdf_url?: string | null
           status?: string | null
