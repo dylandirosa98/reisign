@@ -667,6 +667,7 @@ class DocumensoClient {
         signingOrder: hasSigningOrder ? 'SEQUENTIAL' : 'PARALLEL',
         subject: options.meta?.subject,
         message: options.meta?.message,
+        sendCompletionEmail: false, // Disable Documenso completion emails - we send our own
       },
     })
 
