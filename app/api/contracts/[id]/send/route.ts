@@ -87,20 +87,14 @@ export async function POST(
   // Attempt to acquire send lock atomically using database-level coordination
   // Only succeeds if sending_at is NULL or stale (>5 minutes = timeout safety)
   // This prevents duplicate sends across serverless function instances
-  const LOCK_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
-  const lockCutoff = new Date(Date.now() - LOCK_TIMEOUT_MS).toISOString()
-
-  const { data: lockAcquired, error: lockError } = await adminSupabase
-    .from('contracts')
-    .update({ sending_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('company_id', userData.company_id)
-    .or(`sending_at.is.null,sending_at.lt.${lockCutoff}`)
-    .select('id')
-    .single()
+  const { data: lockAcquired, error: lockError } = await (adminSupabase.rpc as any)('acquire_send_lock', {
+    contract_id: id,
+    company_id_param: userData.company_id,
+    lock_timeout_minutes: 5
+  })
 
   if (lockError || !lockAcquired) {
-    console.log(`[Send Contract] Lock not acquired for ${id} - another send in progress`)
+    console.log(`[Send Contract] Lock not acquired for ${id} - another send in progress`, lockError)
     return NextResponse.json(
       { error: 'This contract is currently being sent. Please wait a moment.' },
       { status: 409 }
@@ -109,6 +103,8 @@ export async function POST(
 
   console.log(`[Send Contract] Lock acquired for contract ${id}`)
 
+  // Wrap everything in try/finally to ensure lock is always released
+  try {
   // Get the body to determine which contract type to send and AI clauses
   const body = await request.json().catch(() => ({}))
   const sendType = body.type || 'purchase' // 'purchase' or 'assignment'
@@ -257,7 +253,6 @@ export async function POST(
     console.log(`[Send Contract] Contract ${id} being sent without wholesaler signature - signature will be added by manager later`)
   }
 
-  try {
     // Determine template type
     const templateType: TemplateType = sendType === 'purchase'
       ? 'purchase-agreement'
