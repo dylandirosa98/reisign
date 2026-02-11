@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { constructWebhookEvent, isStripeConfigured, getSubscription } from '@/lib/stripe'
 import { PLANS, type PlanTier } from '@/lib/plans'
 import { sendAdminNotification } from '@/lib/services/email'
+import { loops, isLoopsConfigured } from '@/lib/loops'
 import Stripe from 'stripe'
 
 export async function POST(request: NextRequest) {
@@ -96,6 +97,16 @@ export async function POST(request: NextRequest) {
                 'Date': new Date().toLocaleDateString('en-US', { timeZone: 'America/Chicago' }),
               },
             }).catch(() => {}) // Fire and forget
+
+            // Update plan in Loops
+            if (isLoopsConfigured()) {
+              const customerEmail = (session.customer_details as any)?.email
+              if (customerEmail) {
+                loops.updateContact(customerEmail, { plan: planId }).catch((err) => {
+                  console.error('[Stripe Webhook] Failed to update Loops contact:', err)
+                })
+              }
+            }
           }
         }
         break
@@ -193,6 +204,26 @@ export async function POST(request: NextRequest) {
               'Date': new Date().toLocaleDateString('en-US', { timeZone: 'America/Chicago' }),
             },
           }).catch(() => {}) // Fire and forget
+
+          // Update plan to free in Loops
+          if (isLoopsConfigured()) {
+            // Get the manager's email for this company
+            const { data: managers } = await adminSupabase
+              .from('users')
+              .select('email')
+              .eq('company_id', company.id)
+              .eq('role', 'manager')
+
+            if (managers) {
+              for (const manager of managers) {
+                if (manager.email) {
+                  loops.updateContact(manager.email, { plan: 'free' }).catch((err) => {
+                    console.error('[Stripe Webhook] Failed to update Loops contact:', err)
+                  })
+                }
+              }
+            }
+          }
         }
         break
       }
