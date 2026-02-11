@@ -29,6 +29,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {/* Endorsely Affiliate Tracking */}
+        <script
+          async
+          src="https://assets.endorsely.com/endorsely.js"
+          data-endorsely="8656da11-5b4e-4c26-99e2-65f7b0179efb"
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
