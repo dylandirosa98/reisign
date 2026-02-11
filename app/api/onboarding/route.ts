@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendAdminNotification } from '@/lib/services/email'
+import { loops, isLoopsConfigured } from '@/lib/loops'
 
 export async function POST(request: Request) {
   try {
@@ -76,6 +77,30 @@ export async function POST(request: Request) {
         'Date': new Date().toLocaleDateString('en-US', { timeZone: 'America/Chicago' }),
       },
     }).catch(() => {}) // Fire and forget
+
+    // Add user to Loops mailing list
+    if (isLoopsConfigured() && user.email) {
+      // Parse name from user metadata if available
+      const userMeta = user.user_metadata || {}
+      const fullName = userMeta.full_name || userMeta.name || ''
+      const nameParts = fullName.split(' ')
+      const firstName = nameParts[0] || ''
+      const lastName = nameParts.slice(1).join(' ') || ''
+
+      loops.createOrUpdateContact({
+        email: user.email,
+        firstName,
+        lastName,
+        companyName: companyName.trim(),
+        plan: 'free',
+        signupDate: new Date().toISOString(),
+        userId: user.id,
+        companyId: company.id,
+        source: 'app_signup',
+      }).catch((err) => {
+        console.error('[Onboarding] Failed to add user to Loops:', err)
+      }) // Fire and forget
+    }
 
     return NextResponse.json({ success: true, companyId: company.id })
   } catch (error) {
