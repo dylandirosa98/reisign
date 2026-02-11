@@ -168,10 +168,13 @@ export default function BillingPage() {
     if (!company?.stripe_customer_id) {
       // No Stripe customer - create checkout session
       try {
+        // Get Endorsely referral ID for affiliate tracking
+        const endorselyReferral = (window as any).endorsely_referral || null
+
         const response = await fetch('/api/stripe/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ planId }),
+          body: JSON.stringify({ planId, endorselyReferral }),
         })
         const data = await response.json()
         if (data.url) {

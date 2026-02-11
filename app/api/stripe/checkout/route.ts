@@ -25,9 +25,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { planId, billingInterval = 'monthly' } = body as {
+    const { planId, billingInterval = 'monthly', endorselyReferral } = body as {
       planId: PlanTier
       billingInterval?: 'monthly' | 'yearly'
+      endorselyReferral?: string | null
     }
 
     if (!planId || !['free', 'individual', 'team', 'business'].includes(planId)) {
@@ -69,7 +70,8 @@ export async function POST(request: NextRequest) {
       planId,
       billingInterval,
       successUrl,
-      cancelUrl
+      cancelUrl,
+      endorselyReferral || undefined
     )
 
     if (!session) {

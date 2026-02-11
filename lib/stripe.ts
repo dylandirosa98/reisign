@@ -78,7 +78,8 @@ export async function createCheckoutSession(
   planId: PlanTier,
   billingInterval: 'monthly' | 'yearly' = 'monthly',
   successUrl: string,
-  cancelUrl: string
+  cancelUrl: string,
+  endorselyReferral?: string
 ): Promise<Stripe.Checkout.Session | null> {
   const stripe = getStripe()
   if (!stripe) return null
@@ -87,6 +88,15 @@ export async function createCheckoutSession(
   if (!priceId) {
     console.error(`No Stripe price ID configured for ${planId} ${billingInterval}`)
     return null
+  }
+
+  // Build metadata, including Endorsely referral if present
+  const metadata: Record<string, string> = {
+    companyId,
+    planId,
+  }
+  if (endorselyReferral) {
+    metadata.endorsely_referral = endorselyReferral
   }
 
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
@@ -103,15 +113,9 @@ export async function createCheckoutSession(
     automatic_tax: {
       enabled: true,
     },
-    metadata: {
-      companyId,
-      planId,
-    },
+    metadata,
     subscription_data: {
-      metadata: {
-        companyId,
-        planId,
-      },
+      metadata,
     },
   }
 
