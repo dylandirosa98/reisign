@@ -194,6 +194,25 @@ function SignupForm() {
       return
     }
 
+    // Check if email already exists
+    try {
+      const checkResponse = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const { exists } = await checkResponse.json()
+
+      if (exists) {
+        setError('An account with this email already exists. Please sign in instead.')
+        setLoading(false)
+        return
+      }
+    } catch (err) {
+      console.error('Error checking email:', err)
+      // Continue with signup if check fails
+    }
+
     // Regular signup (non-invite)
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -207,23 +226,15 @@ function SignupForm() {
       },
     })
 
-    // Debug logging
-    console.log('[Signup] Response:', { data, error })
-    console.log('[Signup] User created:', data?.user?.id)
-    console.log('[Signup] User email:', data?.user?.email)
-    console.log('[Signup] Email confirmed:', data?.user?.email_confirmed_at)
-
     if (error) {
-      console.error('[Signup] Error:', error)
       setError(error.message)
       setLoading(false)
       return
     }
 
-    // Check if user was actually created
-    if (!data?.user) {
-      console.error('[Signup] No user returned despite no error')
-      setError('Failed to create account. Please try again.')
+    // Check if user was actually created (Supabase returns null user for existing emails)
+    if (!data?.user?.identities?.length) {
+      setError('An account with this email already exists. Please sign in instead.')
       setLoading(false)
       return
     }
