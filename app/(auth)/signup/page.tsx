@@ -195,7 +195,7 @@ function SignupForm() {
     }
 
     // Regular signup (non-invite)
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -207,8 +207,23 @@ function SignupForm() {
       },
     })
 
+    // Debug logging
+    console.log('[Signup] Response:', { data, error })
+    console.log('[Signup] User created:', data?.user?.id)
+    console.log('[Signup] User email:', data?.user?.email)
+    console.log('[Signup] Email confirmed:', data?.user?.email_confirmed_at)
+
     if (error) {
+      console.error('[Signup] Error:', error)
       setError(error.message)
+      setLoading(false)
+      return
+    }
+
+    // Check if user was actually created
+    if (!data?.user) {
+      console.error('[Signup] No user returned despite no error')
+      setError('Failed to create account. Please try again.')
       setLoading(false)
       return
     }
