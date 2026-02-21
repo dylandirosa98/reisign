@@ -164,42 +164,47 @@ export default function BillingPage() {
   }
 
   async function handleUpgrade(planId: PlanTier) {
-    // This will redirect to Stripe checkout when configured
-    if (!company?.stripe_customer_id) {
-      // No Stripe customer - create checkout session
-      try {
-        // Get Endorsely referral ID for affiliate tracking
-        const endorselyReferral = (window as any).endorsely_referral || null
+    try {
+      // Get Endorsely referral ID for affiliate tracking
+      const endorselyReferral = (window as any).endorsely_referral || null
 
-        const response = await fetch('/api/stripe/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ planId, endorselyReferral }),
-        })
-        const data = await response.json()
-        if (data.url) {
-          window.location.href = data.url
-        } else {
-          alert('Stripe is not configured yet. Please contact support to upgrade.')
-        }
-      } catch {
+      const response = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId, endorselyReferral }),
+      })
+      const data = await response.json()
+
+      if (data.upgraded) {
+        // Subscription was upgraded in-place, refresh the page
+        alert('Successfully upgraded! Your new plan is now active.')
+        window.location.reload()
+      } else if (data.url) {
+        // New subscription - redirect to checkout
+        window.location.href = data.url
+      } else if (data.error) {
+        alert(data.error)
+      } else {
         alert('Stripe is not configured yet. Please contact support to upgrade.')
       }
-    } else {
-      // Has Stripe customer - redirect to customer portal
-      try {
-        const response = await fetch('/api/stripe/portal', {
-          method: 'POST',
-        })
-        const data = await response.json()
-        if (data.url) {
-          window.location.href = data.url
-        } else {
-          alert('Stripe is not configured yet. Please contact support to upgrade.')
-        }
-      } catch {
-        alert('Stripe is not configured yet. Please contact support to upgrade.')
+    } catch {
+      alert('Failed to process upgrade. Please try again or contact support.')
+    }
+  }
+
+  async function handleManageSubscription() {
+    try {
+      const response = await fetch('/api/stripe/portal', {
+        method: 'POST',
+      })
+      const data = await response.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        alert('Unable to open billing portal. Please try again.')
       }
+    } catch {
+      alert('Failed to open billing portal. Please try again.')
     }
   }
 
@@ -391,7 +396,7 @@ export default function BillingPage() {
           </div>
           {company.stripe_customer_id && (
             <button
-              onClick={() => handleUpgrade(company.billing_plan)}
+              onClick={handleManageSubscription}
               className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
             >
               Manage Subscription
@@ -695,7 +700,7 @@ export default function BillingPage() {
               Manage your payment method through the Stripe customer portal.
             </p>
             <button
-              onClick={() => handleUpgrade(company.billing_plan)}
+              onClick={handleManageSubscription}
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
             >
               Manage Payment
